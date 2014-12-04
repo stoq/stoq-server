@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+
+import os
+import sys
+
+import pkg_resources
+
+from stoqserver.server import main
+from stoqserver.common import SERVER_EGGS
+
+
+for egg in SERVER_EGGS:
+    egg_filename = pkg_resources.resource_filename('stoqserver',
+                                                   'data/eggs/%s' % (egg, ))
+    assert os.path.exists(egg_filename)
+    sys.path.insert(0, egg_filename)
+
+try:
+    sys.exit(main(sys.argv))
+except KeyboardInterrupt:
+    raise SystemExit
