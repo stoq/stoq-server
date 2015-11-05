@@ -18,6 +18,7 @@ from stoqlib.domain.person import LoginUser
 from stoqlib.exceptions import LoginError
 from stoqlib.lib.fileutils import md5sum_for_filename
 from stoqlib.lib.configparser import StoqConfig
+from stoqlib.lib.daemonutils import DaemonManager
 from twisted.cred import portal, checkers, credentials, error as cred_error
 from twisted.internet import reactor, defer
 from twisted.web import static, server, resource
@@ -159,6 +160,10 @@ def main(args):
     stoq_server = _StoqServer()
     reactor.callWhenRunning(stoq_server.start)
     reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)
+
+    port = config.get('General', 'serverport')
+    dm = DaemonManager(port=port and int(port))
+    dm.start()
 
     try:
         reactor.run()
