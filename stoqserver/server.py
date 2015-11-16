@@ -117,10 +117,12 @@ class _StoqServer(object):
 
         # md5sum
         with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.writelines(
-                '%s:%s\n' % (
-                    egg, md5sum_for_filename(os.path.join(eggs_path, egg)))
-                for egg in SERVER_EGGS)
+            for egg in SERVER_EGGS:
+                egg_path = os.path.join(eggs_path, egg)
+                if not os.path.exists(eggs_path):
+                    continue
+
+                f.write('%s:%s\n' % (egg, md5sum_for_filename(egg_path)))
 
         root.putChild('md5sum', static.File(f.name))
 
@@ -163,7 +165,8 @@ def main(args):
 
     port = config.get('General', 'serverport')
     dm = DaemonManager(port=port and int(port))
-    dm.start()
+    reactor.callWhenRunning(dm.start)
+    reactor.addSystemEventTrigger('before', 'shutdown', dm.stop)
 
     try:
         reactor.run()
