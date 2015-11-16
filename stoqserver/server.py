@@ -29,8 +29,8 @@ from twisted.web.resource import IResource
 from zope.interface import implements
 
 from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
-                               SERVER_NAME, SERVER_PORT, SERVER_EGGS,
-                               APP_CONF_FILE)
+                               SERVER_NAME, SERVER_AVAHI_PORT,
+                               SERVER_DAEMON_PORT, SERVER_EGGS, APP_CONF_FILE)
 
 _ = lambda s: s
 
@@ -129,7 +129,7 @@ class _StoqServer(object):
         site = server.Site(root)
         site.protocol = HTTPChannel
 
-        reactor.listenTCP(SERVER_PORT, site)
+        reactor.listenTCP(SERVER_AVAHI_PORT, site)
 
     def _setup_avahi(self):
         bus = dbus.SystemBus()
@@ -142,7 +142,8 @@ class _StoqServer(object):
             avahi.DBUS_INTERFACE_ENTRY_GROUP)
         self.group.AddService(
             avahi.IF_UNSPEC, avahi.PROTO_UNSPEC, dbus.UInt32(0), SERVER_NAME,
-            AVAHI_STYPE, AVAHI_DOMAIN, AVAHI_HOST, dbus.UInt16(SERVER_PORT),
+            AVAHI_STYPE, AVAHI_DOMAIN, AVAHI_HOST,
+            dbus.UInt16(SERVER_AVAHI_PORT),
             avahi.string_array_to_txt_array(['foo=bar']))
 
         self.group.Commit()
@@ -163,7 +164,7 @@ def main(args):
     reactor.callWhenRunning(stoq_server.start)
     reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)
 
-    port = config.get('General', 'serverport')
+    port = config.get('General', 'serverport') or SERVER_DAEMON_PORT
     dm = DaemonManager(port=port and int(port))
     reactor.callWhenRunning(dm.start)
     reactor.addSystemEventTrigger('before', 'shutdown', dm.stop)

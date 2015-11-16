@@ -20,11 +20,10 @@ APP_EGGS_DIR = os.path.join(APP_DIR, 'eggs')
 APP_CONF_FILE = os.path.join(APP_DIR, 'stoq.conf')
 
 SERVER_NAME = _('Stoq Server')
-# FIXME: What will be the definitive port? Maybe allow to specify it on
-# the configuration ini file?
-SERVER_PORT = 6969
 SERVER_EGGS = ['kiwi.egg', 'stoqdrivers.egg', 'stoq.egg']
 SERVER_EXECUTABLE_EGG = 'stoq.egg'
+SERVER_AVAHI_PORT = 6970
+SERVER_DAEMON_PORT = 6971
 
 #
 #  Avahi
