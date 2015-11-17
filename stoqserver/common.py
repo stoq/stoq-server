@@ -18,6 +18,7 @@ _ = lambda s: s
 APP_DIR = os.path.join(os.environ['HOME'], '.stoq')
 APP_EGGS_DIR = os.path.join(APP_DIR, 'eggs')
 APP_CONF_FILE = os.path.join(APP_DIR, 'stoq.conf')
+APP_BACKUP_DIR = os.path.join(APP_DIR, 'backup')
 
 SERVER_NAME = _('Stoq Server')
 SERVER_EGGS = ['kiwi.egg', 'stoqdrivers.egg', 'stoq.egg']

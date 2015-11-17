@@ -5,7 +5,7 @@ import sys
 
 import pkg_resources
 
-from stoqserver.server import main
+from stoqserver.main import main
 from stoqserver.common import SERVER_EGGS
 
 
@@ -16,6 +16,6 @@ for egg in SERVER_EGGS:
         sys.path.insert(0, egg_filename)
 
 try:
-    sys.exit(main(sys.argv))
+    sys.exit(main(sys.argv[1:]))
 except KeyboardInterrupt:
     raise SystemExit

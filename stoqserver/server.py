@@ -12,13 +12,10 @@ import pkg_resources
 import tempfile
 
 import avahi
-from stoq.lib.startup import setup
 from stoqlib.api import api
 from stoqlib.domain.person import LoginUser
 from stoqlib.exceptions import LoginError
 from stoqlib.lib.fileutils import md5sum_for_filename
-from stoqlib.lib.configparser import StoqConfig
-from stoqlib.lib.daemonutils import DaemonManager
 from twisted.cred import portal, checkers, credentials, error as cred_error
 from twisted.internet import reactor, defer
 from twisted.web import static, server, resource
@@ -30,7 +27,7 @@ from zope.interface import implements
 
 from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
                                SERVER_NAME, SERVER_AVAHI_PORT,
-                               SERVER_DAEMON_PORT, SERVER_EGGS, APP_CONF_FILE)
+                               SERVER_EGGS, APP_CONF_FILE)
 
 _ = lambda s: s
 
@@ -76,7 +73,7 @@ class _HttpPasswordRealm(object):
         raise NotImplementedError()
 
 
-class _StoqServer(object):
+class StoqServer(object):
 
     #
     #  Public API
@@ -147,29 +144,3 @@ class _StoqServer(object):
             avahi.string_array_to_txt_array(['foo=bar']))
 
         self.group.Commit()
-
-
-def main(args):
-    config = StoqConfig()
-    config.load(APP_CONF_FILE)
-    # FIXME: This is called only when register_station=True. Without
-    # this, db_settings would not be updated. We should fix it on Stoq
-    config.get_settings()
-
-    # FIXME: Maybe we should check_schema and load plugins here?
-    setup(config=config, options=None, register_station=False,
-          check_schema=False, load_plugins=False)
-
-    stoq_server = _StoqServer()
-    reactor.callWhenRunning(stoq_server.start)
-    reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)
-
-    port = config.get('General', 'serverport') or SERVER_DAEMON_PORT
-    dm = DaemonManager(port=port and int(port))
-    reactor.callWhenRunning(dm.start)
-    reactor.addSystemEventTrigger('before', 'shutdown', dm.stop)
-
-    try:
-        reactor.run()
-    except KeyboardInterrupt:
-        reactor.stop()
