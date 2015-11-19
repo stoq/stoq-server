@@ -6,6 +6,7 @@
 ## All rights reserved
 ##
 
+import logging
 import os
 import shutil
 import subprocess
@@ -14,6 +15,9 @@ import tempfile
 from stoqlib.lib.configparser import get_config
 
 from stoqserver.common import APP_BACKUP_DIR
+from stoqserver.lib import backup
+
+logger = logging.getLogger(__name__)
 
 
 def _get_pg_args(config):
@@ -29,7 +33,7 @@ def _get_pg_args(config):
     return args
 
 
-def backup_database():
+def backup_database(full=False):
     config = get_config()
 
     if not os.path.exists(APP_BACKUP_DIR):
@@ -37,24 +41,17 @@ def backup_database():
 
     filename = os.path.join(APP_BACKUP_DIR, 'stoq.dump')
     subprocess.check_call(
-        ['pg_dump', '-Fc', '-f', filename] +
+        ['pg_dump', '-Fp', '-f', filename] +
         _get_pg_args(config) +
         [config.get('Database', 'dbname')])
 
-    env = os.environ
-    # FIXME: The user must define the passphrase
-    env.setdefault('PASSPHRASE', 'foobarbaz')
+    backup.backup(APP_BACKUP_DIR, full=full)
 
-    # FIXME: Change the destination to a s3 bucket
-    subprocess.check_call(
-        ['duplicity', APP_BACKUP_DIR, 'file:///tmp/stoq_backup'], env=env)
+    logging.info("Database backup finished sucessfully")
 
 
-def restore_database():
-    env = os.environ
-    # FIXME: The user must define the passphrase
-    env.setdefault('PASSPHRASE', 'foobarbaz')
-
+def restore_database(user_hash, time=None):
+    assert user_hash
     tmp_path = tempfile.mkdtemp()
     try:
         restore_path = os.path.join(tmp_path, 'stoq')
@@ -62,10 +59,7 @@ def restore_database():
         config = get_config()
         dbname = config.get('Database', 'dbname')
 
-        # FIXME: Change the destination to a s3 bucket
-        subprocess.check_call(
-            ['duplicity', 'restore',
-             'file:///tmp/stoq_backup', restore_path], env=env)
+        backup.restore(restore_path, user_hash, time=time)
 
         # Drop the database
         subprocess.check_call(
@@ -77,8 +71,14 @@ def restore_database():
 
         # Restore the backup
         subprocess.check_call(
-            ['pg_restore', '-Fc', '-d', dbname] +
+            ['psql', '-d', dbname] +
             _get_pg_args(config) +
-            [os.path.join(restore_path, 'stoq.dump')])
+            ['-f', os.path.join(restore_path, 'stoq.dump')])
+
+        logging.info("Backup restore finished sucessfully")
     finally:
         shutil.rmtree(tmp_path, ignore_errors=True)
+
+
+def backup_status(user_hash=None):
+    backup.status(user_hash=user_hash)
