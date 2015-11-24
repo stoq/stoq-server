@@ -1,0 +1,9 @@
+#!/usr/bin/make -f
+
+# For reference, see:
+#   https://wiki.debian.org/Python/Packaging
+#   https://wiki.debian.org/Python/LibraryStyleGuide
+
+%:
+	dh $@ --with python2 --buildsystem=python_distutils
+

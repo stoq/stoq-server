@@ -1,0 +1,10 @@
+recursive-include *.py
+include data/stoq.conf
+include data/supervisor/stoqserver.conf
+include MANIFEST.in
+include Makefile
+include debian/changelog debian/compat debian/control
+include debian/copyright debian/pydist-overrides debian/rules
+include debian/stoq-server.dirs debian/stoq-server.postinst
+include debian/stoq-server.prerm debian/stoq-server.postrm
+include requirements.txt

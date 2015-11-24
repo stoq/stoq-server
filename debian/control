@@ -1,0 +1,19 @@
+Source: stoq-server
+Section: python
+Priority: optional
+Maintainer: Stoq Team <stoq-devel@async.com.br>
+Build-Depends: debhelper (>= 8.0.0), python-all (>= 2.6), python-setuptools
+Homepage: http://www.stoq.com.br/
+Vcs-Git: https://github.com/stoq/stoq-server.git
+Vcs-Browser: https://github.com/stoq/stoq-server/
+Standards-Version: 3.9.3
+X-Python-Version: >= 2.7
+
+Package: stoq-server
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends},
+ stoq (>= 1.10), supervisor, duplicity,
+ python-twisted (>= 10.0.0), python-requests (>= 2.2)
+Recommends: postgresql, postgresql-contrib
+Homepage: http://www.stoq.com.br/
+Description: A server for Stoq.

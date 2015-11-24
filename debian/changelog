@@ -1,0 +1,5 @@
+stoq-server (0.1) trusty; urgency=medium
+
+  * Initial release.
+
+ -- Thiago Bellini Ribeiro <hackedbellini@async.com.br>  Tue, 24 Nov 2015 14:41:29 -0200
