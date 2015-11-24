@@ -159,7 +159,11 @@ def restore(restore_dir, user_hash, time=None):
     with _mock_environ():
         config = get_config()
 
-        os.environ.setdefault('PASSPHRASE', config.get('Backup', 'key'))
+        backup_key = config.get('Backup', 'key')
+        if not backup_key:
+            raise ValueError("No backup key set on configuration file")
+        os.environ.setdefault('PASSPHRASE', backup_key)
+
         # Close the main store so the database can be dropped after this
         api.get_default_store().rollback(close=True)
         sys.argv.extend([_duplicity_bin, 'restore',
