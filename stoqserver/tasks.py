@@ -22,15 +22,18 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
+import datetime
 import logging
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.daemonutils import DaemonManager
-from twisted.internet import reactor
+from twisted.internet import reactor, task
 
 from stoqserver.common import APP_BACKUP_DIR, SERVER_DAEMON_PORT
 from stoqserver.lib import backup
@@ -122,3 +125,50 @@ def start_server():
     stoq_server = StoqServer()
     reactor.callWhenRunning(stoq_server.start)
     reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)
+
+
+@reactor_handler
+def start_backup_scheduler():
+    logging.info("Starting backup scheduler")
+
+    # TODO: For now we are running backups every midday and midnight.
+    # Maybe we should make this configurable
+    now = datetime.datetime.now()
+    if now.hour < 12:
+        midday = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        delta = midday - now
+    else:
+        tomorrow = now + datetime.timedelta(1)
+        midnight = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+        delta = midnight - now
+
+    def _backup_task():
+        for i in xrange(3):
+            # FIXME: This is SO UGLY, we should be calling backup_database
+            # task directly, but duplicity messes with multiprocessing in a
+            # way that it will not work
+            args = sys.argv[:]
+            for i, arg in enumerate(args[:]):
+                if arg == 'run':
+                    args[i] = 'backup_database'
+                    break
+
+            p = subprocess.Popen(args)
+            stdout, stderr = p.communicate()
+            if p.returncode == 0:
+                break
+            else:
+                logging.warning(
+                    "Failed to backup database:\nstdout: %s\nstderr: %s",
+                    stdout, stderr)
+                # Retry again with a exponential backoff
+                time.sleep((60 * 2) ** (i + 1))
+
+    backup_task = task.LoopingCall(_backup_task)
+    # Schedule the task to start at the first midday/midnight and then
+    # run every 12 hours
+    reactor.callWhenRunning(reactor.callLater, delta.seconds,
+                            lambda: backup_task.start(12 * 60 * 60))
+    reactor.addSystemEventTrigger(
+        'before', 'shutdown',
+        lambda: getattr(task, 'running', False) and task.stop())

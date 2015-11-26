@@ -34,7 +34,8 @@ from twisted.internet import reactor
 
 from stoqserver.common import APP_CONF_FILE
 from stoqserver.tasks import (backup_database, restore_database, backup_status,
-                              start_daemon_manager, start_server)
+                              start_daemon_manager, start_server,
+                              start_backup_scheduler)
 
 
 class StoqServerCmdHandler(object):
@@ -103,7 +104,8 @@ class StoqServerCmdHandler(object):
         self._setup_logging()
 
         processes = []
-        for target in [start_daemon_manager,
+        for target in [start_backup_scheduler,
+                       start_daemon_manager,
                        start_server]:
             p = multiprocessing.Process(target=target)
             p.daemon = True
