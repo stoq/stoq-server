@@ -29,9 +29,13 @@ import subprocess
 import tempfile
 
 from stoqlib.lib.configparser import get_config
+from stoqlib.lib.daemonutils import DaemonManager
+from twisted.internet import reactor
 
-from stoqserver.common import APP_BACKUP_DIR
+from stoqserver.common import APP_BACKUP_DIR, SERVER_DAEMON_PORT
 from stoqserver.lib import backup
+from stoqserver.lib.decorators import reactor_handler
+from stoqserver.server import StoqServer
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +102,23 @@ def restore_database(user_hash, time=None):
 
 def backup_status(user_hash=None):
     backup.status(user_hash=user_hash)
+
+
+@reactor_handler
+def start_daemon_manager():
+    logging.info("Starting daemon manager")
+
+    config = get_config()
+    port = config.get('General', 'serverport') or SERVER_DAEMON_PORT
+    dm = DaemonManager(port=port and int(port))
+    reactor.callWhenRunning(dm.start)
+    reactor.addSystemEventTrigger('before', 'shutdown', dm.stop)
+
+
+@reactor_handler
+def start_server():
+    logging.info("Starting stoq server")
+
+    stoq_server = StoqServer()
+    reactor.callWhenRunning(stoq_server.start)
+    reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)

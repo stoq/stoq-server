@@ -23,18 +23,18 @@
 ##
 
 import logging
+import multiprocessing
 import optparse
 import sys
 
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
-from stoqlib.lib.configparser import StoqConfig, get_config, register_config
-from stoqlib.lib.daemonutils import DaemonManager
+from stoqlib.lib.configparser import StoqConfig, register_config
 from twisted.internet import reactor
 
-from stoqserver.common import SERVER_DAEMON_PORT, APP_CONF_FILE
-from stoqserver.server import StoqServer
-from stoqserver.tasks import backup_database, restore_database, backup_status
+from stoqserver.common import APP_CONF_FILE
+from stoqserver.tasks import (backup_database, restore_database, backup_status,
+                              start_daemon_manager, start_server)
 
 
 class StoqServerCmdHandler(object):
@@ -100,20 +100,22 @@ class StoqServerCmdHandler(object):
 
     def cmd_run(self, options, *args):
         """Run the server daemon"""
-        config = get_config()
+        self._setup_logging()
 
-        stoq_server = StoqServer()
-        reactor.callWhenRunning(stoq_server.start)
-        reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)
-
-        port = config.get('General', 'serverport') or SERVER_DAEMON_PORT
-        dm = DaemonManager(port=port and int(port))
-        reactor.callWhenRunning(dm.start)
-        reactor.addSystemEventTrigger('before', 'shutdown', dm.stop)
+        processes = []
+        for target in [start_daemon_manager,
+                       start_server]:
+            p = multiprocessing.Process(target=target)
+            p.daemon = True
+            p.start()
+            processes.append(p)
 
         try:
             reactor.run()
         except KeyboardInterrupt:
+            for p in processes:
+                if p.is_alive():
+                    p.terminate()
             reactor.stop()
 
     def cmd_backup_database(self, options, *args):
@@ -177,6 +179,6 @@ def main(args):
 
     # FIXME: Maybe we should check_schema and load plugins here?
     setup(config=config, options=options, register_station=False,
-          check_schema=False, load_plugins=False)
+          check_schema=False, load_plugins=True)
 
     handler.run_cmd(cmd, options, *args)
