@@ -25,6 +25,7 @@
 import logging
 import multiprocessing
 import optparse
+import signal
 import sys
 
 from stoq.lib.options import get_option_parser
@@ -112,13 +113,18 @@ class StoqServerCmdHandler(object):
             p.start()
             processes.append(p)
 
-        try:
-            reactor.run()
-        except KeyboardInterrupt:
+        def _exit(_signo, _stack_frame):
             for p in processes:
                 if p.is_alive():
                     p.terminate()
             reactor.stop()
+            sys.exit(0)
+
+        signal.signal(signal.SIGTERM, _exit)
+        try:
+            reactor.run()
+        except KeyboardInterrupt:
+            _exit()
 
     def cmd_backup_database(self, options, *args):
         """Backup the Stoq database"""
