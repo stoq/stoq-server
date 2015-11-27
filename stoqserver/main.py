@@ -31,6 +31,7 @@ import sys
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.lib.configparser import StoqConfig, register_config
+from stoqlib.lib.pluginmanager import get_plugin_manager
 from twisted.internet import reactor
 
 from stoqserver.common import APP_CONF_FILE
@@ -105,9 +106,20 @@ class StoqServerCmdHandler(object):
         self._setup_logging()
 
         processes = []
-        for target in [start_backup_scheduler,
-                       start_daemon_manager,
-                       start_server]:
+        tasks = [
+            start_backup_scheduler,
+            start_daemon_manager,
+            start_server,
+        ]
+
+        manager = get_plugin_manager()
+        for plugin_name in manager.installed_plugins_names:
+            plugin = manager.get_plugin(plugin_name)
+            if not hasattr(plugin, 'get_server_tasks'):
+                continue
+            tasks.extend(plugin.get_server_tasks())
+
+        for target in tasks:
             p = multiprocessing.Process(target=target)
             p.daemon = True
             p.start()
