@@ -21,9 +21,10 @@ case "$1" in
 
         if [ ! -f /usr/share/stoqserver/.stoq ]; then
             mkdir -p /usr/share/stoqserver/.stoq
-            cat <<EOF > /usr/share/stoqserver/.stoq
+            BACKUP_KEY="`cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c64`"
+            cat <<EOF > /usr/share/stoqserver/.stoq/stoq.conf
 [General]
-logfile = /var/lib/.stoq/stoqserver.log
+logfile = /usr/share/stoqserver/.stoq/stoqserver.log
 
 [Database]
 rdbms = postgres
@@ -33,7 +34,7 @@ dbname = stoq
 dbusername = stoq
 
 [Backup]
-key = 
+key = $BACKUP_KEY
 EOF
         fi
 
@@ -48,6 +49,7 @@ EOF
         chown -R stoqserver:stoqserver /usr/share/stoqserver || true
 
         # Restart the supervisor process
+        supervisorctl reload || true
         supervisorctl restart stoqserver || true
     ;;
 
