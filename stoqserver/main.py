@@ -23,21 +23,19 @@
 ##
 
 import logging
-import multiprocessing
 import optparse
 import signal
 import sys
+import xmlrpclib
 
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.lib.configparser import StoqConfig, register_config
-from stoqlib.lib.pluginmanager import get_plugin_manager
-from twisted.internet import reactor
+from stoqlib.lib.configparser import get_config
 
-from stoqserver.common import APP_CONF_FILE
-from stoqserver.tasks import (backup_database, restore_database, backup_status,
-                              start_daemon_manager, start_server,
-                              start_backup_scheduler)
+from stoqserver.common import APP_CONF_FILE, SERVER_XMLRPC_PORT
+from stoqserver.taskmanager import TaskManager
+from stoqserver.tasks import backup_database, restore_database, backup_status
 
 
 class StoqServerCmdHandler(object):
@@ -66,6 +64,11 @@ class StoqServerCmdHandler(object):
     #  Private
     #
 
+    def _setup_stoq(self):
+        # FIXME: Maybe we should check_schema and load plugins here?
+        setup(config=get_config(), options=None, register_station=False,
+              check_schema=False, load_plugins=True)
+
     def _setup_logging(self):
         ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.INFO)
@@ -80,7 +83,7 @@ class StoqServerCmdHandler(object):
     #  Commands
     #
 
-    def cmd_help(self, options, *args):
+    def cmd_help(self, *args):
         """Show available commands help"""
         cmds = []
         max_len = 0
@@ -103,43 +106,21 @@ class StoqServerCmdHandler(object):
 
     def cmd_run(self, options, *args):
         """Run the server daemon"""
+        self._setup_stoq()
         self._setup_logging()
+        manager = TaskManager()
 
-        processes = []
-        tasks = [
-            start_backup_scheduler,
-            start_daemon_manager,
-            start_server,
-        ]
-
-        manager = get_plugin_manager()
-        for plugin_name in manager.installed_plugins_names:
-            plugin = manager.get_plugin(plugin_name)
-            if not hasattr(plugin, 'get_server_tasks'):
-                continue
-            tasks.extend(plugin.get_server_tasks())
-
-        for target in tasks:
-            p = multiprocessing.Process(target=target)
-            p.daemon = True
-            p.start()
-            processes.append(p)
-
-        def _exit(_signo, _stack_frame):
-            for p in processes:
-                if p.is_alive():
-                    p.terminate()
-            reactor.stop()
+        def _exit(*args):
+            manager.stop(close_xmlrpc=True)
             sys.exit(0)
 
         signal.signal(signal.SIGTERM, _exit)
-        try:
-            reactor.run()
-        except KeyboardInterrupt:
-            _exit()
+        signal.signal(signal.SIGINT, _exit)
+        manager.run()
 
     def cmd_backup_database(self, options, *args):
         """Backup the Stoq database"""
+        self._setup_stoq()
         self._setup_logging()
         return backup_database(full=options.full)
 
@@ -165,6 +146,7 @@ class StoqServerCmdHandler(object):
 
     def cmd_backup_status(self, options, *args):
         """Get the status of the current backups"""
+        self._setup_stoq()
         self._setup_logging()
         return backup_status(user_hash=options.user_hash)
 
@@ -172,6 +154,39 @@ class StoqServerCmdHandler(object):
         group.add_option('', '--user-hash',
                          action='store',
                          dest='user_hash')
+
+    def cmd_exec_action(self, options, *args):
+        """Run an action on an already running server instance"""
+        self._setup_logging()
+
+        cmd = args[0]
+        cmd_args = args[1:]
+        config = get_config()
+        port = (options.server_port or
+                config.get('General', 'serverport') or
+                SERVER_XMLRPC_PORT)
+        address = (options.server_address or
+                   config.get('General', 'serveraddress') or
+                   '127.0.0.1')
+
+        remote = xmlrpclib.ServerProxy(
+            'http://%s:%s/XMLRPC' % (address, port), allow_none=True)
+        try:
+            print getattr(remote, cmd)(*cmd_args)
+        except xmlrpclib.Fault as e:
+            print "Server fault (%s): %s" % (e.faultCode, e.faultString)
+            return 1
+        except Exception as e:
+            print "Could not send action to server: %s" % (str(e), )
+            return 1
+
+    def opt_exec_action(self, parser, group):
+        group.add_option('', '--server-address',
+                         action='store',
+                         dest='server_address')
+        group.add_option('', '--server-port',
+                         action='store',
+                         dest='server_port')
 
 
 def main(args):
@@ -197,8 +212,4 @@ def main(args):
     config.get_settings()
     register_config(config)
 
-    # FIXME: Maybe we should check_schema and load plugins here?
-    setup(config=config, options=options, register_station=False,
-          check_schema=False, load_plugins=True)
-
-    handler.run_cmd(cmd, options, *args)
+    return handler.run_cmd(cmd, options, *args)

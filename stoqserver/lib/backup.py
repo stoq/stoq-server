@@ -31,6 +31,7 @@ import sys
 import urlparse
 
 from duplicity import backend
+from duplicity import globals as duplicity_globals
 try:
     # This is only available on duplicity <= 0.6
     from duplicity.backend import _ensure_urlparser_initialized, urlparser
@@ -147,6 +148,8 @@ def status(user_hash=None):
     global _user_hash
     _user_hash = user_hash or api.sysparam.get_string('USER_HASH')
 
+    reload(duplicity_globals)
+
     with _mock_environ():
         sys.argv.extend([_duplicity_bin, 'collection-status', _webservice_url])
         _duplicity_main.main()
@@ -155,6 +158,8 @@ def status(user_hash=None):
 def backup(backup_dir, full=False):
     global _user_hash
     _user_hash = api.sysparam.get_string('USER_HASH')
+
+    reload(duplicity_globals)
 
     with _mock_environ():
         config = get_config()
@@ -172,6 +177,8 @@ def restore(restore_dir, user_hash, time=None):
     global _user_hash
     _user_hash = user_hash
 
+    reload(duplicity_globals)
+
     with _mock_environ():
         config = get_config()
 
@@ -180,8 +187,6 @@ def restore(restore_dir, user_hash, time=None):
             raise ValueError("No backup key set on configuration file")
         os.environ.setdefault('PASSPHRASE', backup_key)
 
-        # Close the main store so the database can be dropped after this
-        api.get_default_store().rollback(close=True)
         sys.argv.extend([_duplicity_bin, 'restore',
                          _webservice_url, restore_dir])
         if time is not None:

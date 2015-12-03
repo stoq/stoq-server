@@ -22,9 +22,9 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import signal
 import functools
-import sys
+import os
+import signal
 
 from twisted.internet import reactor
 
@@ -33,12 +33,15 @@ def reactor_handler(f):
     def _sigterm_handler(_signo, _stack_frame):
         if reactor.running:
             reactor.stop()
-        sys.exit(0)
+        os._exit(0)
 
     @functools.wraps(f)
     def wrapper(*args, **kwds):
+        # Ignore SIGINT to avoid it being captured in the child process
+        # when pressing ctrl+c on the terminal to close the server
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, _sigterm_handler)
         f(*args, **kwds)
-        reactor.run()
+        reactor.run(False)
 
     return wrapper

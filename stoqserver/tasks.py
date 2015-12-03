@@ -31,13 +31,16 @@ import sys
 import tempfile
 import time
 
+from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.lib.configparser import get_config
-from stoqlib.lib.daemonutils import DaemonManager
 from twisted.internet import reactor, task
+from twisted.web import resource
+from twisted.web import server
 
-from stoqserver.common import APP_BACKUP_DIR, SERVER_DAEMON_PORT
+from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
 from stoqserver.lib import backup
 from stoqserver.lib.decorators import reactor_handler
+from stoqserver.lib.xmlrpcresource import ServerXMLRPCResource
 from stoqserver.server import StoqServer
 
 logger = logging.getLogger(__name__)
@@ -77,6 +80,9 @@ def restore_database(user_hash, time=None):
     assert user_hash
     tmp_path = tempfile.mkdtemp()
     try:
+        # None will make the default store be closed, which we need
+        # to sucessfully restore the database
+        set_default_store(None)
         restore_path = os.path.join(tmp_path, 'stoq')
 
         config = get_config()
@@ -100,6 +106,8 @@ def restore_database(user_hash, time=None):
 
         logging.info("Backup restore finished sucessfully")
     finally:
+        # get_default_store will recreate it (since we closed it above)
+        get_default_store()
         shutil.rmtree(tmp_path, ignore_errors=True)
 
 
@@ -108,14 +116,17 @@ def backup_status(user_hash=None):
 
 
 @reactor_handler
-def start_daemon_manager():
-    logging.info("Starting daemon manager")
+def start_xmlrpc_server(pipe_conn):
+    logging.info("Starting the xmlrpc server")
 
     config = get_config()
-    port = config.get('General', 'serverport') or SERVER_DAEMON_PORT
-    dm = DaemonManager(port=port and int(port))
-    reactor.callWhenRunning(dm.start)
-    reactor.addSystemEventTrigger('before', 'shutdown', dm.stop)
+    port = int(config.get('General', 'serverport') or SERVER_XMLRPC_PORT)
+
+    r = resource.Resource()
+    r.putChild('XMLRPC', ServerXMLRPCResource(r, pipe_conn))
+    site = server.Site(r)
+
+    reactor.callWhenRunning(reactor.listenTCP, port, site)
 
 
 @reactor_handler

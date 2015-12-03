@@ -39,8 +39,8 @@ APP_BACKUP_DIR = os.path.join(APP_DIR, 'backup')
 SERVER_NAME = _('Stoq Server')
 SERVER_EGGS = ['kiwi.egg', 'stoqdrivers.egg', 'stoq.egg']
 SERVER_EXECUTABLE_EGG = 'stoq.egg'
-SERVER_AVAHI_PORT = 6970
-SERVER_DAEMON_PORT = 6971
+SERVER_AVAHI_PORT = 6969
+SERVER_XMLRPC_PORT = 6970
 
 #
 #  Avahi
