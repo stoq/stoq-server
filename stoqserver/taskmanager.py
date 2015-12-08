@@ -30,6 +30,10 @@ import signal
 import sys
 
 from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.lib.configparser import get_config
+from htsql.core.fmt.emit import emit
+from htsql.core.error import Error as HTSQL_Error
+from htsql import HTSQL
 
 from stoqserver.tasks import (backup_status, restore_database,
                               start_xmlrpc_server, start_server,
@@ -95,6 +99,39 @@ class TaskManager(object):
         self.stop(close_xmlrpc=True)
         # execv will restart the process and finish this one
         os.execv(sys.argv[0], sys.argv)
+
+    def action_htsql_query(self, query):
+        """Executes a HTSQL Query"""
+        # Resolve RDBMSs to their respective HTSQL engines
+        engines = {
+            'postgres': 'pgsql',
+            'sqlite': 'sqlite',
+            'mysql': 'mysql',
+            'oracle': 'oracle',
+            'mssql': 'mssql',
+        }
+
+        # Get the config data
+        config = get_config()
+        config = {
+            'rdbms': engines[config.get('Database', 'rdbms')],
+            'address': config.get('Database', 'address'),
+            'port': config.get('Database', 'port'),
+            'dbname': config.get('Database', 'dbname'),
+            'dbusername': config.get('Database', 'dbusername'),
+        }
+
+        uri = '{rdbms}://{dbusername}@{address}:{port}/{dbname}'
+        store = HTSQL(uri.format(**config))
+        try:
+            rows = store.produce(query)
+        except HTSQL_Error as e:
+            return False, str(e)
+
+        with store:
+            json = ''.join(emit('x-htsql/json', rows))
+
+        return True, json
 
     def action_backup_status(self, user_hash=None):
         with io.StringIO() as f:
