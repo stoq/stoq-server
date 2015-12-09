@@ -23,7 +23,9 @@
 ##
 
 import os
-from setuptools import setup, find_packages
+from kiwi.dist import setup, listpackages
+
+import stoqserver
 
 
 PACKAGE = 'stoqserver'
@@ -44,8 +46,8 @@ setup(
     name=PACKAGE,
     author="Stoq Team",
     author_email="stoq-devel@async.com.br",
-    version="0.1",
-    packages=find_packages(),
+    version=".".join(stoqserver.__version__),
+    packages=listpackages('stoqserver'),
     data_files=data_files,
     install_requires=install_requires,
     scripts=scripts,
