@@ -36,6 +36,9 @@ scripts = [
 data_files = [
     (os.path.join(os.sep, 'etc', 'supervisor', 'conf.d'),
      [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
+    (os.path.join(os.sep, 'usr', 'share', 'stoqserver', 'webrtc'),
+     [os.path.join('data', 'webrtc', 'package.json'),
+      os.path.join('data', 'webrtc', 'rtc.js')])
 ]
 
 with open('requirements.txt') as f:

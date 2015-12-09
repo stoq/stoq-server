@@ -26,6 +26,7 @@ import datetime
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -37,6 +38,7 @@ from twisted.internet import reactor, task
 from twisted.web import resource
 from twisted.web import server
 
+from stoqserver import library
 from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
 from stoqserver.lib import backup
 from stoqserver.lib.decorators import reactor_handler
@@ -136,6 +138,23 @@ def start_server():
     stoq_server = StoqServer()
     reactor.callWhenRunning(stoq_server.start)
     reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)
+
+
+def start_rtc():
+    logging.info("Starting webRTC")
+
+    cwd = library.get_resource_filename('stoqserver', 'webrtc')
+
+    subprocess.call(["npm", "install"], cwd=cwd)
+    popen = subprocess.Popen(["node", "rtc.js"], cwd=cwd)
+
+    def _sigterm_handler(_signal, _stack_frame):
+        if popen.poll():
+            popen.terminate()
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+    popen.wait()
 
 
 @reactor_handler

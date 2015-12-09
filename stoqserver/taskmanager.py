@@ -37,7 +37,8 @@ from htsql import HTSQL
 
 from stoqserver.tasks import (backup_status, restore_database,
                               start_xmlrpc_server, start_server,
-                              start_backup_scheduler)
+                              start_backup_scheduler,
+                              start_rtc)
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +176,7 @@ class TaskManager(object):
         tasks = [
             _Task(start_backup_scheduler),
             _Task(start_server),
+            _Task(start_rtc),
         ]
         if start_xmlrpc_server not in [t.func for t in
                                        multiprocessing.active_children()]:
