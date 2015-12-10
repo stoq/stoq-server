@@ -67,3 +67,12 @@ class ServerXMLRPCResource(XMLRPCResource):
             raise xmlrpc.Fault(32000, msg)
 
         return msg
+
+    def xmlrpc_plugin_action(self, plugin_name, task_name, action, *args):
+        self._pipe_conn.send(('plugin_action',
+                             plugin_name, task_name, action, args))
+        retval, msg = self._pipe_conn.recv()
+        if not retval:
+            raise xmlrpc.Fault(32000, msg)
+
+        return msg

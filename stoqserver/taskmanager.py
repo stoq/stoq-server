@@ -64,7 +64,8 @@ class _Task(multiprocessing.Process):
 class TaskManager(object):
 
     def __init__(self):
-        self._conn1, self._conn2 = multiprocessing.Pipe(True)
+        self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
+        self._plugins_pipes = {}
 
     #
     #  Public API
@@ -73,13 +74,15 @@ class TaskManager(object):
     def run(self):
         self._start_tasks()
         while True:
-            action = self._conn1.recv()
+            action = self._xmlrpc_conn1.recv()
             meth = getattr(self, 'action_' + action[0])
             assert meth, "Action handler for %s not found" % (action[0], )
-            self._conn1.send(meth(*action[1:]))
+            self._xmlrpc_conn1.send(meth(*action[1:]))
 
     def stop(self, close_xmlrpc=False):
-        for p in multiprocessing.active_children():
+        self._plugins_pipes.clear()
+
+        for p in self._get_children():
             if not close_xmlrpc and p.func is start_xmlrpc_server:
                 continue
             if not p.is_alive():
@@ -168,9 +171,27 @@ class TaskManager(object):
         self._start_tasks()
         return retval, msg
 
+    def action_plugin_action(self, plugin_name, task_name, action, args):
+        # FIXME: It would be better if the xmlrpc process could communicate
+        # directly with the pipe, but we are not able to share them using
+        # a shared dict. Try to find a way in the future
+        try:
+            pipe = self._plugins_pipes[(plugin_name, task_name)]
+        except KeyError:
+            return False, "Plugin %s not found" % (plugin_name, )
+        else:
+            pipe.send((action, args))
+            return pipe.recv()
+
     #
     #  Private
     #
+
+    def _get_children(self):
+        for child in multiprocessing.active_children():
+            if not isinstance(child, _Task):
+                continue
+            yield child
 
     def _start_tasks(self):
         tasks = [
@@ -179,15 +200,26 @@ class TaskManager(object):
             _Task(start_rtc),
         ]
         if start_xmlrpc_server not in [t.func for t in
-                                       multiprocessing.active_children()]:
-            tasks.append(_Task(start_xmlrpc_server, self._conn2))
+                                       self._get_children()]:
+            tasks.append(_Task(start_xmlrpc_server, self._xmlrpc_conn2))
 
         manager = get_plugin_manager()
         for plugin_name in manager.installed_plugins_names:
             plugin = manager.get_plugin(plugin_name)
             if not hasattr(plugin, 'get_server_tasks'):
                 continue
-            tasks.extend(_Task(t) for t in plugin.get_server_tasks())
+
+            # FIXME: Check that the plugin implements IPluginTask when
+            # we Stoq 1.11 is released
+            for plugin_task in plugin.get_server_tasks():
+                task_name = plugin_task.name
+                kwargs = {}
+                if plugin_task.handle_actions:
+                    conn1, conn2 = multiprocessing.Pipe(True)
+                    self._plugins_pipes[(plugin_name, task_name)] = conn1
+                    kwargs['pipe_connection'] = conn2
+
+                tasks.append(_Task(plugin_task.start, **kwargs))
 
         for t in tasks:
             t.start()
