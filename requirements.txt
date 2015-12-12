@@ -1,5 +1,6 @@
 Twisted >= 10.0.0
 requests >= 2.2
 stoq >= 1.10
+netifaces
 htsql
 htsql-pgsql

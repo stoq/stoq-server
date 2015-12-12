@@ -3,6 +3,7 @@
 #*#
 *.pyc
 
+data/eggs
 data/webrtc/node_modules
 stoqserver/data/eggs
 venv

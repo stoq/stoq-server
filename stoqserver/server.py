@@ -24,7 +24,6 @@
 
 import dbus
 import os
-import pkg_resources
 import tempfile
 
 import avahi
@@ -41,6 +40,7 @@ from twisted.web.http import HTTPChannel
 from twisted.web.resource import IResource
 from zope.interface import implements
 
+from stoqserver import library
 from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
                                SERVER_NAME, SERVER_AVAHI_PORT,
                                SERVER_EGGS, APP_CONF_FILE)
@@ -117,8 +117,7 @@ class StoqServer(object):
         cf = BasicCredentialFactory(SERVER_NAME)
 
         # eggs
-        eggs_path = pkg_resources.resource_filename(
-            'stoqserver', 'data/eggs')
+        eggs_path = library.get_resource_filename('stoqserver', 'eggs')
         root.putChild(
             'eggs',
             self._get_resource_wrapper(static.File(eggs_path), checker, cf))

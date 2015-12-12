@@ -22,18 +22,24 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
+import ConfigParser
 import hashlib
+import io
 import os
 import socket
 import subprocess
 import sys
+import tempfile
 import urllib2
+import urlparse
 
 import gtk
+import netifaces
 from zeroconf import ServiceBrowser, Zeroconf
 
-from stoqserver.common import (APP_EGGS_DIR, APP_CONF_FILE, SERVER_EGGS,
-                               SERVER_EXECUTABLE_EGG, AVAHI_STYPE)
+from stoqserver.common import (APP_EGGS_DIR, SERVER_EGGS,
+                               SERVER_EXECUTABLE_EGG, AVAHI_STYPE,
+                               SERVER_XMLRPC_PORT)
 
 _ = lambda s: s
 
@@ -48,6 +54,7 @@ class _StoqClient(gtk.Window):
         self._iters = {}
 
         self.executable_path = None
+        self.conf_path = None
         self.python_paths = []
 
         self._setup_widgets()
@@ -105,14 +112,38 @@ class _StoqClient(gtk.Window):
         self.resize(400, 300)
         self.add(vbox)
 
-    def _download_eggs(self, server_address):
+    def _download_eggs(self, server_address, options):
         opener = self._get_opener(server_address)
 
-        if not os.path.exists(APP_CONF_FILE):
+        with io.BytesIO() as f:
             tmp = opener.open('%s/login' % (server_address, ))
-            with open(APP_CONF_FILE, 'w') as f:
-                f.write(tmp.read())
-            tmp.close()
+            f.write(tmp.read())
+            f.seek(0)
+            config = ConfigParser.ConfigParser()
+            config.readfp(f)
+
+        parsed = urlparse.urlparse(server_address)
+        address = parsed.netloc.split(':')[0]
+        config.set('General', 'serveraddress', address)
+        config.set('General', 'serverport', parsed.port or SERVER_XMLRPC_PORT)
+
+        if not config.get('Database', 'address'):
+            # If there's no database address, it means the server is running on
+            # the same computer as the database. Set it on the config file, but
+            # only if the client is not running on the same computer as the server
+            for iface in netifaces.interfaces():
+                addresses = [
+                    i['addr'] for i in
+                    netifaces.ifaddresses(iface).setdefault(
+                        netifaces.AF_INET, [{'addr': None}])]
+                if address in addresses:
+                    break
+            else:
+                config.set('Database', 'address', address)
+
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            config.write(f)
+            self.conf_path = f.name
 
         md5sums = {}
         tmp = opener.open('%s/md5sum' % (server_address, ))
@@ -126,13 +157,11 @@ class _StoqClient(gtk.Window):
 
         for egg in SERVER_EGGS:
             egg_path = os.path.join(APP_EGGS_DIR, egg)
-            if self._check_egg(egg_path, md5sums[egg]):
-                continue
-
-            with open(egg_path, 'wb') as f:
-                tmp = opener.open('%s/eggs/%s' % (server_address, egg))
-                f.write(tmp.read())
-                tmp.close()
+            if not self._check_egg(egg_path, md5sums[egg]):
+                with open(egg_path, 'wb') as f:
+                    tmp = opener.open('%s/eggs/%s' % (server_address, egg))
+                    f.write(tmp.read())
+                    tmp.close()
 
             assert self._check_egg(egg_path, md5sums[egg])
 
@@ -167,7 +196,8 @@ class _StoqClient(gtk.Window):
 
     def _on_treeview__row_activated(self, treeview, path, column):
         model, titer = treeview.get_selection().get_selected()
-        if not self._download_eggs(model.get_value(titer, 0)):
+        if not self._download_eggs(
+                model.get_value(titer, 0), model.get_value(titer, 1)):
             return
 
         self.hide()
@@ -191,7 +221,8 @@ def main(args):
     env['PYTHONPATH'] = ':'.join(
         client.python_paths + [env.get('PYTHONPATH', '')])
 
-    popen = subprocess.Popen([sys.executable, client.executable_path], env=env)
+    popen = subprocess.Popen([
+        sys.executable, client.executable_path, '-f', client.conf_path], env=env)
     try:
         popen.communicate()
     except KeyboardInterrupt:
