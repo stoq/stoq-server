@@ -79,15 +79,18 @@ class _StoqClient(gtk.Window):
             socket.inet_ntoa(info.address), info.port)
         args = info.properties
 
-        self._iters[(info.address, info.port)] = self.store.append(
-            [server_address, args])
+        itr = self.store.append([server_address, args])
+        self._iters[(info.address, info.port)] = itr
+
+        if not self.selection.get_selected()[1]:
+            self.selection.select_iter(itr)
 
     #
     #  Private
     #
 
     def _setup_widgets(self):
-        vbox = gtk.VBox()
+        vbox = gtk.VBox(spacing=6)
 
         self.store = gtk.ListStore(str, object)
         self.treeview = gtk.TreeView(self.store)
@@ -98,18 +101,44 @@ class _StoqClient(gtk.Window):
         self.server_column.add_attribute(self.cell, 'text', 0)
 
         self.treeview.append_column(self.server_column)
-        self.treeview.connect('row-activated',
-                              self._on_treeview__row_activated)
+        self.selection = self.treeview.get_selection()
+        self.selection.connect('changed', self._on_treeview_selection__changed)
         vbox.pack_start(self.treeview, expand=True)
 
         self.username = gtk.Entry()
-        vbox.pack_start(self.username, expand=False)
+        username_hbox = gtk.HBox(spacing=6)
+        username_hbox.pack_start(gtk.Label(_("Username:")), expand=False)
+        self.username.connect('activate', self._on_username__activate)
+        self.username.connect('changed', self._on_username__changed)
+        username_hbox.pack_start(self.username, expand=True)
+        vbox.pack_start(username_hbox, expand=False)
 
         self.password = gtk.Entry()
-        vbox.pack_start(self.password, expand=False)
+        self.password.set_property('visibility', False)
+        password_hbox = gtk.HBox(spacing=6)
+        password_hbox.pack_start(gtk.Label(_("Password:")), expand=False)
+        self.password.connect('activate', self._on_password__activate)
+        password_hbox.pack_start(self.password, expand=True)
+        vbox.pack_start(password_hbox, expand=False)
+
+        self.login_btn = gtk.Button(_("Start"))
+        self.login_btn.connect('activate', self._on_login_btn__activate)
+        vbox.pack_start(self.login_btn, expand=False)
+        self.login_btn.set_sensitive(False)
+
+        alignment = gtk.Alignment(0.5, 0.5, 1.0, 1.0)
+        alignment.set_padding(6, 6, 6, 6)
+        alignment.add(vbox)
 
         self.resize(400, 300)
-        self.add(vbox)
+        self.add(alignment)
+
+        self.username.grab_focus()
+
+    def _update_widgets(self):
+        model, titer = self.selection.get_selected()
+        self.login_btn.set_sensitive(
+            bool(titer and self.username.get_text()))
 
     def _download_eggs(self, server_address, options):
         opener = self._get_opener(server_address)
@@ -189,18 +218,36 @@ class _StoqClient(gtk.Window):
 
         return md5.hexdigest() == md5sum
 
-    #
-    #  Callbacks
-    #
+    def _start(self):
+        model, titer = self.treeview.get_selection().get_selected()
+        if not titer:
+            return
 
-    def _on_treeview__row_activated(self, treeview, path, column):
-        model, titer = treeview.get_selection().get_selected()
         if not self._download_eggs(
                 model.get_value(titer, 0), model.get_value(titer, 1)):
             return
 
         self.hide()
         gtk.main_quit()
+
+    #
+    #  Callbacks
+    #
+
+    def _on_treeview_selection__changed(self, selection):
+        self._update_widgets()
+
+    def _on_username__changed(self, entry):
+        self._update_widgets()
+
+    def _on_username__activate(self, entry):
+        self.password.grab_focus()
+
+    def _on_password__activate(self, entry):
+        self._start()
+
+    def _on_login_btn__activate(self, button):
+        self._start()
 
 
 def main(args):
