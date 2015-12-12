@@ -17,17 +17,25 @@ set -e
 case "$1" in
     configure)
         # Make sure stoqserver's home exists
-        mkdir -p /usr/share/stoqserver || true
+        mkdir -p /usr/share/stoqserver
 
+        # Try to find the stoq database
         if [ -d "/var/run/postgresql" ]; then
-            PORT="`find /var/run/postgresql -regex '.*\.s\.PGSQL\.[0-9]+' | sort | tail -n1`"
-            PORT="`echo $PORT | sed -e 's/\(.*\.\)\([0-9]\+\)/\2/'`"
-            # If the process above failed for some reason, use the default 5432
-            if [ -z "$PORT" ]; then
-                PORT="5432"
-            fi
-        else
+            for socket in `find /var/run/postgresql -regex '.*\.s\.PGSQL\.[0-9]+'`; do
+                PORT="`echo $PORT | sed -e 's/\(.*\.\)\([0-9]\+\)/\2/'`"
+                set +e
+                DBNAME=`sudo -u postgres psql -p $PORT -lqt | cut -d \| -f 1 | grep stoq | head -n1 | xargs`
+                set -e
+                [ ! -z "$DBNAME" ] && break
+            done
+        fi
+
+        # If the process above failed for some reason, use the default 5432
+        if [ -z "$PORT" ]; then
             PORT="5432"
+        fi
+        if [ -z "$DBNAME" ]; then
+            DBNAME="stoq"
         fi
 
         # Create .stoq dir and configuration if they don't exist
@@ -42,7 +50,7 @@ logfile = /usr/share/stoqserver/.stoq/stoqserver.log
 rdbms = postgres
 address = 
 port = $PORT
-dbname = stoq
+dbname = $DBNAME
 dbusername = stoqserver
 
 [Backup]
@@ -62,6 +70,8 @@ EOF
         # Create a .pgpass file stoqserver
         if [ ! -f /usr/share/stoqserver/.pgpass ]; then
             PG_PASSWORD="`cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c32`"
+            sudo -u postgres psql -p $PORT -c \
+                "ALTER USER stoqserver WITH PASSWORD '$PG_PASSWORD';" || true
             echo "*:*:*:stoqserver:$PG_PASSWORD" > /usr/share/stoqserver/.pgpass
             chmod 0600 /usr/share/stoqserver/.pgpass
         fi
@@ -77,7 +87,9 @@ EOF
         chown -R stoqserver:stoqserver /usr/share/stoqserver || true
 
         # Restart the supervisor process
-        supervisorctl reload || true
+        supervisorctl reread || true
+        # Update usually would be enough, but we want to make sure that
+        # the daemon will restart in case the code changed
         supervisorctl restart stoqserver || true
     ;;
 
