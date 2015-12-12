@@ -31,9 +31,6 @@ import sys
 
 from stoqlib.lib.pluginmanager import get_plugin_manager
 from stoqlib.lib.configparser import get_config
-from htsql.core.fmt.emit import emit
-from htsql.core.error import Error as HTSQL_Error
-from htsql import HTSQL
 
 from stoqserver.tasks import (backup_status, restore_database,
                               start_xmlrpc_server, start_server,
@@ -106,6 +103,13 @@ class TaskManager(object):
 
     def action_htsql_query(self, query):
         """Executes a HTSQL Query"""
+        try:
+            from htsql.core.fmt.emit import emit
+            from htsql.core.error import Error as HTSQL_Error
+            from htsql import HTSQL
+        except ImportError:
+            return False, "HTSQL installation not found"
+
         # Resolve RDBMSs to their respective HTSQL engines
         engines = {
             'postgres': 'pgsql',
