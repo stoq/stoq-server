@@ -27,7 +27,6 @@ import hashlib
 import io
 import os
 import socket
-import subprocess
 import sys
 import tempfile
 import urllib2
@@ -221,9 +220,5 @@ def main(args):
     env['PYTHONPATH'] = ':'.join(
         client.python_paths + [env.get('PYTHONPATH', '')])
 
-    popen = subprocess.Popen([
-        sys.executable, client.executable_path, '-f', client.conf_path], env=env)
-    try:
-        popen.communicate()
-    except KeyboardInterrupt:
-        popen.terminate()
+    args = [sys.executable, client.executable_path, '-f', client.conf_path]
+    os.execve(args[0], args, env)
