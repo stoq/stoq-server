@@ -1,16 +1,19 @@
 var io = require('socket.io-client'),
+    xmlrpc = require('xmlrpc'),
     MultiRTC = require('./node_modules/components/utils/multi-rtc');
 
 var socket;
+var stoqServer = xmlrpc.createClient({host: 'localhost', port: 6970, path: '/XMLRPC'});
 var clients = new MultiRTC({wrtc: require('wrtc')});
+var host = process.env.STOQ_API_HOST || 'http://api.stoq.com.br';
 
 /*
  * Socket.IO Hooks
  */
 
 var connect = function() {
-  console.info('trying to connect to ws://localhost:5000');
-  socket = io.connect('ws://localhost:5000', {
+  console.info('trying to connect to ', host);
+  socket = io.connect(host, {
     'force new connection': true,
     'max reconnection attempts': Infinity,
   });
@@ -19,7 +22,17 @@ var connect = function() {
 
   socket.on('connect', function() {
     console.info('connected to the signal server');
-    socket.emit('join', '6a35c58a-d8a1-44d5-9141-fc5c3764d13c');
+    stoqServer.methodCall('htsql_query', ["/parameter_data.filter(field_name = 'USER_HASH').field_value"],
+      function(err, result) {
+        var hash = JSON.parse(result).field_value[0];
+        // Properly format the UUID
+        hash = hash.slice(0, 8) + '-' + hash.slice(8, 12) + '-' +
+               hash.slice(12, 16) + '-' + hash.slice(16, 20) + '-' +
+               hash.slice(20);
+        clients.hash = hash;
+
+        socket.emit('join', hash)
+    });
   });
 
   socket.on('joined', function(id) {
@@ -51,20 +64,41 @@ connect();
  * WebRTC Hooks
  */
 
+var events = {
+  who: function() {
+    return clients.send({
+      type: 'whoami',
+      hash: clients.hash,
+    }, id);
+  },
+
+  onHTSQLQuery: function(id, data) {
+    stoqServer.methodCall('htsql_query', [data.htsql], function(err, result) {
+      err || clients.send({
+        type: 'htsql',
+        result: JSON.parse(result),
+      }, id);
+    });
+  },
+};
+
 clients.on('connect', function(id) {
   console.log('connected to peer', id);
 });
 
 clients.on('data', function(id, data) {
-  console.log(id, 'sent', data);
+  try {
+    events[data.type](id, data);
+  }
+  catch(err) {
+    console.error('Error: ', err);
+    clients.send({
+      type: 'error',
+      error: err.toString(),
+    });
+  }
 });
 
 clients.on('disconnect', function(id) {
   console.log('disconnected to peer', id);
-})
-
-// Send a message passed from console/terminal peer-to-peer
-var stdin = process.openStdin();
-stdin.addListener('data', function(data) {
-  clients.send(data.toString());
 });

@@ -28,9 +28,10 @@ import multiprocessing
 import os
 import signal
 import sys
+import urllib
 
 from stoqlib.lib.pluginmanager import get_plugin_manager
-from stoqlib.lib.configparser import get_config
+from stoqlib.database.settings import db_settings
 
 from stoqserver.tasks import (backup_status, restore_database,
                               start_xmlrpc_server, start_server,
@@ -119,18 +120,18 @@ class TaskManager(object):
             'mssql': 'mssql',
         }
 
-        # Get the config data
-        config = get_config()
-        config = {
-            'rdbms': engines[config.get('Database', 'rdbms')],
-            'address': config.get('Database', 'address'),
-            'port': config.get('Database', 'port'),
-            'dbname': config.get('Database', 'dbname'),
-            'dbusername': config.get('Database', 'dbusername'),
-        }
+        if db_settings.password:
+            password = ":" + urllib.quote_plus(db_settings.password)
+        else:
+            password = ""
+        authority = '%s%s@%s:%s' % (
+            db_settings.username, password, db_settings.address,
+            db_settings.port)
 
-        uri = '{rdbms}://{dbusername}@{address}:{port}/{dbname}'
-        store = HTSQL(uri.format(**config))
+        uri = '%s://%s/%s' % (
+            engines[db_settings.rdbms], authority, db_settings.dbname)
+
+        store = HTSQL(uri)
         try:
             rows = store.produce(query)
         except HTSQL_Error as e:
