@@ -145,7 +145,17 @@ def start_rtc():
 
     cwd = library.get_resource_filename('stoqserver', 'webrtc')
 
-    subprocess.call(["npm", "install"], cwd=cwd)
+    # Wait until npm install succeed. It can fail for some reasons, e.g.
+    # when the internet is down.
+    while True:
+        try:
+            subprocess.check_call(["npm", "install"], cwd=cwd)
+        except subprocess.CalledProcessError:
+            logger.warning("npm install failed. Trying again in 10 minutes...")
+            time.sleep(10 * 60)
+        else:
+            break
+
     popen = subprocess.Popen(["node", "rtc.js"], cwd=cwd)
 
     def _sigterm_handler(_signal, _stack_frame):
