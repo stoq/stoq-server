@@ -26,6 +26,7 @@ import logging
 import optparse
 import signal
 import sys
+import time
 import xmlrpclib
 
 from stoq.lib.options import get_option_parser
@@ -36,6 +37,8 @@ from stoqlib.lib.configparser import get_config
 from stoqserver.common import APP_CONF_FILE, SERVER_XMLRPC_PORT
 from stoqserver.taskmanager import TaskManager
 from stoqserver.tasks import backup_database, restore_database, backup_status
+
+logger = logging.getLogger(__name__)
 
 
 class StoqServerCmdHandler(object):
@@ -106,8 +109,21 @@ class StoqServerCmdHandler(object):
 
     def cmd_run(self, options, *args):
         """Run the server daemon"""
-        self._setup_stoq()
         self._setup_logging()
+
+        while True:
+            # If the server was initialized before a stoq database exists,
+            # don't let the process die. Instead, wait until the configuration
+            # is valid so we can really start.
+            try:
+                self._setup_stoq()
+            except Exception as e:
+                logging.warning("Unable to initialize Stoq: %s\n"
+                                "Trying again in 1 minute...", str(e))
+                time.sleep(60)
+            else:
+                break
+
         manager = TaskManager()
 
         def _exit(*args):
