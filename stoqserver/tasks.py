@@ -75,7 +75,7 @@ def backup_database(full=False):
 
     backup.backup(APP_BACKUP_DIR, full=full)
 
-    logging.info("Database backup finished sucessfully")
+    logger.info("Database backup finished sucessfully")
 
 
 def restore_database(user_hash, time=None):
@@ -106,7 +106,7 @@ def restore_database(user_hash, time=None):
             _get_pg_args(config) +
             ['-f', os.path.join(restore_path, 'stoq.dump')])
 
-        logging.info("Backup restore finished sucessfully")
+        logger.info("Backup restore finished sucessfully")
     finally:
         # get_default_store will recreate it (since we closed it above)
         get_default_store()
@@ -119,7 +119,7 @@ def backup_status(user_hash=None):
 
 @reactor_handler
 def start_xmlrpc_server(pipe_conn):
-    logging.info("Starting the xmlrpc server")
+    logger.info("Starting the xmlrpc server")
 
     config = get_config()
     port = int(config.get('General', 'serverport') or SERVER_XMLRPC_PORT)
@@ -133,7 +133,7 @@ def start_xmlrpc_server(pipe_conn):
 
 @reactor_handler
 def start_server():
-    logging.info("Starting stoq server")
+    logger.info("Starting stoq server")
 
     stoq_server = StoqServer()
     reactor.callWhenRunning(stoq_server.start)
@@ -141,7 +141,7 @@ def start_server():
 
 
 def start_rtc():
-    logging.info("Starting webRTC")
+    logger.info("Starting webRTC")
 
     cwd = library.get_resource_filename('stoqserver', 'webrtc')
 
@@ -159,7 +159,7 @@ def start_rtc():
 
 @reactor_handler
 def start_backup_scheduler():
-    logging.info("Starting backup scheduler")
+    logger.info("Starting backup scheduler")
 
     # TODO: For now we are running backups every midday and midnight.
     # Maybe we should make this configurable
@@ -188,7 +188,7 @@ def start_backup_scheduler():
             if p.returncode == 0:
                 break
             else:
-                logging.warning(
+                logger.warning(
                     "Failed to backup database:\nstdout: %s\nstderr: %s",
                     stdout, stderr)
                 # Retry again with a exponential backoff
