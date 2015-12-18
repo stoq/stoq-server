@@ -35,7 +35,6 @@ import time
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.lib.configparser import get_config
 from twisted.internet import reactor, task
-from twisted.python import procutils
 from twisted.web import resource, server
 
 from stoqserver import library
@@ -144,30 +143,30 @@ def start_rtc():
     logger.info("Starting webRTC")
 
     cwd = library.get_resource_filename('stoqserver', 'webrtc')
+    retry = True
+    while retry:
+        retry = False
+        popen = subprocess.Popen(
+            ['bash', 'start.sh'], cwd=cwd)
 
-    # Wait until npm install succeed. It can fail for some reasons, e.g.
-    # when the internet is down.
-    while True:
-        try:
-            subprocess.check_call(["npm", "install"], cwd=cwd)
-        except subprocess.CalledProcessError:
-            logger.warning("npm install failed. Trying again in 10 minutes...")
+        def _sigterm_handler(_signal, _stack_frame):
+            popen.poll()
+            if popen.returncode is None:
+                popen.terminate()
+            os._exit(0)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, _sigterm_handler)
+
+        popen.wait()
+        if popen.returncode == 10:
+            logger.warning("Something failed when trying to start webrtc. "
+                           "Retrying again in 10 minutes...")
             time.sleep(10 * 60)
-        else:
-            break
-
-    node_paths = procutils.which('node') or procutils.which('nodejs')
-    assert node_paths, "Node executable not found"
-
-    popen = subprocess.Popen([node_paths[0], 'rtc.js'], cwd=cwd)
-
-    def _sigterm_handler(_signal, _stack_frame):
-        if popen.poll():
-            popen.terminate()
-
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    signal.signal(signal.SIGTERM, _sigterm_handler)
-    popen.wait()
+            retry = True
+        elif popen.returncode == 139:
+            logger.warning("Segmentation fault caught on wrtc. Restarting...")
+            time.sleep(1)
+            retry = True
 
 
 @reactor_handler
