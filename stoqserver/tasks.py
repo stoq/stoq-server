@@ -35,8 +35,8 @@ import time
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.lib.configparser import get_config
 from twisted.internet import reactor, task
-from twisted.web import resource
-from twisted.web import server
+from twisted.python import procutils
+from twisted.web import resource, server
 
 from stoqserver import library
 from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
@@ -156,7 +156,10 @@ def start_rtc():
         else:
             break
 
-    popen = subprocess.Popen(["node", "rtc.js"], cwd=cwd)
+    node_paths = procutils.which('node') or procutils.which('nodejs')
+    assert node_paths, "Node executable not found"
+
+    popen = subprocess.Popen([node_paths[0], 'rtc.js'], cwd=cwd)
 
     def _sigterm_handler(_signal, _stack_frame):
         if popen.poll():

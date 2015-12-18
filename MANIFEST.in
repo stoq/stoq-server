@@ -1,6 +1,8 @@
 recursive-include *.py
 include data/stoq.conf
 include data/supervisor/stoqserver.conf
+include data/webrtc/package.json
+include data/webrtc/rtc.js
 include MANIFEST.in
 include Makefile
 include debian/changelog debian/compat debian/control
