@@ -22,7 +22,8 @@ case "$1" in
         # Try to find the stoq database
         if [ -d "/var/run/postgresql" ]; then
             for socket in `find /var/run/postgresql -regex '.*\.s\.PGSQL\.[0-9]+'`; do
-                PORT="`echo $PORT | sed -e 's/\(.*\.\)\([0-9]\+\)/\2/'`"
+                PORT="`echo $PORT | sed -e 's/\(.*\.\)\([0-9]\+\)/\2/' | xargs`"
+                [ -z "$PORT" ] && continue
                 set +e
                 DBNAME=`sudo -u postgres psql -p $PORT -lqt | cut -d \| -f 1 | grep stoq | head -n1 | xargs`
                 set -e
@@ -86,8 +87,10 @@ EOF
         # Fix directory permissions
         chown -R stoqserver:stoqserver /usr/share/stoqserver || true
 
-        # Restart the supervisor process
-        supervisorctl reread || true
+        # Restart the supervisor process. We should be using reread here,
+        # but it doesn't seem to recognize new services, just modifications
+        # to existing ones.
+        supervisorctl update || true
         # Update usually would be enough, but we want to make sure that
         # the daemon will restart in case the code changed
         supervisorctl restart stoqserver || true
