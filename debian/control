@@ -15,7 +15,7 @@ Architecture: all
 Depends: ${misc:Depends}, ${python:Depends},
  stoq (>= 1.10.2), supervisor, duplicity, adduser, postgresql, postgresql-contrib,
  python-twisted (>= 10.0.0), python-requests (>= 2.2), python-avahi, python-netifaces,
- git-all, pkg-config, libncurses5-dev, libssl-dev, libnss3-dev, libexpat-dev
+ git-all, pkg-config, libncurses5-dev, libssl-dev, libnss3-dev, libexpat-dev, g++
 Recommends: python-htsql, python-htsql-pgsql
 Homepage: http://www.stoq.com.br/
 Description: A server for Stoq.
