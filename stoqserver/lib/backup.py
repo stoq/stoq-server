@@ -168,7 +168,10 @@ def backup(backup_dir, full=False):
         sys.argv.append(_duplicity_bin)
         if full:
             sys.argv.append('full')
-        sys.argv.extend([backup_dir, _webservice_url])
+        # ceil(10 * 1024 * 1024 / 3) * 4 = 13981012 = ~14MB.
+        # This is the worst case in size increase that b64encode, which is
+        # bellow our security margin of 20MB of max upload size on the server
+        sys.argv.extend(['--volsize', '10', backup_dir, _webservice_url])
 
         _duplicity_main.main()
 
