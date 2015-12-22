@@ -25,12 +25,8 @@ var connect = function() {
     stoqServer.methodCall('htsql_query', ["/parameter_data.filter(field_name = 'USER_HASH').field_value"],
       function(err, result) {
         var hash = JSON.parse(result).field_value[0];
-        // Properly format the UUID
-        hash = hash.slice(0, 8) + '-' + hash.slice(8, 12) + '-' +
-               hash.slice(12, 16) + '-' + hash.slice(16, 20) + '-' +
-               hash.slice(20);
-        clients.hash = hash;
 
+        clients.hash = hash;
         socket.emit('join', hash)
     });
   });
@@ -65,16 +61,45 @@ connect();
  */
 
 var events = {
-  who: function() {
+  /* Tell Stoq Web what user hash you're serving upon */
+  who: function(id) {
     return clients.send({
       type: 'whoami',
       hash: clients.hash,
     }, id);
   },
 
-  onHTSQLQuery: function(id, data) {
+  /* Generic XMLRPC request to Stoq Server */
+  xmlrpc: function(id, data) {
+    stoqServer.methodCall(data.method, data.args, function(err, result) {
+      // Send the error string if anything wrong happened
+      if (err) {
+        return clients.send({
+          type: 'error',
+          error: err.toString(),
+        }, id);
+      }
+
+      // Send the response back to Stoq Web
+      clients.send({
+        type: 'xmlrpc',
+        result: result,
+      }, id);
+    });
+  },
+
+  /* Executes a HTSQL query and send the result back to Stoq Web */
+  htsql: function(id, data) {
     stoqServer.methodCall('htsql_query', [data.htsql], function(err, result) {
-      err || clients.send({
+      // Send the error string if anything wrong happened
+      if (err) {
+        return clients.send({
+          type: 'error',
+          error: err.toString(),
+        }, id);
+      }
+
+      clients.send({
         type: 'htsql',
         result: JSON.parse(result),
       }, id);
