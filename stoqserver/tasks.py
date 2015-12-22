@@ -25,6 +25,7 @@
 import datetime
 import logging
 import os
+import random
 import shutil
 import signal
 import subprocess
@@ -173,16 +174,20 @@ def start_rtc():
 def start_backup_scheduler():
     logger.info("Starting backup scheduler")
 
-    # TODO: For now we are running backups every midday and midnight.
-    # Maybe we should make this configurable
-    now = datetime.datetime.now()
-    if now.hour < 12:
-        midday = now.replace(hour=12, minute=0, second=0, microsecond=0)
-        delta = midday - now
-    else:
-        tomorrow = now + datetime.timedelta(1)
-        midnight = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-        delta = midnight - now
+    config = get_config()
+    backup_schedule = config.get('Backup', 'schedule')
+    if backup_schedule is None:
+        # By defualt, we will do 2 backups. One in a random time between
+        # 9-11 or 14-17 and another one 12 hours after that.
+        # We are using 2, 3 and 4 because they will be summed with 12 bellow
+        hour = random.choice([2, 3, 4, 9, 10])
+        minute = random.randint(0, 59)
+        backup_schedule = '%d:%d,%s:%d' % (hour, minute, hour + 12, minute)
+        config.set('Backup', 'schedule', backup_schedule)
+        config.flush()
+
+    backup_hours = [map(int, i.strip().split(':'))
+                    for i in backup_schedule.split(',')]
 
     def _backup_task():
         for i in xrange(3):
@@ -206,11 +211,20 @@ def start_backup_scheduler():
                 # Retry again with a exponential backoff
                 time.sleep((60 * 2) ** (i + 1))
 
-    backup_task = task.LoopingCall(_backup_task)
-    # Schedule the task to start at the first midday/midnight and then
-    # run every 12 hours
-    reactor.callWhenRunning(reactor.callLater, delta.seconds,
-                            lambda: backup_task.start(12 * 60 * 60))
-    reactor.addSystemEventTrigger(
-        'before', 'shutdown',
-        lambda: getattr(task, 'running', False) and task.stop())
+    for backup_hour in backup_hours:
+        now = datetime.datetime.now()
+        backup_date = now.replace(hour=backup_hour[0], minute=backup_hour[1],
+                                  second=0, microsecond=0)
+        if backup_date < now:
+            backup_date = backup_date + datetime.timedelta(1)
+
+        delta = backup_date - now
+
+        backup_task = task.LoopingCall(_backup_task)
+        # Schedule the task to start at the backup hour and repeat
+        # every 24 hours
+        reactor.callWhenRunning(reactor.callLater, delta.seconds,
+                                backup_task.start, 24 * 60 * 60)
+        reactor.addSystemEventTrigger(
+            'before', 'shutdown',
+            lambda: getattr(task, 'running', False) and task.stop())
