@@ -25,9 +25,10 @@ var connect = function() {
     stoqServer.methodCall('htsql_query', ["/parameter_data.filter(field_name = 'USER_HASH').field_value"],
       function(err, result) {
         var hash = JSON.parse(result).field_value[0];
+        console.log('serving hash', hash);
 
-        clients.hash = hash;
-        socket.emit('join', hash)
+        clients.metadata = {hash: hash};
+        socket.emit('join', hash);
     });
   });
 
@@ -61,14 +62,6 @@ connect();
  */
 
 var events = {
-  /* Tell Stoq Web what user hash you're serving upon */
-  who: function(id) {
-    return clients.send({
-      type: 'whoami',
-      hash: clients.hash,
-    }, id);
-  },
-
   /* Generic XMLRPC request to Stoq Server */
   xmlrpc: function(id, data) {
     stoqServer.methodCall(data.method, data.args, function(err, result) {
