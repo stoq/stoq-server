@@ -131,7 +131,18 @@ class TaskManager(object):
         uri = '%s://%s/%s' % (
             engines[db_settings.rdbms], authority, db_settings.dbname)
 
-        store = HTSQL(uri)
+        exts = [{
+            'tweak.override': {
+                'globals': {
+                    'between($date, $start, $end)': '($date >= $start & $date <= $end)',
+                    'trunc_hour($d)': 'datetime(year($d), month($d), day($d), hour($d))',
+                    'trunc_day($d)': 'datetime(year($d), month($d), day($d))',
+                    'trunc_month($d)': 'datetime(year($d), month($d), 01)',
+                }},
+        }]
+
+        store = HTSQL(uri, *exts)
+
         try:
             rows = store.produce(query)
         except HTSQL_Error as e:
