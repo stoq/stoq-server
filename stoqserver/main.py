@@ -27,18 +27,48 @@ import optparse
 import signal
 import sys
 import time
+import traceback
 import xmlrpclib
 
+import stoq
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.lib.configparser import StoqConfig, register_config
 from stoqlib.lib.configparser import get_config
+from stoqlib.lib.environment import is_developer_mode
 
+import stoqserver
 from stoqserver.common import APP_CONF_FILE, SERVER_XMLRPC_PORT
 from stoqserver.taskmanager import TaskManager
 from stoqserver.tasks import backup_database, restore_database, backup_status
 
 logger = logging.getLogger(__name__)
+
+_SENTRY_URL = ('http://d971a2c535ab444ab18fa14b4b6495ea:'
+               'dc3a89e2701e4336ab0c6df781d1855d@sentry.stoq.com.br/11')
+_LOGGING_FORMAT = '%(asctime)-15s %(name)-35s %(levelname)-8s %(message)s'
+_LOGGING_DATE_FORMAT = '%y-%m-%d %H:%M:%S'
+
+try:
+    import raven
+    _raven_client = raven.Client(_SENTRY_URL)
+except ImportError:
+    _raven_client = None
+
+# Disable send sentry log if its is_developer_mode
+if is_developer_mode():
+    _raven_client = None
+
+# Do this as soon as possible so we can log any early traceback
+if _raven_client is not None:
+    def _excepthook(exctype, value, tb):
+        _raven_client.captureException(
+            (exctype, value, tb),
+            tags={'version': ".".join(str(i) for i in stoqserver.__version__),
+                  'stoq_version': stoq.version})
+        traceback.print_exception(exctype, value, tb)
+
+    sys.excepthook = _excepthook
 
 
 class StoqServerCmdHandler(object):
