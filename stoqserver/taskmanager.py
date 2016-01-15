@@ -133,6 +133,7 @@ class TaskManager(object):
 
         exts = [{
             'tweak.override': {
+                'unique_keys': 'product(sellable_id)',
                 'globals': {
                     'between($date, $start, $end)': '($date >= $start & $date <= $end)',
                     'trunc_hour($d)': 'datetime(year($d), month($d), day($d), hour($d))',
