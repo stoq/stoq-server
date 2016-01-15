@@ -40,7 +40,7 @@ case "$1" in
         fi
 
         # Create .stoq dir and configuration if they don't exist
-        if [ ! -f /usr/share/stoqserver/.stoq ]; then
+        if [ ! -f /usr/share/stoqserver/.stoq/stoq.conf ]; then
             mkdir -p /usr/share/stoqserver/.stoq
             BACKUP_KEY="`cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c64`"
             cat <<EOF > /usr/share/stoqserver/.stoq/stoq.conf
