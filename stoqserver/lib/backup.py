@@ -51,6 +51,7 @@ _webservice_url = WebService.API_SERVER.replace('http', 'stoq')
 # FIXME: Find a better way of passing the user hash to StoqBackend.
 # We can't get it from database when restoring the database for example
 _user_hash = None
+_id = None
 
 
 class StoqBackend(backend.Backend):
@@ -103,6 +104,7 @@ class StoqBackend(backend.Backend):
     def _do_request(self, endpoint, method='GET', **data):
         url = urlparse.urljoin(self._api_url, 'api/backup/' + endpoint)
         data['hash'] = _user_hash
+        data['log_id'] = _id
 
         extra_args = {}
         if method == 'GET':
@@ -157,6 +159,7 @@ def status(user_hash=None):
 
 def backup(backup_dir, full=False):
     global _user_hash
+    global _id
     _user_hash = api.sysparam.get_string('USER_HASH')
 
     reload(duplicity_globals)
@@ -173,7 +176,22 @@ def backup(backup_dir, full=False):
         # bellow our security margin of 2MB of max upload size on the server
         sys.argv.extend(['--volsize', '1', backup_dir, _webservice_url])
 
+        # Tell Stoq Link Admin that you're starting a backup
+        start_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/start')
+        response = requests.get(start_url, params={'hash': _user_hash})
+
+        # If the server rejects the backup, don't even attempt to proceed. Log
+        # which error caused the backup to fail
+        if response.status_code != 200:
+            raise Exception('ERROR: ' + _id.content)
+
+        _id = response.content
         _duplicity_main.main()
+
+        # Tell Stoq Link Admin that the backup has finished
+        end_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/end')
+        requests.get(end_url, params={'log_id': _id, 'hash': _user_hash})
+        _id = None
 
 
 def restore(restore_dir, user_hash, time=None):
