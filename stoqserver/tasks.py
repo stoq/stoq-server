@@ -159,6 +159,10 @@ def start_rtc():
         signal.signal(signal.SIGTERM, _sigterm_handler)
 
         popen.wait()
+        if popen.returncode == 11:
+            logger.warning("libstdc++ too old, not running webRTC client. "
+                           "A system upgrade may be required!")
+            retry = False
         if popen.returncode == 10:
             logger.warning("Something failed when trying to start webrtc. "
                            "Retrying again in 10 minutes...")

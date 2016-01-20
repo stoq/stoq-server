@@ -4,6 +4,9 @@
 *.pyc
 
 data/eggs
+data/webrtc/.version
 data/webrtc/node_modules
+dist
+stoqserver.egg-info
 stoqserver/data/eggs
 venv
