@@ -24,6 +24,7 @@
 
 import base64
 import contextlib
+import hashlib
 import imp
 import json
 import os
@@ -62,6 +63,7 @@ class StoqBackend(backend.Backend):
     def __init__(self, url):
         backend.Backend.__init__(self, url)
 
+        self._keyhash = hashlib.sha256(os.environ['PASSPHRASE']).hexdigest()
         self._api_url = 'http://%s:%s' % (url.hostname, url.port or 80)
 
     #
@@ -105,6 +107,7 @@ class StoqBackend(backend.Backend):
         url = urlparse.urljoin(self._api_url, 'api/backup/' + endpoint)
         data['hash'] = _user_hash
         data['log_id'] = _id
+        data['keyhash'] = self._keyhash
 
         extra_args = {}
         if method == 'GET':
@@ -137,13 +140,22 @@ def _mock_environ():
         sys.argv.pop()
     old_environ = os.environ.copy()
 
+    def _restore_environ():
+        while sys.argv:
+            sys.argv.pop()
+        sys.argv.extend(old_argv)
+        os.environ.clear()
+        os.environ.update(old_environ)
+
+    backup_key = get_config().get('Backup', 'key')
+    if not backup_key:
+        _restore_environ()
+        raise Exception("No backup key set on configuration file")
+    os.environ['PASSPHRASE'] = backup_key
+
     yield
 
-    while sys.argv:
-        sys.argv.pop()
-    sys.argv.extend(old_argv)
-    os.environ.clear()
-    os.environ.update(old_environ)
+    _restore_environ()
 
 
 def status(user_hash=None):
@@ -165,9 +177,6 @@ def backup(backup_dir, full=False):
     reload(duplicity_globals)
 
     with _mock_environ():
-        config = get_config()
-
-        os.environ.setdefault('PASSPHRASE', config.get('Backup', 'key'))
         sys.argv.append(_duplicity_bin)
         if full:
             sys.argv.append('full')
@@ -201,13 +210,6 @@ def restore(restore_dir, user_hash, time=None):
     reload(duplicity_globals)
 
     with _mock_environ():
-        config = get_config()
-
-        backup_key = config.get('Backup', 'key')
-        if not backup_key:
-            raise ValueError("No backup key set on configuration file")
-        os.environ.setdefault('PASSPHRASE', backup_key)
-
         sys.argv.extend([_duplicity_bin, 'restore',
                          _webservice_url, restore_dir])
         if time is not None:
