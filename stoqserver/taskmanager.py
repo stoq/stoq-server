@@ -56,7 +56,12 @@ class _Task(multiprocessing.Process):
     #
 
     def run(self):
-        self.func(*self._func_args, **self._func_kwargs)
+        # Workaround a python issue where multiprocessing/threading will not
+        # use the modified sys.excepthook: https://bugs.python.org/issue1230540
+        try:
+            self.func(*self._func_args, **self._func_kwargs)
+        except Exception:
+            sys.excepthook(*sys.exc_info())
 
 
 class TaskManager(object):

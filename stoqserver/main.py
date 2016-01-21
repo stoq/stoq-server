@@ -24,6 +24,7 @@
 
 import logging
 import optparse
+import platform
 import signal
 import sys
 import time
@@ -33,9 +34,13 @@ import xmlrpclib
 import stoq
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
+from stoqlib.api import api
+from stoqlib.database.settings import get_database_version
 from stoqlib.lib.configparser import StoqConfig, register_config
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.environment import is_developer_mode
+from stoqlib.lib.pluginmanager import InstalledPlugin
+from stoqlib.lib.webservice import get_main_cnpj
 
 import stoqserver
 from stoqserver.common import APP_CONF_FILE, SERVER_XMLRPC_PORT
@@ -62,10 +67,28 @@ if is_developer_mode():
 # Do this as soon as possible so we can log any early traceback
 if _raven_client is not None:
     def _excepthook(exctype, value, tb):
-        _raven_client.captureException(
-            (exctype, value, tb),
-            tags={'version': ".".join(str(i) for i in stoqserver.__version__),
-                  'stoq_version': stoq.version})
+        tags = {
+            'version': ".".join(str(i) for i in stoqserver.__version__),
+            'stoq_version': stoq.version,
+            'architecture': platform.architecture(),
+            'distribution': platform.dist(),
+            'python_version': tuple(sys.version_info),
+            'system': platform.system(),
+            'uname': platform.uname(),
+        }
+        # Those are inside a try/except because thy require database access.
+        # If the database access is not working, we won't be able to get them
+        try:
+            default_store = api.get_default_store()
+            tags['user_hash'] = api.sysparam.get_string('USER_HASH')
+            tags['demo'] = api.sysparam.get_bool('DEMO_MODE')
+            tags['postgresql_version'] = get_database_version(default_store)
+            tags['plugins'] = InstalledPlugin.get_plugin_names(default_store)
+            tags['cnpj'] = get_main_cnpj(default_store)
+        except Exception:
+            pass
+
+        _raven_client.captureException((exctype, value, tb), tags=tags)
         traceback.print_exception(exctype, value, tb)
 
     sys.excepthook = _excepthook
