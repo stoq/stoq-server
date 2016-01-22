@@ -49,10 +49,6 @@ from stoqlib.lib.webservice import WebService
 _duplicity_bin = '/usr/bin/duplicity'
 _duplicity_main = imp.load_source('main', _duplicity_bin)
 _webservice_url = WebService.API_SERVER.replace('http', 'stoq')
-# FIXME: Find a better way of passing the user hash to StoqBackend.
-# We can't get it from database when restoring the database for example
-_user_hash = None
-_id = None
 
 
 class StoqBackend(backend.Backend):
@@ -63,7 +59,11 @@ class StoqBackend(backend.Backend):
     def __init__(self, url):
         backend.Backend.__init__(self, url)
 
+        self._hash = os.environ['STOQ_BACKUP_HASH']
+        assert self._hash
         self._keyhash = hashlib.sha256(os.environ['PASSPHRASE']).hexdigest()
+        assert self._keyhash
+        self._backup_id = os.environ.get('STOQ_BACKUP_ID', None)
         self._api_url = 'http://%s:%s' % (url.hostname, url.port or 80)
 
     #
@@ -105,8 +105,8 @@ class StoqBackend(backend.Backend):
 
     def _do_request(self, endpoint, method='GET', **data):
         url = urlparse.urljoin(self._api_url, 'api/backup/' + endpoint)
-        data['hash'] = _user_hash
-        data['log_id'] = _id
+        data['hash'] = self._hash
+        data['log_id'] = self._backup_id
         data['keyhash'] = self._keyhash
 
         extra_args = {}
@@ -159,24 +159,23 @@ def _mock_environ():
 
 
 def status(user_hash=None):
-    global _user_hash
-    _user_hash = user_hash or api.sysparam.get_string('USER_HASH')
-
     reload(duplicity_globals)
 
     with _mock_environ():
+        os.environ['STOQ_BACKUP_HASH'] = (user_hash or
+                                          api.sysparam.get_string('USER_HASH'))
+
         sys.argv.extend([_duplicity_bin, 'collection-status', _webservice_url])
         _duplicity_main.main()
 
 
 def backup(backup_dir, full=False):
-    global _user_hash
-    global _id
-    _user_hash = api.sysparam.get_string('USER_HASH')
-
     reload(duplicity_globals)
 
     with _mock_environ():
+        user_hash = api.sysparam.get_string('USER_HASH')
+        os.environ['STOQ_BACKUP_HASH'] = user_hash
+
         sys.argv.append(_duplicity_bin)
         if full:
             sys.argv.append('full')
@@ -187,29 +186,28 @@ def backup(backup_dir, full=False):
 
         # Tell Stoq Link Admin that you're starting a backup
         start_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/start')
-        response = requests.get(start_url, params={'hash': _user_hash})
+        response = requests.get(start_url, params={'hash': user_hash})
 
         # If the server rejects the backup, don't even attempt to proceed. Log
         # which error caused the backup to fail
         if response.status_code != 200:
-            raise Exception('ERROR: ' + _id.content)
+            raise Exception('ERROR: ' + response.content)
 
-        _id = response.content
+        os.environ['STOQ_BACKUP_ID'] = response.content
         _duplicity_main.main()
 
         # Tell Stoq Link Admin that the backup has finished
         end_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/end')
-        requests.get(end_url, params={'log_id': _id, 'hash': _user_hash})
-        _id = None
+        requests.get(end_url,
+                     params={'log_id': response.content, 'hash': user_hash})
 
 
 def restore(restore_dir, user_hash, time=None):
-    global _user_hash
-    _user_hash = user_hash
-
     reload(duplicity_globals)
 
     with _mock_environ():
+        os.environ['STOQ_BACKUP_HASH'] = user_hash
+
         sys.argv.extend([_duplicity_bin, 'restore',
                          _webservice_url, restore_dir])
         if time is not None:
