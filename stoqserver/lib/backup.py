@@ -74,10 +74,10 @@ class StoqBackend(backend.Backend):
         # If remote_filename is None, duplicity API says source_path
         # filename should be used instead
         remote_filename = remote_filename or source_path.get_filename()
-        data = base64.b64encode(source_path.get_data())
+        files = {'file': base64.b64encode(source_path.get_data())}
 
         self._do_request(
-            'post', method='POST', filename=remote_filename, content=data)
+            'post', method='POST', files=files, filename=remote_filename)
 
     def get(self, remote_filename, local_path):
         url = self._do_request(
@@ -103,7 +103,7 @@ class StoqBackend(backend.Backend):
     #  Private
     #
 
-    def _do_request(self, endpoint, method='GET', **data):
+    def _do_request(self, endpoint, method='GET', files=None, **data):
         url = urlparse.urljoin(self._api_url, 'api/backup/' + endpoint)
         data['hash'] = self._hash
         data['log_id'] = self._backup_id
@@ -117,7 +117,8 @@ class StoqBackend(backend.Backend):
         else:
             raise AssertionError
 
-        res = requests.request(method, url, timeout=self.TIMEOUT, **extra_args)
+        res = requests.request(method, url, timeout=self.TIMEOUT,
+                               files=files, **extra_args)
         return res.text
 
 
@@ -179,10 +180,10 @@ def backup(backup_dir, full=False):
         sys.argv.append(_duplicity_bin)
         if full:
             sys.argv.append('full')
-        # ceil(1 * 1024 * 1024 / 3) * 4 = 1398100 = ~1.4MB.
-        # This is the worst case in size increase that b64encode, which is
-        # bellow our security margin of 2MB of max upload size on the server
-        sys.argv.extend(['--volsize', '1', backup_dir, _webservice_url])
+
+        # Display progress and do a full backup monthly
+        sys.argv.extend(['--full-if-older-than', '1M', '--progress',
+                         backup_dir, _webservice_url])
 
         # Tell Stoq Link Admin that you're starting a backup
         start_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/start')
