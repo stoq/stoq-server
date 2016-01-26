@@ -54,7 +54,15 @@ fi
 echo "Running npm install..."
 npm install
 RC=$?
-[[ $RC != 0 ]] && exit 10
+# On some rare ocasions node_modules can corrupt and npm install will fail.
+# If that happens, remove it and do a 'npm install' again to fix it
+if [[ $RC != 0 ]]; then
+    echo "node_modules probably corrupted. Reinstalling it..."
+    rm -rf node_modules
+    npm install
+    RC=$?
+    [[ $RC != 0 ]] && exit 10
+fi
 
 [[ "`getconf LONG_BIT`" = "64" ]] && _ARCH="x64" || _ARCH="ia32"
 _WRTC_DIR="node_modules/wrtc/build/wrtc"
