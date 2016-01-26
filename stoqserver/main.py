@@ -26,6 +26,7 @@ import logging
 import optparse
 import platform
 import signal
+import socket
 import sys
 import time
 import traceback
@@ -240,8 +241,17 @@ class StoqServerCmdHandler(object):
 
         remote = xmlrpclib.ServerProxy(
             'http://%s:%s/XMLRPC' % (address, port), allow_none=True)
+        # Backup commands can take a while to execute. Wait at least 10 minutes
+        # before timing out so we can give a better feedback to the user
+        if cmd.startswith('backup'):
+            socket.setdefaulttimeout(60 * 10)
+
+        print "Executing '%s' on server. This might take a while..." % (cmd, )
         try:
             print getattr(remote, cmd)(*cmd_args)
+        except socket.timeout:
+            print "Connection timed out. The action may still be executing..."
+            return 1
         except xmlrpclib.Fault as e:
             print "Server fault (%s): %s" % (e.faultCode, e.faultString)
             return 1

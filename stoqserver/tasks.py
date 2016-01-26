@@ -33,7 +33,9 @@ import sys
 import tempfile
 import time
 
+from stoqlib.exceptions import DatabaseError
 from stoqlib.database.runtime import get_default_store, set_default_store
+from stoqlib.database.settings import db_settings
 from stoqlib.lib.configparser import get_config
 from twisted.internet import reactor, task
 from twisted.web import resource, server
@@ -48,38 +50,53 @@ from stoqserver.server import StoqServer
 logger = logging.getLogger(__name__)
 
 
-def _get_pg_args(config):
-    args = []
-    for pg_arg, config_key in [
-            ('-U', 'dbusername'),
-            ('-h', 'address'),
-            ('-p', 'port')]:
-        config_value = config.get('Database', config_key)
-        if config_value is not None:
-            args.extend([pg_arg, config_value])
-
-    return args
+class TaskException(Exception):
+    """Default tasks exception"""
 
 
 def backup_database(full=False):
-    config = get_config()
-
     if not os.path.exists(APP_BACKUP_DIR):
         os.makedirs(APP_BACKUP_DIR)
 
     filename = os.path.join(APP_BACKUP_DIR, 'stoq.dump')
-    subprocess.check_call(
-        ['pg_dump', '-Fp', '-f', filename] +
-        _get_pg_args(config) +
-        [config.get('Database', 'dbname')])
+    if not db_settings.dump_database(filename, format='plain'):
+        raise TaskException("Failed to dump the database")
 
     backup.backup(APP_BACKUP_DIR, full=full)
-
     logger.info("Database backup finished sucessfully")
 
 
 def restore_database(user_hash, time=None):
     assert user_hash
+
+    # If the database doesn't exist, get_default_store will fail
+    try:
+        default_store = get_default_store()
+    except Exception:
+        default_store = None
+
+    if default_store is not None and db_settings.has_database():
+        try:
+            default_store.lock_database()
+        except DatabaseError:
+            raise TaskException(
+                "Could not lock database. This means that there are other "
+                "clients connected. Make sure to close every Stoq client "
+                "before updating the database")
+        except Exception:
+            raise TaskException(
+                "Database is empty or in a corrupted state. Fix or drop it "
+                "before trying to proceed with the restore")
+        else:
+            default_store.unlock_database()
+
+        with tempfile.NamedTemporaryFile() as f:
+            if not db_settings.dump_database(f.name):
+                raise TaskException("Failed to dump the database")
+            backup_name = db_settings.restore_database(f.name)
+            logger.info("Created a backup of the current database state on %s",
+                        backup_name)
+
     tmp_path = tempfile.mkdtemp()
     try:
         # None will make the default store be closed, which we need
@@ -87,24 +104,11 @@ def restore_database(user_hash, time=None):
         set_default_store(None)
         restore_path = os.path.join(tmp_path, 'stoq')
 
-        config = get_config()
-        dbname = config.get('Database', 'dbname')
-
         backup.restore(restore_path, user_hash, time=time)
 
-        # Drop the database
-        subprocess.check_call(
-            ['dropdb'] + _get_pg_args(config) + [dbname])
-
-        # Create the database
-        subprocess.check_call(
-            ['createdb'] + _get_pg_args(config) + [dbname])
-
-        # Restore the backup
-        subprocess.check_call(
-            ['psql', '-d', dbname] +
-            _get_pg_args(config) +
-            ['-f', os.path.join(restore_path, 'stoq.dump')])
+        db_settings.clean_database(db_settings.dbname, force=True)
+        db_settings.execute_sql(os.path.join(restore_path, 'stoq.dump'),
+                                lock_database=True)
 
         logger.info("Backup restore finished sucessfully")
     finally:
