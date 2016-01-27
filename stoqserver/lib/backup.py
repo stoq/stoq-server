@@ -28,6 +28,7 @@ import hashlib
 import imp
 import json
 import os
+import re
 import sys
 import urlparse
 
@@ -48,7 +49,8 @@ from stoqlib.lib.webservice import WebService
 
 _duplicity_bin = '/usr/bin/duplicity'
 _duplicity_main = imp.load_source('main', _duplicity_bin)
-_webservice_url = WebService.API_SERVER.replace('http', 'stoq')
+# Support both http and https
+_webservice_url = re.sub('https?', 'stoq', WebService.API_SERVER)
 
 
 class StoqBackend(backend.Backend):
@@ -74,10 +76,16 @@ class StoqBackend(backend.Backend):
         # If remote_filename is None, duplicity API says source_path
         # filename should be used instead
         remote_filename = remote_filename or source_path.get_filename()
-        files = {'file': base64.b64encode(source_path.get_data())}
+        content = base64.b64encode(source_path.get_data())
 
-        self._do_request(
-            'post', method='POST', files=files, filename=remote_filename)
+        post_data = json.loads(self._do_request(
+            'put', filename=remote_filename, size=len(content)))
+
+        # Do the actual post request to s3 using the post_data supplied
+        res = requests.post(post_data['url'], timeout=self.TIMEOUT,
+                            allow_redirects=True, data=post_data['form_data'],
+                            files={'file': content})
+        assert res.status_code == 200
 
     def get(self, remote_filename, local_path):
         url = self._do_request(
@@ -119,6 +127,8 @@ class StoqBackend(backend.Backend):
 
         res = requests.request(method, url, timeout=self.TIMEOUT,
                                files=files, **extra_args)
+        assert res.status_code == 200
+
         return res.text
 
 
