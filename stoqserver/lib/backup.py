@@ -53,20 +53,37 @@ _duplicity_main = imp.load_source('main', _duplicity_bin)
 _webservice_url = re.sub('https?', 'stoq', WebService.API_SERVER)
 
 
+class _Session(requests.Session):
+
+    _TIMEOUT = 60
+    _MAX_RETRIES = 3
+
+    def __init__(self):
+        super(_Session, self).__init__()
+
+        adapter = requests.adapters.HTTPAdapter(max_retries=self._MAX_RETRIES)
+        for prefix in ['http://', 'https://']:
+            self.mount(prefix, adapter)
+
+    def request(self, *args, **kwargs):
+        kwargs.setdefault('timeout', self._TIMEOUT)
+        return super(_Session, self).request(*args, **kwargs)
+
+
 class StoqBackend(backend.Backend):
 
     SCHEME = 'stoq'
-    TIMEOUT = 60
 
     def __init__(self, url):
         backend.Backend.__init__(self, url)
 
-        self._hash = os.environ['STOQ_BACKUP_HASH']
-        assert self._hash
-        self._keyhash = hashlib.sha256(os.environ['PASSPHRASE']).hexdigest()
-        assert self._keyhash
-        self._backup_id = os.environ.get('STOQ_BACKUP_ID', None)
         self._api_url = 'http://%s:%s' % (url.hostname, url.port or 80)
+        self._session = _Session()
+        self._session.params = {
+            'hash': os.environ['STOQ_BACKUP_HASH'],
+            'keyhash': hashlib.sha256(os.environ['PASSPHRASE']).hexdigest(),
+            'log_id': os.environ.get('STOQ_BACKUP_ID', None),
+        }
 
     #
     #  backend.Backend
@@ -82,9 +99,9 @@ class StoqBackend(backend.Backend):
             'put', filename=remote_filename, size=len(content)))
 
         # Do the actual post request to s3 using the post_data supplied
-        res = requests.post(post_data['url'], timeout=self.TIMEOUT,
-                            allow_redirects=True, data=post_data['form_data'],
-                            files={'file': content})
+        with _Session() as s:
+            res = s.post(post_data['url'], allow_redirects=True,
+                         data=post_data['form_data'], files={'file': content})
         assert res.status_code == 200
 
     def get(self, remote_filename, local_path):
@@ -92,7 +109,8 @@ class StoqBackend(backend.Backend):
             'get', filename=remote_filename)
 
         with open(local_path.name, 'w') as local_file:
-            res = requests.get(url)
+            with _Session() as s:
+                res = s.get(url)
             local_file.write(base64.b64decode(res.text))
 
     def list(self):
@@ -105,7 +123,7 @@ class StoqBackend(backend.Backend):
         self._do_request('delete', filename=remote_filename)
 
     def close(self):
-        pass
+        self._session.close()
 
     #
     #  Private
@@ -113,9 +131,6 @@ class StoqBackend(backend.Backend):
 
     def _do_request(self, endpoint, method='GET', files=None, **data):
         url = urlparse.urljoin(self._api_url, 'api/backup/' + endpoint)
-        data['hash'] = self._hash
-        data['log_id'] = self._backup_id
-        data['keyhash'] = self._keyhash
 
         extra_args = {}
         if method == 'GET':
@@ -125,8 +140,7 @@ class StoqBackend(backend.Backend):
         else:
             raise AssertionError
 
-        res = requests.request(method, url, timeout=self.TIMEOUT,
-                               files=files, **extra_args)
+        res = self._session.request(method, url, files=files, **extra_args)
         assert res.status_code == 200
 
         return res.text
@@ -197,7 +211,8 @@ def backup(backup_dir, full=False):
 
         # Tell Stoq Link Admin that you're starting a backup
         start_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/start')
-        response = requests.get(start_url, params={'hash': user_hash})
+        with _Session() as s:
+            response = s.get(start_url, params={'hash': user_hash})
 
         # If the server rejects the backup, don't even attempt to proceed. Log
         # which error caused the backup to fail
@@ -209,8 +224,9 @@ def backup(backup_dir, full=False):
 
         # Tell Stoq Link Admin that the backup has finished
         end_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/end')
-        requests.get(end_url,
-                     params={'log_id': response.content, 'hash': user_hash})
+        with _Session() as s:
+            s.get(end_url,
+                  params={'log_id': response.content, 'hash': user_hash})
 
 
 def restore(restore_dir, user_hash, time=None):
