@@ -57,7 +57,7 @@ _LOGGING_DATE_FORMAT = '%y-%m-%d %H:%M:%S'
 
 try:
     import raven
-    _raven_client = raven.Client(_SENTRY_URL)
+    _raven_client = raven.Client(_SENTRY_URL, release=stoqserver.version_str)
 except ImportError:
     _raven_client = None
 
@@ -69,7 +69,7 @@ if is_developer_mode():
 if _raven_client is not None:
     def _excepthook(exctype, value, tb):
         tags = {
-            'version': ".".join(str(i) for i in stoqserver.__version__),
+            'version': stoqserver.version_str,
             'stoq_version': stoq.version,
             'architecture': platform.architecture(),
             'distribution': platform.dist(),

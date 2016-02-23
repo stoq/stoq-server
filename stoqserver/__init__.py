@@ -29,3 +29,4 @@ __version__ = (0, 5, 1)
 __all__ = ["library"]
 
 library = Library("stoqserver", root="..")
+version_str = '.'.join(str(i) for i in __version__)

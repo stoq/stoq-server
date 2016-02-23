@@ -50,7 +50,7 @@ setup(
     name=PACKAGE,
     author="Stoq Team",
     author_email="stoq-devel@async.com.br",
-    version=".".join(str(i) for i in stoqserver.__version__),
+    version=stoqserver.version_str,
     packages=listpackages('stoqserver'),
     data_files=data_files,
     install_requires=install_requires,
