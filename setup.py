@@ -34,6 +34,8 @@ scripts = [
     'bin/stoqserver',
 ]
 data_files = [
+    (os.path.join(os.sep, 'etc', 'sudoers.d'),
+     [os.path.join('data', 'sudoers.d', 'stoqserver')]),
     (os.path.join(os.sep, 'etc', 'supervisor', 'conf.d'),
      [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
     (os.path.join(os.sep, 'usr', 'share', 'stoqserver', 'webrtc'),

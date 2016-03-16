@@ -13,7 +13,7 @@ X-Python-Version: >= 2.7
 Package: stoq-server
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends},
- stoq (>= 1.10.2), supervisor, duplicity, adduser, git, postgresql, postgresql-contrib,
+ stoq (>= 1.10.2), supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
  python-twisted (>= 10.0.0), python-requests (>= 2.2), python-avahi, python-netifaces
 Recommends: python-raven, python-htsql, python-htsql-pgsql
 Homepage: http://www.stoq.com.br/
