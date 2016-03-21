@@ -23,6 +23,7 @@
 ##
 
 import dbus
+import logging
 import os
 import tempfile
 
@@ -46,6 +47,7 @@ from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
                                SERVER_EGGS, APP_CONF_FILE)
 
 _ = lambda s: s
+logger = logging.getLogger(__name__)
 
 
 class _PasswordChecker(object):
@@ -91,16 +93,26 @@ class _HttpPasswordRealm(object):
 
 class StoqServer(object):
 
+    def __init__(self):
+        self.group = None
+        self.listener = None
+
     #
     #  Public API
     #
 
     def start(self):
         self._setup_twisted()
-        self._setup_avahi()
+        try:
+            self._setup_avahi()
+        except dbus.exceptions.DBusException as e:
+            logger.warning("Failed to setup avahi: %s", str(e))
 
     def stop(self):
-        self.group.Reset()
+        if self.listener is not None:
+            self.listener.stopListening()
+        if self.group is not None:
+            self.group.Reset()
 
     #
     #  Private
@@ -141,7 +153,7 @@ class StoqServer(object):
         site = server.Site(root)
         site.protocol = HTTPChannel
 
-        reactor.listenTCP(SERVER_AVAHI_PORT, site)
+        self.listener = reactor.listenTCP(SERVER_AVAHI_PORT, site)
 
     def _setup_avahi(self):
         bus = dbus.SystemBus()
