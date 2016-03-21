@@ -30,6 +30,7 @@ import signal
 import sys
 import urllib
 
+import stoq
 from stoqlib.lib.pluginmanager import get_plugin_manager
 from stoqlib.database.settings import db_settings
 
@@ -138,7 +139,6 @@ class TaskManager(object):
 
         exts = [{
             'tweak.override': {
-                'unique_keys': 'product(sellable_id)',
                 'globals': {
                     'between($date, $start, $end)': '($date >= $start & $date <= $end)',
                     'trunc_hour($d)': 'datetime(year($d), month($d), day($d), hour($d))',
@@ -146,6 +146,11 @@ class TaskManager(object):
                     'trunc_month($d)': 'datetime(year($d), month($d), 01)',
                 }},
         }]
+
+        # FIXME: This is to support old stoq versions, which didn't have
+        # a UNIQUE constraint on product.sellable_id column
+        if stoq.stoq_version < (1, 10, 90):
+            exts[0]['tweak.override']['unique_keys'] = 'product(sellable_id)'
 
         store = HTSQL(uri, *exts)
 
