@@ -33,13 +33,16 @@ import traceback
 import xmlrpclib
 
 import stoq
+from kiwi.component import provide_utility
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.api import api
 from stoqlib.database.settings import get_database_version
+from stoqlib.lib.appinfo import AppInfo
 from stoqlib.lib.configparser import StoqConfig, register_config
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.environment import is_developer_mode
+from stoqlib.lib.interfaces import IAppInfo
 from stoqlib.lib.pluginmanager import InstalledPlugin
 from stoqlib.lib.webservice import get_main_cnpj
 
@@ -122,6 +125,12 @@ class StoqServerCmdHandler(object):
     #
 
     def _setup_stoq(self):
+        info = AppInfo()
+        info.set('name', "stoqserver")
+        info.set('version', stoqserver.version_str)
+        info.set('ver', stoqserver.version_str)
+        provide_utility(IAppInfo, info, replace=True)
+
         # FIXME: Maybe we should check_schema and load plugins here?
         setup(config=get_config(), options=None, register_station=False,
               check_schema=False, load_plugins=True)
