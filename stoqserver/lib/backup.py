@@ -46,6 +46,10 @@ import requests
 from stoqlib.api import api
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.webservice import WebService
+try:
+    from urllib3 import Retry
+except ImportError:
+    Retry = None
 
 _duplicity_bin = '/usr/bin/duplicity'
 _duplicity_main = imp.load_source('main', _duplicity_bin)
@@ -56,12 +60,14 @@ _webservice_url = re.sub('https?', 'stoq', WebService.API_SERVER)
 class _Session(requests.Session):
 
     _TIMEOUT = 60
-    _MAX_RETRIES = 3
+    _MAX_RETRIES = 10  # 10 is the default max retries defined on urllib3.Retry
 
     def __init__(self):
         super(_Session, self).__init__()
 
-        adapter = requests.adapters.HTTPAdapter(max_retries=self._MAX_RETRIES)
+        max_retries = (Retry(total=self._MAX_RETRIES, backoff_factor=0.5)
+                       if Retry is not None else self._MAX_RETRIES)
+        adapter = requests.adapters.HTTPAdapter(max_retries=max_retries)
         for prefix in ['http://', 'https://']:
             self.mount(prefix, adapter)
 
