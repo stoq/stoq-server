@@ -44,6 +44,22 @@ class ServerXMLRPCResource(XMLRPCResource):
         reactor.callLater(0.1, self._pipe_conn.send, ('restart', ))
         return "Restart command sent..."
 
+    def xmlrpc_pause_tasks(self):
+        self._pipe_conn.send(('pause_tasks', ))
+        retval, msg = self._pipe_conn.recv()
+        if not retval:
+            raise xmlrpc.Fault(32000, msg)
+
+        return msg
+
+    def xmlrpc_resume_tasks(self):
+        self._pipe_conn.send(('resume_tasks', ))
+        retval, msg = self._pipe_conn.recv()
+        if not retval:
+            raise xmlrpc.Fault(32000, msg)
+
+        return msg
+
     def xmlrpc_htsql_query(self, query):
         self._pipe_conn.send(('htsql_query', query))
         retval, msg = self._pipe_conn.recv()

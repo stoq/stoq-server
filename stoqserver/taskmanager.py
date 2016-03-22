@@ -31,8 +31,9 @@ import sys
 import urllib
 
 import stoq
-from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.database.settings import db_settings
+from stoqlib.lib.pluginmanager import get_plugin_manager
 
 from stoqserver.tasks import (backup_status, restore_database,
                               start_xmlrpc_server, start_server,
@@ -68,6 +69,7 @@ class _Task(multiprocessing.Process):
 class TaskManager(object):
 
     def __init__(self):
+        self._paused = False
         self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
         self._plugins_pipes = {}
 
@@ -107,6 +109,24 @@ class TaskManager(object):
         self.stop(close_xmlrpc=True)
         # execv will restart the process and finish this one
         os.execv(sys.argv[0], sys.argv)
+
+    def action_pause_tasks(self):
+        if not self._paused:
+            self.stop()
+            # None will make the default store be closed
+            set_default_store(None)
+            self._paused = True
+
+        return True, "Tasks paused successfully"
+
+    def action_resume_tasks(self):
+        if self._paused:
+            # get_default_store will recreate it (since we closed it above)
+            get_default_store()
+            self._start_tasks()
+            self._paused = False
+
+        return True, "Tasks resumed successfully"
 
     def action_htsql_query(self, query):
         """Executes a HTSQL Query"""
