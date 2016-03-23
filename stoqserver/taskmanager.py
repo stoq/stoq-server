@@ -58,6 +58,7 @@ class _Task(multiprocessing.Process):
     #
 
     def run(self):
+        os.setpgrp()
         # Workaround a python issue where multiprocessing/threading will not
         # use the modified sys.excepthook: https://bugs.python.org/issue1230540
         try:
@@ -94,12 +95,20 @@ class TaskManager(object):
             if not p.is_alive():
                 continue
 
+            pgid = os.getpgid(p.pid)
             os.kill(p.pid, signal.SIGTERM)
             # Give it 2 seconds to exit. If that doesn't happen, force
             # its termination
             p.join(2)
             if p.is_alive():
                 p.terminate()
+
+            # Try to kill any remaining child process that refused to
+            # terminate (e.g. wrtc client)
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except OSError:
+                pass
 
     #
     #  Actions
