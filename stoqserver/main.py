@@ -24,6 +24,7 @@
 
 import logging
 import optparse
+import os
 import platform
 import signal
 import socket
@@ -37,7 +38,7 @@ from kiwi.component import provide_utility
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.api import api
-from stoqlib.database.settings import get_database_version
+from stoqlib.database.settings import get_database_version, db_settings
 from stoqlib.lib.appinfo import AppInfo
 from stoqlib.lib.configparser import StoqConfig, register_config
 from stoqlib.lib.configparser import get_config
@@ -186,6 +187,20 @@ class StoqServerCmdHandler(object):
                 time.sleep(60)
             else:
                 break
+
+        with api.new_store() as store:
+            query = ("SELECT client_addr FROM pg_stat_activity "
+                     "WHERE application_name LIKE ? AND "
+                     "      application_name NOT LIKE ? AND "
+                     "      datname = ? "
+                     "LIMIT 1")
+            params = [u'stoqserver%', u'%%%d' % (os.getpid()),
+                      unicode(db_settings.dbname)]
+            res = store.execute(query, params=params).get_one()
+            if res is not None:
+                print ("There's already a Stoq Server running in this "
+                       "database on address %s" % (res[0], ))
+                return 1
 
         manager = TaskManager()
 
