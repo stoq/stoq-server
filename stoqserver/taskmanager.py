@@ -115,11 +115,15 @@ class TaskManager(object):
     #
 
     def action_restart(self):
+        logger.info("Restarting the process as requested...")
+
         self.stop(close_xmlrpc=True)
         # execv will restart the process and finish this one
         os.execv(sys.argv[0], sys.argv)
 
     def action_pause_tasks(self):
+        logger.info("Pausing the tasks as requested...")
+
         if not self._paused:
             self.stop()
             # None will make the default store be closed
@@ -129,6 +133,8 @@ class TaskManager(object):
         return True, "Tasks paused successfully"
 
     def action_resume_tasks(self):
+        logger.info("Resuming the tasks as requested..")
+
         if self._paused:
             # get_default_store will recreate it (since we closed it above)
             get_default_store()
