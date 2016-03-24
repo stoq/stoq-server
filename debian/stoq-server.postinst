@@ -25,7 +25,8 @@ case "$1" in
                 PORT="`echo $PORT | sed -e 's/\(.*\.\)\([0-9]\+\)/\2/' | xargs`"
                 [ -z "$PORT" ] && continue
                 set +e
-                DBNAME=`sudo -u postgres psql -p $PORT -lqt | cut -d \| -f 1 | grep stoq | head -n1 | xargs`
+                # TODO: Improve code when we find more than one database candidates
+                DBNAME=`sudo -u postgres psql -p $PORT -AtqwlF \| | cut -d \| -f 1 | grep stoq | head -n1`
                 set -e
                 [ ! -z "$DBNAME" ] && break
             done
