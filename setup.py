@@ -52,6 +52,11 @@ setup(
     name=PACKAGE,
     author="Stoq Team",
     author_email="stoq-devel@async.com.br",
+    description="Stoq server",
+    url="http://www.stoq.com.br",
+    license="GNU LGPL 2.1 (see COPYING)",
+    long_description=("Service that provides a bridge between Stoq and "
+                      "stoq.link, along with other usefullnesses."),
     version=stoqserver.version_str,
     packages=listpackages('stoqserver'),
     data_files=data_files,
