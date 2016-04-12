@@ -85,6 +85,12 @@ EOF
                 stoqserver
         fi
 
+        if [ ! -f /usr/share/stoqserver/.ssh/id_rsa ]; then
+            # Create a ssh key for stoqserver
+            mkdir -p /usr/share/stoqserver/.ssh
+            ssh-keygen -t rsa -N "" -f /usr/share/stoqserver/.ssh/id_rsa
+        fi
+
         # Fix directory permissions
         chown -R stoqserver:stoqserver /usr/share/stoqserver || true
 
