@@ -69,6 +69,8 @@ class _Task(multiprocessing.Process):
 
 class TaskManager(object):
 
+    PLUGIN_ACTION_TIMEOUT = 60
+
     def __init__(self):
         self._paused = False
         self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
@@ -242,7 +244,16 @@ class TaskManager(object):
         except KeyError:
             return False, "Plugin %s not found" % (plugin_name, )
         else:
+            # This is garbage from the previous timeout
+            if pipe.poll():
+                pipe.recv()
+
             pipe.send((action, args))
+            if not pipe.poll(self.PLUGIN_ACTION_TIMEOUT):
+                logger.warning("Plugin %s task %s action %s timed out",
+                               plugin_name, task_name, action)
+                return False, "Plugin action timed out"
+
             return pipe.recv()
 
     #
