@@ -68,6 +68,7 @@ var events = {
       // Send the error string if anything wrong happened
       if (err) {
         return clients.send({
+          __response_id__: data.__response_id__,
           type: 'error',
           error: err.toString(),
         }, id);
@@ -75,6 +76,7 @@ var events = {
 
       // Send the response back to Stoq Web
       clients.send({
+        __response_id__: data.__response_id__,
         type: 'xmlrpc',
         result: result,
       }, id);
@@ -87,12 +89,14 @@ var events = {
       // Send the error string if anything wrong happened
       if (err) {
         return clients.send({
+          __response_id__: data.__response_id__,
           type: 'error',
           error: err.toString(),
         }, id);
       }
 
       clients.send({
+        __response_id__: data.__response_id__,
         type: 'htsql',
         result: JSON.parse(result),
       }, id);
@@ -111,6 +115,7 @@ clients.on('data', function(id, data) {
   catch(err) {
     console.error('Error: ', err);
     clients.send({
+      __response_id__: data.__response_id__,
       type: 'error',
       error: err.toString(),
     });
