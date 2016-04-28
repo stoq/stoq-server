@@ -24,9 +24,12 @@
 
 import logging
 
+import stoq
 from stoqlib.net.xmlrpcservice import XMLRPCResource
 from twisted.internet import reactor
 from twisted.web import xmlrpc
+
+import stoqserver
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,12 @@ class ServerXMLRPCResource(XMLRPCResource):
 
     def xmlrpc_ping(self):
         return "Server is alive and running..."
+
+    def xmlrpc_version(self):
+        return stoqserver.version_str
+
+    def xmlrpc_stoq_version(self):
+        return stoq.version
 
     def xmlrpc_restart(self):
         reactor.callLater(0.1, self._pipe_conn.send, ('restart', ))
