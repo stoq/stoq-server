@@ -94,6 +94,12 @@ EOF
         # Fix directory permissions
         chown -R stoqserver:stoqserver /usr/share/stoqserver || true
 
+        # FIXME: supervisor is not being enabled by default on xenial (probably
+        # something related to systemd). Until we discover what is going on,
+        # enable it by hand here or else stoqserver will never run
+        systemctl enable supervisor.service || true
+        systemctl start supervisor.service || true
+
         # Restart the supervisor process. We should be using reread here,
         # but it doesn't seem to recognize new services, just modifications
         # to existing ones.
