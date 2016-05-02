@@ -202,6 +202,10 @@ class StoqServerCmdHandler(object):
                        "database on address %s" % (res[0], ))
                 return 1
 
+        if not api.sysparam.get_string('USER_HASH'):
+            print "No USER_HASH found for this installation"
+            return 1
+
         manager = TaskManager()
 
         def _exit(*args):
