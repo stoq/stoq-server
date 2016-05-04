@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 VERSION_FILE=".version"
 NVM_URL="https://raw.githubusercontent.com/creationix/nvm/v0.31.0/install.sh"
 NVM_DIR="$HOME/.nvm"
@@ -82,5 +83,5 @@ if [ ! -f "$_BINARY_FILE" ]; then
 fi
 
 echo "Starting $NODE_FILE..."
-NODE_PATH=node_modules node $NODE_FILE
+NODE_PATH=node_modules node $NODE_FILE "$@"
 exit $?

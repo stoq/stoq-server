@@ -149,10 +149,17 @@ def start_rtc():
 
     cwd = library.get_resource_filename('stoqserver', 'webrtc')
     retry = True
+
+    config = get_config()
+    extra_args = []
+    urls = config.get('Camera', 'url') or None
+    if urls:
+        extra_args.append('-c=' + ' '.join(set(urls.split(' '))))
+
     while retry:
         retry = False
         popen = subprocess.Popen(
-            ['bash', 'start.sh'], cwd=cwd)
+            ['bash', 'start.sh'] + extra_args, cwd=cwd)
 
         def _sigterm_handler(_signal, _stack_frame):
             popen.poll()

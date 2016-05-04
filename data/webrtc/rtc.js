@@ -1,11 +1,36 @@
 var io = require('socket.io-client'),
     xmlrpc = require('xmlrpc'),
-    MultiRTC = require('./node_modules/components/utils/multi-rtc');
+    MultiRTC = require('./node_modules/components/utils/multi-rtc'),
+    Snapshooter = require('./snapshooter'),
+    meow = require('meow');
+
+var cli = meow(`
+  Usage
+    $ rtc
+
+  Options
+    -c --cameras <camera-urls> Serve images frmo the given MJPEG streams, separated by spaces.
+
+  Examples:
+    Run rtc.js providing images from 10.1.1.2 and 10.1.1.3
+      node rtc.js "http://username:password@10.1.1.2/video.cgi http://username:password@10.1.1.3/video.cgi"
+`, {
+  alias: {
+    c: 'cameras',
+  }
+});
 
 var socket;
 var stoqServer = xmlrpc.createClient({host: 'localhost', port: 6970, path: '/XMLRPC'});
 var clients = new MultiRTC({wrtc: require('wrtc')});
 var host = process.env.STOQ_API_HOST || 'http://api.stoq.com.br';
+
+// If exists, connect to the cameras given by IP address and receive
+// their images.
+var urls = cli.flags.c ? cli.flags.c.split(' ') : [];
+var snapshooters = urls.map(function(url) {
+  return new Snapshooter(url);
+});
 
 /*
  * Socket.IO Hooks
@@ -101,6 +126,15 @@ var events = {
         result: JSON.parse(result),
       }, id);
     });
+  },
+
+  camera: function(id, data) {
+    clients.send({
+      __response_id__: data.__request_id__,
+      result: snapshooters.map(function(snapshooter) {
+        return snapshooter.frame && snapshooter.frame.toString('base64');
+      }),
+    }, id);
   },
 };
 
