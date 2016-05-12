@@ -174,10 +174,14 @@ def start_rtc():
             logger.warning("libstdc++ too old, not running webRTC client. "
                            "A system upgrade may be required!")
             retry = False
-        if popen.returncode == 10:
+        elif popen.returncode == 10:
             logger.warning("Something failed when trying to start webrtc. "
                            "Retrying again in 10 minutes...")
             time.sleep(10 * 60)
+            retry = True
+        elif popen.returncode == 12:
+            logger.warning("webrtc installation corrupted. Restarting it...")
+            time.sleep(1)
             retry = True
         elif popen.returncode == 139:
             logger.warning("Segmentation fault caught on wrtc. Restarting...")

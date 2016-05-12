@@ -2,7 +2,7 @@
 
 
 VERSION_FILE=".version"
-NVM_URL="https://raw.githubusercontent.com/creationix/nvm/v0.31.0/install.sh"
+NVM_URL="https://raw.githubusercontent.com/creationix/nvm/v0.31.1/install.sh"
 NVM_DIR="$HOME/.nvm"
 NVM_SCRIPT="$NVM_DIR/nvm.sh"
 NODE_VERSION="4.4"  # LTS version
@@ -11,6 +11,12 @@ NODE_FILE="rtc.js"
 WRTC_VERSION="0.0.59"
 RESOURCES_URL="https://s3.amazonaws.com/stoq-resources"
 GLIBC_REQUIRED="GLIBCXX_3.4.19"
+
+_run () {
+    $@
+    RC=$?
+    [[ $RC != 0 ]] && exit 10
+}
 
 # Our compiled wrtc.node requires libstdc++ to have GLIBC_REQUIRED
 # At the time of writing this, anything > trusty will have it.
@@ -24,22 +30,30 @@ done
 
 if [ ! -f "$NVM_SCRIPT" ]; then
     echo "Installing nvm..."
-    wget -qO- "$NVM_URL" | bash
-    RC=$?
-    [[ $RC != 0 ]] && exit 10
+    _run wget -qO- "$NVM_URL" | _run bash
 fi
 
+# Upgrade to the newest nvm and source it
+cd $NVM_DIR && git fetch origin && git checkout `git describe --abbrev=0 --tags`
+cd -
 source $NVM_SCRIPT
 
 CURRENT_VERSION="`nvm current`"
 if [[ "$CURRENT_VERSION" != *"$NODE_VERSION"* ]]; then
     echo "Installing node $NODE_VERSION..."
-    nvm install $NODE_VERSION
-    RC=$?
-    [[ $RC != 0 ]] && exit 10
+    _run nvm install $NODE_VERSION
     nvm use $NODE_VERSION
-    RC=$?
-    [[ $RC != 0 ]] && exit 10
+    if [ $? != 0 ]; then
+        echo "Node installation corrupted. Reinstalling it..."
+        _run nvm uninstall $NODE_VERSION
+        _run nvm install $NODE_VERSION
+        nvm use $NODE_VERSION
+        if [ $? != 0 ]; then
+            echo "Node installation corrupted and not recoverable. Resetting it..."
+            rm ~/.nvm -rf
+            exit 12
+        fi
+    fi
 fi
 
 # We used to require node 5.0, but we are using 4.2 now because it is LTS.
@@ -54,15 +68,12 @@ fi
 
 echo "Running npm install..."
 npm install
-RC=$?
 # On some rare ocasions node_modules can corrupt and npm install will fail.
 # If that happens, remove it and do a 'npm install' again to fix it
-if [[ $RC != 0 ]]; then
+if [[ $? != 0 ]]; then
     echo "node_modules probably corrupted. Reinstalling it..."
     rm -rf node_modules
-    npm install
-    RC=$?
-    [[ $RC != 0 ]] && exit 10
+    _run npm install
 fi
 
 [[ "`getconf LONG_BIT`" = "64" ]] && _ARCH="x64" || _ARCH="ia32"
@@ -72,14 +83,9 @@ _BINARY_FILE="$_RELEASE_DIR/wrtc.node"
 if [ ! -f "$_BINARY_FILE" ]; then
     # We can only run npm install wrtc once or else it would overwrite
     # the binary file we download and we would have to download it again
-    npm install wrtc@$WRTC_VERSION --ignore-scripts
-    RC=$?
-    [[ $RC != 0 ]] && exit 10
-
+    _run npm install wrtc@$WRTC_VERSION --ignore-scripts
     mkdir -p $_RELEASE_DIR
-    wget "$RESOURCES_URL/wrtc_${NODE_ABI}_${_ARCH}.node" -O $_BINARY_FILE
-    RC=$?
-    [[ $RC != 0 ]] && exit 10
+    _run wget "$RESOURCES_URL/wrtc_${NODE_ABI}_${_ARCH}.node" -O $_BINARY_FILE
 fi
 
 echo "Starting $NODE_FILE..."
