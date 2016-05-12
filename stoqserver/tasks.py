@@ -33,6 +33,7 @@ import sys
 import tempfile
 import time
 
+from stoqlib.api import api
 from stoqlib.exceptions import DatabaseError
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.database.settings import db_settings
@@ -145,6 +146,10 @@ def start_server():
 
 
 def start_rtc():
+    if not api.sysparam.get_bool('ONLINE_SERVICES'):
+        logger.info("ONLINE_SERVICES not enabled. Not starting rtc...")
+        return
+
     logger.info("Starting webRTC")
 
     cwd = library.get_resource_filename('stoqserver', 'webrtc')
@@ -191,6 +196,10 @@ def start_rtc():
 
 @reactor_handler
 def start_backup_scheduler():
+    if not api.sysparam.get_bool('ONLINE_SERVICES'):
+        logger.info("ONLINE_SERVICES not enabled. Not scheduling backups...")
+        return
+
     logger.info("Starting backup scheduler")
 
     config = get_config()
