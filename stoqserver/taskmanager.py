@@ -29,11 +29,16 @@ import os
 import signal
 import sys
 import urllib
+import urlparse
 
+import requests
 import stoq
+from stoqlib.api import api
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.database.settings import db_settings
-from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.lib.pluginmanager import PluginError, get_plugin_manager
+from stoqlib.lib.webservice import WebService
+from twisted.internet import reactor
 
 from stoqserver.tasks import (backup_status, restore_database,
                               start_xmlrpc_server, start_server,
@@ -235,6 +240,40 @@ class TaskManager(object):
         self._start_tasks()
         return retval, msg
 
+    def action_register_link(self, pin):
+        url = urlparse.urljoin(WebService.API_SERVER,
+                               'api/lite/associate_instance')
+        dbhash = api.sysparam.get_string('USER_HASH')
+
+        rv = requests.post(url, data=dict(pin_code=pin, hash=dbhash))
+        if rv.status_code != 200:
+            return False, "Failed to associate the instance"
+
+        data = rv.json()
+        if data['status'] not in ['associated', 'already_associated']:
+            return False, "Unexpected status returned: %s" % (data['status'], )
+
+        # If it is not premium, we are already done here
+        if not data['is_premium']:
+            return True, "Link registration successful"
+
+        manager = get_plugin_manager()
+        # Install conector plugin if it is not already installed
+        if 'conector' not in manager.available_plugins_names:
+            self._run_task(manager.download_plugin('conector'), timeout=30)
+        if 'conector' not in manager.installed_plugins_names:
+            try:
+                manager.install_plugin('conector')
+            except PluginError as e:
+                msg = "Failed to install conector plugin: %s" % (str(e), )
+                return False, msg
+            else:
+                # Restart the tasks so it will get the ones from conector
+                self._restart_tasks()
+
+        return self.action_plugin_action(
+            'conector', 'sync', 'get_credentials', pin)
+
     def action_plugin_action(self, plugin_name, task_name, action, args):
         # FIXME: It would be better if the xmlrpc process could communicate
         # directly with the pipe, but we are not able to share them using
@@ -259,6 +298,22 @@ class TaskManager(object):
     #
     #  Private
     #
+
+    def _restart_tasks(self):
+        self.stop(close_xmlrpc=False)
+        self._start_tasks()
+
+    def _run_task(self, deferred, timeout=None):
+        def stop_reactor(*args):
+            if reactor.running:
+                reactor.stop()
+
+        deferred.addCallback(stop_reactor)
+        deferred.addErrback(stop_reactor)
+        if timeout is not None:
+            deferred.setTimeout(timeout)
+
+        reactor.run()
 
     def _get_children(self):
         for child in multiprocessing.active_children():

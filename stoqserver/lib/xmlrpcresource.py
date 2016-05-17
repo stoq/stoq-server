@@ -101,3 +101,11 @@ class ServerXMLRPCResource(XMLRPCResource):
             raise xmlrpc.Fault(32000, msg)
 
         return msg
+
+    def xmlrpc_register_link(self, pin):
+        self._pipe_conn.send(('register_link', pin))
+        retval, msg = self._pipe_conn.recv()
+        if not retval:
+            raise xmlrpc.Fault(32000, msg)
+
+        return msg
