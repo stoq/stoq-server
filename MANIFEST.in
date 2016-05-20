@@ -2,7 +2,7 @@ recursive-include stoqserver *.py
 include data/sudoers.d/stoqserver
 include data/supervisor/stoqserver.conf
 include data/webrtc/package.json
-include data/webrtc/rtc.js
+include data/webrtc/*.js
 include data/webrtc/start.sh
 include MANIFEST.in
 include Makefile

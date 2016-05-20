@@ -23,7 +23,7 @@
 ##
 
 import os
-from kiwi.dist import setup, listpackages
+from kiwi.dist import setup, listpackages, listfiles
 
 import stoqserver
 
@@ -40,8 +40,8 @@ data_files = [
      [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
     (os.path.join(os.sep, 'usr', 'share', 'stoqserver', 'webrtc'),
      [os.path.join('data', 'webrtc', 'package.json'),
-      os.path.join('data', 'webrtc', 'rtc.js'),
-      os.path.join('data', 'webrtc', 'start.sh')])
+      os.path.join('data', 'webrtc', 'start.sh')] +
+     listfiles('data', 'webrtc', '*.js')),
 ]
 
 with open('requirements.txt') as f:
