@@ -260,10 +260,10 @@ class TaskManager(object):
         manager = get_plugin_manager()
         # Install conector plugin if it is not already installed
         if 'conector' not in manager.available_plugins_names:
-            self._run_task(manager.download_plugin('conector'), timeout=30)
+            self._run_task(manager.download_plugin(u'conector'), timeout=30)
         if 'conector' not in manager.installed_plugins_names:
             try:
-                manager.install_plugin('conector')
+                manager.install_plugin(u'conector')
             except PluginError as e:
                 msg = "Failed to install conector plugin: %s" % (str(e), )
                 return False, msg
@@ -272,7 +272,7 @@ class TaskManager(object):
                 self._restart_tasks()
 
         return self.action_plugin_action(
-            'conector', 'sync', 'get_credentials', pin)
+            'conector', 'sync', 'get_credentials', [pin])
 
     def action_plugin_action(self, plugin_name, task_name, action, args):
         # FIXME: It would be better if the xmlrpc process could communicate
@@ -310,8 +310,14 @@ class TaskManager(object):
 
         deferred.addCallback(stop_reactor)
         deferred.addErrback(stop_reactor)
+
         if timeout is not None:
-            deferred.setTimeout(timeout)
+            def timeout_func():
+                if deferred.called:
+                    return
+                deferred.cancel()
+                stop_reactor()
+            reactor.callLater(timeout, timeout_func)
 
         reactor.run()
 
