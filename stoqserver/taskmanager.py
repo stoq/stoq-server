@@ -264,6 +264,7 @@ class TaskManager(object):
         if 'conector' not in manager.installed_plugins_names:
             try:
                 manager.install_plugin(u'conector')
+                manager.activate_plugin(u'conector')
             except PluginError as e:
                 msg = "Failed to install conector plugin: %s" % (str(e), )
                 return False, msg
