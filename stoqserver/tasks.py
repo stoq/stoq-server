@@ -134,6 +134,7 @@ def start_xmlrpc_server(pipe_conn):
     site = server.Site(r)
 
     reactor.callWhenRunning(reactor.listenTCP, port, site)
+    reactor.addSystemEventTrigger('before', 'shutdown', pipe_conn.close)
 
 
 @reactor_handler

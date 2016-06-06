@@ -28,6 +28,7 @@ import multiprocessing
 import os
 import signal
 import sys
+import threading
 import urllib
 import urlparse
 
@@ -46,6 +47,14 @@ from stoqserver.tasks import (backup_status, restore_database,
                               start_rtc)
 
 logger = logging.getLogger(__name__)
+_error_queue = multiprocessing.Queue()
+
+
+def _get_plugin_task_name(plugin_name, task_name):
+    # Since all native tasks start with '_', do a lstrip to avoid
+    # someone from "exploting" it and overwriting the task
+    # with a possible "_foo" plugin.
+    return '%s_%s' % (plugin_name.lstrip('_'), task_name)
 
 
 def _run_deferred(deferred, timeout=None):
@@ -67,15 +76,75 @@ def _run_deferred(deferred, timeout=None):
     reactor.run()
 
 
-class _Task(multiprocessing.Process):
+class Task(multiprocessing.Process):
+    """A task that will run on a separated process"""
 
-    def __init__(self, func, *args, **kwargs):
-        super(_Task, self).__init__()
+    (STATUS_RUNNING,
+     STATUS_STOPPED,
+     STATUS_ERROR) = range(3)
 
+    def __init__(self, name, func, *args, **kwargs):
+        super(Task, self).__init__()
+
+        self.name = name
         self.func = func
+        self.errors = 0
         self._func_args = args
         self._func_kwargs = kwargs
         self.daemon = True
+
+    #
+    #  Public API
+    #
+
+    @property
+    def status(self):
+        """The task status."""
+        if self.is_alive():
+            return self.STATUS_RUNNING
+
+        return self.STATUS_STOPPED if self.errors == 0 else self.STATUS_ERROR
+
+    def clone(self):
+        """Clone this task.
+
+        Useful to restart this task when it dies/crashes, since
+        `multiprocessing.Process` will not allow the same process
+        to start twice.
+        """
+        obj = self.__class__(self.name, self.func,
+                             *self._func_args, **self._func_kwargs)
+        obj.errors = self.errors
+        return obj
+
+    def stop(self):
+        """Stop the task.
+
+        This will try to stop the task by sending a `signal.SIGTERM`
+        to it. The tasks should intercept this signal if they need
+        to do some cleanup before exiting.
+
+        Note that, if the process takes more than 2 seconds to exit,
+        the termination will be foced.
+        """
+        logger.info("Stopping task %s...", self.name)
+
+        pgid = os.getpgid(self.pid)
+        os.kill(self.pid, signal.SIGTERM)
+        # Give it 2 seconds to exit. If that doesn't happen, force
+        # its termination
+        self.join(2)
+        if self.is_alive():
+            logger.info("Task %s did not terminate with SIGTERM. Forcing "
+                        "its termination now...", self.name)
+            self.terminate()
+
+        # Try to kill any remaining child process that refused to
+        # terminate (e.g. wrtc client)
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except OSError:
+            pass
 
     #
     #  multiprocessing.Process
@@ -89,52 +158,179 @@ class _Task(multiprocessing.Process):
             self.func(*self._func_args, **self._func_kwargs)
         except Exception:
             sys.excepthook(*sys.exc_info())
+            _error_queue.put(self.name)
 
 
-class TaskManager(object):
+class TaskManager(threading.Thread):
+    """Manager responsible for watching over the running tasks.
 
-    PLUGIN_ACTION_TIMEOUT = 60
+    This is responsible for starting/stopping the tasks, and also
+    for restarting them if something unexpected happens to them.
+    """
+
+    MAX_RESTARTS = 10
+    BACKOFF_FACTOR = 2
+
+    def __init__(self):
+        super(TaskManager, self).__init__()
+
+        self._tasks = {}
+        self._timers = {}
+        self._lock = threading.Lock()
+        self.daemon = True
+
+    #
+    #  Public API
+    #
+
+    def run_task(self, task):
+        """Run given task.
+
+        Run the given task and watch for any error that might happen to it.
+        """
+        assert isinstance(task, Task)
+
+        with self._lock:
+            old_task = self._tasks.pop(task.name, None)
+            if old_task and old_task.status == Task.STATUS_RUNNING:
+                raise Exception("Task %s already running" % (task.name, ))
+
+            # Stop any timer that was trying to restart a previously
+            # added task with the same name
+            timer = self._timers.pop(task.name, None)
+            if timer is not None:
+                timer.cancel()
+
+            self._tasks[task.name] = task
+            task.start()
+
+    def is_running(self, task_name):
+        """Check if the task named *task_name* is running."""
+        with self._lock:
+            task = self._tasks.get(task_name, None)
+            if task is None:
+                return False
+
+            return task.status == Task.STATUS_RUNNING
+
+    def stop_tasks(self, exclude=None):
+        """Stop the currently running tasks.
+
+        :param exclude: an iterable of task names that shouldn't be stopped
+        """
+        exclude = exclude or []
+
+        # Cancel any timer before the "for" bellow to avoid them restarting
+        # a task that shouldn't be running anymore inside it
+        for name, timer in self._timers.items():
+            if name not in exclude:
+                timer.cancel()
+
+        with self._lock:
+            for name, task in self._tasks.items():
+                if name in exclude:
+                    continue
+
+                if task.status == Task.STATUS_RUNNING:
+                    task.stop()
+
+    #
+    #  threading.Thread
+    #
+
+    def run(self):
+        while True:
+            name = _error_queue.get()
+            task = self._tasks[name]
+
+            with self._lock:
+                if task.errors > self.MAX_RESTARTS:
+                    logger.warning("Reached max restarts for task %s. "
+                                   "Not restarting it anymore...", name)
+                    continue
+
+                backoff_value = self.BACKOFF_FACTOR * (2 ** task.errors)
+                task.errors += 1
+                logger.warning("Task %s crashed. Restarting again in %s seconds...",
+                               name, backoff_value)
+                timer = threading.Timer(backoff_value,
+                                        self._restart_task, args=(name, ))
+                self._timers[name] = timer
+                timer.start()
+
+    #
+    #  Private
+    #
+
+    def _restart_task(self, task_name):
+        with self._lock:
+            task = self._tasks[task_name]
+            # We can only restart the tasks on ERROR state. RUNNING were
+            # probably restarted by the manager and STOPPED should not be
+            # running anymore.
+            if task.status != Task.STATUS_ERROR:
+                return
+
+            logger.info("Restarting task %s", task_name)
+            new_task = task.clone()
+            self._tasks[task_name] = new_task
+            new_task.start()
+
+            # Remove the timer that executed this method from the timers dict
+            try:
+                del self._timers[task_name]
+            except KeyError:
+                pass
+
+
+class Worker(object):
+    """Worker responsible to run tasks and execute actions.
+
+    The main object of this module, responsible for starting the native
+    tasks, communicating with the xmlrpc server to execute actions and etc.
+    """
+
+    PLUGIN_ACTION_TIMEOUT = 3 * 60
 
     def __init__(self):
         self._paused = False
         self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
         self._plugins_pipes = {}
+        self._manager = TaskManager()
 
     #
     #  Public API
     #
 
     def run(self):
+        """Start the worker.
+
+        This will start the native tasks and start listening for
+        any actions sent to the xmlrpc server.
+
+        Note that this will block the code execution.
+        """
+        self._manager.start()
         self._start_tasks()
+
         while True:
-            action = self._xmlrpc_conn1.recv()
+            # EOFError will be raised when the the other side of the
+            # pipe closes the connection.
+            try:
+                action = self._xmlrpc_conn1.recv()
+            except EOFError:
+                break
             meth = getattr(self, 'action_' + action[0])
             assert meth, "Action handler for %s not found" % (action[0], )
             self._xmlrpc_conn1.send(meth(*action[1:]))
 
-    def stop(self, close_xmlrpc=False):
-        self._plugins_pipes.clear()
+    def stop(self):
+        """Stop the worker.
 
-        for p in self._get_children():
-            if not close_xmlrpc and p.func is start_xmlrpc_server:
-                continue
-            if not p.is_alive():
-                continue
-
-            pgid = os.getpgid(p.pid)
-            os.kill(p.pid, signal.SIGTERM)
-            # Give it 2 seconds to exit. If that doesn't happen, force
-            # its termination
-            p.join(2)
-            if p.is_alive():
-                p.terminate()
-
-            # Try to kill any remaining child process that refused to
-            # terminate (e.g. wrtc client)
-            try:
-                os.killpg(pgid, signal.SIGKILL)
-            except OSError:
-                pass
+        This will stop all the tasks and also cause :meth:`.run` to
+        stop running.
+        """
+        self._stop_tasks(stop_xmlrpc=True)
 
     #
     #  Actions
@@ -143,7 +339,7 @@ class TaskManager(object):
     def action_restart(self):
         logger.info("Restarting the process as requested...")
 
-        self.stop(close_xmlrpc=True)
+        self.stop()
         # execv will restart the process and finish this one
         os.execv(sys.argv[0], sys.argv)
 
@@ -151,7 +347,7 @@ class TaskManager(object):
         logger.info("Pausing the tasks as requested...")
 
         if not self._paused:
-            self.stop()
+            self._stop_tasks()
             # None will make the default store be closed
             set_default_store(None)
             self._paused = True
@@ -245,7 +441,7 @@ class TaskManager(object):
         return retval, msg
 
     def action_backup_restore(self, user_hash, time=None):
-        self.stop()
+        self._stop_tasks()
 
         try:
             restore_database(user_hash=user_hash, time=time)
@@ -295,11 +491,16 @@ class TaskManager(object):
             'conector', 'sync', 'get_credentials', [pin])
 
     def action_plugin_action(self, plugin_name, task_name, action, args):
+        name = _get_plugin_task_name(plugin_name, task_name)
+        if not self._manager.is_running(name):
+            return False, "Task %s from plugin %s not found" % (
+                task_name, plugin_name)
+
         # FIXME: It would be better if the xmlrpc process could communicate
         # directly with the pipe, but we are not able to share them using
         # a shared dict. Try to find a way in the future
         try:
-            pipe = self._plugins_pipes[(plugin_name, task_name)]
+            pipe = self._plugins_pipes[name]
         except KeyError:
             return False, "Plugin %s not found" % (plugin_name, )
         else:
@@ -320,24 +521,23 @@ class TaskManager(object):
     #
 
     def _restart_tasks(self):
-        self.stop(close_xmlrpc=False)
+        self._stop_tasks()
         self._start_tasks()
 
-    def _get_children(self):
-        for child in multiprocessing.active_children():
-            if not isinstance(child, _Task):
-                continue
-            yield child
+    def _stop_tasks(self, stop_xmlrpc=False):
+        exclude = []
+        if not stop_xmlrpc:
+            exclude.append('_xmlrpc')
+        self._manager.stop_tasks(exclude=exclude)
 
     def _start_tasks(self):
-        tasks = [
-            _Task(start_backup_scheduler),
-            _Task(start_server),
-            _Task(start_rtc),
-        ]
-        if start_xmlrpc_server not in [t.func for t in
-                                       self._get_children()]:
-            tasks.append(_Task(start_xmlrpc_server, self._xmlrpc_conn2))
+        for task in [
+                Task('_backup', start_backup_scheduler),
+                Task('_server', start_server),
+                Task('_rtc', start_rtc),
+                Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2)]:
+            if not self._manager.is_running(task.name):
+                self._manager.run_task(task)
 
         manager = get_plugin_manager()
         for plugin_name in manager.installed_plugins_names:
@@ -349,13 +549,15 @@ class TaskManager(object):
             # we Stoq 1.11 is released
             for plugin_task in plugin.get_server_tasks():
                 task_name = plugin_task.name
+                name = _get_plugin_task_name(plugin_name, task_name)
+                if self._manager.is_running(name):
+                    continue
+
                 kwargs = {}
                 if plugin_task.handle_actions:
                     conn1, conn2 = multiprocessing.Pipe(True)
-                    self._plugins_pipes[(plugin_name, task_name)] = conn1
+                    self._plugins_pipes[name] = conn1
                     kwargs['pipe_connection'] = conn2
 
-                tasks.append(_Task(plugin_task.start, **kwargs))
-
-        for t in tasks:
-            t.start()
+                self._manager.run_task(
+                    Task(name, plugin_task.start, **kwargs))

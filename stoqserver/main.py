@@ -50,7 +50,7 @@ from stoqlib.lib.webservice import get_main_cnpj
 
 import stoqserver
 from stoqserver.common import APP_CONF_FILE, SERVER_XMLRPC_PORT
-from stoqserver.taskmanager import TaskManager
+from stoqserver.taskmanager import Worker
 from stoqserver.tasks import backup_database, restore_database, backup_status
 
 logger = logging.getLogger(__name__)
@@ -207,18 +207,18 @@ class StoqServerCmdHandler(object):
             print "No USER_HASH found for this installation"
             return 1
 
-        manager = TaskManager()
-        atexit.register(lambda: manager.stop(close_xmlrpc=True))
+        worker = Worker()
+        atexit.register(lambda: worker.stop())
 
         def _exit(*args):
-            manager.stop(close_xmlrpc=True)
+            worker.stop()
             sys.exit(0)
 
         signal.signal(signal.SIGTERM, _exit)
         signal.signal(signal.SIGINT, _exit)
         signal.signal(signal.SIGQUIT, _exit)
 
-        manager.run()
+        worker.run()
 
     def cmd_backup_database(self, options, *args):
         """Backup the Stoq database"""
