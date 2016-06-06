@@ -22,6 +22,7 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
+import atexit
 import logging
 import optparse
 import os
@@ -207,6 +208,7 @@ class StoqServerCmdHandler(object):
             return 1
 
         manager = TaskManager()
+        atexit.register(lambda: manager.stop(close_xmlrpc=True))
 
         def _exit(*args):
             manager.stop(close_xmlrpc=True)
@@ -214,6 +216,8 @@ class StoqServerCmdHandler(object):
 
         signal.signal(signal.SIGTERM, _exit)
         signal.signal(signal.SIGINT, _exit)
+        signal.signal(signal.SIGQUIT, _exit)
+
         manager.run()
 
     def cmd_backup_database(self, options, *args):
