@@ -48,6 +48,25 @@ from stoqserver.tasks import (backup_status, restore_database,
 logger = logging.getLogger(__name__)
 
 
+def _run_deferred(deferred, timeout=None):
+    def stop_reactor(*args):
+        if reactor.running:
+            reactor.stop()
+
+    deferred.addCallback(stop_reactor)
+    deferred.addErrback(stop_reactor)
+
+    if timeout is not None:
+        def timeout_func():
+            if deferred.called:
+                return
+            deferred.cancel()
+            stop_reactor()
+        reactor.callLater(timeout, timeout_func)
+
+    reactor.run()
+
+
 class _Task(multiprocessing.Process):
 
     def __init__(self, func, *args, **kwargs):
@@ -260,7 +279,7 @@ class TaskManager(object):
         manager = get_plugin_manager()
         # Install conector plugin if it is not already installed
         if 'conector' not in manager.available_plugins_names:
-            self._run_task(manager.download_plugin(u'conector'), timeout=30)
+            _run_deferred(manager.download_plugin(u'conector'), timeout=30)
         if 'conector' not in manager.installed_plugins_names:
             try:
                 manager.install_plugin(u'conector')
@@ -303,24 +322,6 @@ class TaskManager(object):
     def _restart_tasks(self):
         self.stop(close_xmlrpc=False)
         self._start_tasks()
-
-    def _run_task(self, deferred, timeout=None):
-        def stop_reactor(*args):
-            if reactor.running:
-                reactor.stop()
-
-        deferred.addCallback(stop_reactor)
-        deferred.addErrback(stop_reactor)
-
-        if timeout is not None:
-            def timeout_func():
-                if deferred.called:
-                    return
-                deferred.cancel()
-                stop_reactor()
-            reactor.callLater(timeout, timeout_func)
-
-        reactor.run()
 
     def _get_children(self):
         for child in multiprocessing.active_children():
