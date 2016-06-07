@@ -21,7 +21,7 @@ _run () {
 # Our compiled wrtc.node requires libstdc++ to have GLIBC_REQUIRED
 # At the time of writing this, anything > trusty will have it.
 for _FILE in `/sbin/ldconfig -p | grep stdc++ | cut -d ' ' -f 4`; do
-    if strings "$_FILE" | grep "$GLIBC_REQUIRED"; then
+    if strings "$_FILE" | grep "$GLIBC_REQUIRED" > /dev/null; then
         _FOUND="1"
         break
     fi
@@ -35,7 +35,7 @@ fi
 
 # Upgrade to the newest nvm and source it
 cd $NVM_DIR && git fetch origin && git checkout `git describe --abbrev=0 --tags`
-cd -
+cd - > /dev/null
 source $NVM_SCRIPT
 
 CURRENT_VERSION="`nvm current`"
@@ -67,7 +67,9 @@ if [ ! -f "$VERSION_FILE" ]; then
 fi
 
 echo "Running npm install..."
-npm install
+# There's no problem in being silent here. If this fail, the "retry" bellow
+# will run normally and print any relevant error information
+npm install --silent > /dev/null
 # On some rare ocasions node_modules can corrupt and npm install will fail.
 # If that happens, remove it and do a 'npm install' again to fix it
 if [[ $? != 0 ]]; then
