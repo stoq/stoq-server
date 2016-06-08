@@ -29,6 +29,7 @@ import os
 import signal
 import sys
 import threading
+import time
 import urllib
 import urlparse
 
@@ -82,6 +83,8 @@ class Task(multiprocessing.Process):
     (STATUS_RUNNING,
      STATUS_STOPPED,
      STATUS_ERROR) = range(3)
+
+    CHECK_PARENT_TIMEOUT = 10
 
     def __init__(self, name, func, *args, **kwargs):
         super(Task, self).__init__()
@@ -152,6 +155,11 @@ class Task(multiprocessing.Process):
 
     def run(self):
         os.setpgrp()
+        self._ppid = os.getppid()
+        t = threading.Thread(target=self._check_parent_running)
+        t.daemon = True
+        t.start()
+
         # Workaround a python issue where multiprocessing/threading will not
         # use the modified sys.excepthook: https://bugs.python.org/issue1230540
         try:
@@ -159,6 +167,19 @@ class Task(multiprocessing.Process):
         except Exception:
             sys.excepthook(*sys.exc_info())
             _error_queue.put(self.name)
+
+    #
+    #  Private
+    #
+
+    def _check_parent_running(self):
+        while self.is_alive():
+            # If the parent dies, ppid will change. In this case,
+            # finalize this process. It shouldn't be running anymore.
+            if os.getppid() != self._ppid:
+                os.killpg(os.getpgid(self.pid), signal.SIGKILL)
+                break
+            time.sleep(self.CHECK_PARENT_TIMEOUT)
 
 
 class TaskManager(threading.Thread):
