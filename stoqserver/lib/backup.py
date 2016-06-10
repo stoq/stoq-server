@@ -46,10 +46,14 @@ import requests
 from stoqlib.api import api
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.webservice import WebService
+# Prefer requests's own urllib3 if it was packaged together with it
 try:
-    from urllib3 import Retry
+    from requests.packages.urllib3 import Retry
 except ImportError:
-    Retry = None
+    try:
+        from urllib3 import Retry
+    except ImportError:
+        Retry = None
 
 _duplicity_bin = '/usr/bin/duplicity'
 _duplicity_main = imp.load_source('main', _duplicity_bin)
