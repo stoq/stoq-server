@@ -139,7 +139,8 @@ class StoqServerCmdHandler(object):
     def _setup_logging(self):
         ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            '%(asctime)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s')
         ch.setFormatter(formatter)
 
         root = logging.getLogger()
