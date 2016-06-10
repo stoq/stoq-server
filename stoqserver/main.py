@@ -43,7 +43,6 @@ from stoqlib.database.settings import get_database_version, db_settings
 from stoqlib.lib.appinfo import AppInfo
 from stoqlib.lib.configparser import StoqConfig, register_config
 from stoqlib.lib.configparser import get_config
-from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.interfaces import IAppInfo
 from stoqlib.lib.pluginmanager import InstalledPlugin
 from stoqlib.lib.webservice import get_main_cnpj
@@ -66,8 +65,8 @@ try:
 except ImportError:
     _raven_client = None
 
-# Disable send sentry log if its is_developer_mode
-if is_developer_mode():
+# Disable send sentry log if we are on developer mode.
+if stoqserver.library.uninstalled:
     _raven_client = None
 
 # Do this as soon as possible so we can log any early traceback
