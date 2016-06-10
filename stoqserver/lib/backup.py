@@ -211,8 +211,8 @@ def backup(backup_dir, full=False):
         if full:
             sys.argv.append('full')
 
-        # Display progress and do a full backup monthly
-        sys.argv.extend(['--full-if-older-than', '1M', '--progress',
+        # Do a full backup monthly
+        sys.argv.extend(['--full-if-older-than', '1M',
                          backup_dir, _webservice_url])
 
         # Tell Stoq Link Admin that you're starting a backup
