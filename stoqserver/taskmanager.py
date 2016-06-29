@@ -415,14 +415,65 @@ class Worker(object):
         uri = '%s://%s/%s' % (
             engines[db_settings.rdbms], authority, db_settings.dbname)
 
+        # FIXME We should find a way to share this piece of code between Stoq
+        # Portal and Stoq Server, without having to duplicate it every time
         exts = [{
             'tweak.override': {
+                'field-labels': {
+                    # Sellable fixes
+                    'sellable.price': ('(if (on_sale_start_date <= now() &'
+                                       'now() <= on_sale_end_date, on_sale_price,'
+                                       'base_price))'),
+                    # Sale fixes
+                    # When the sale is not confirmed yet, the total_amount will be 0
+                    # (just like the discount and surcharge).
+                    'sale.subtotal': '(total_amount + discount_value - surcharge_value)',
+                    'sale.discount_percentage': '(if(subtotal > 0,'
+                                                '   (discount_value / subtotal), 0))',
+                    'sale.surcharge_percentage': '(if(subtotal > 0,'
+                                                 '   (surcharge_value / subtotal), 0))',
+                    'sale.cmv': '(sum(sale_item.total_cost))',
+                    'sale.returned_items_cost': '(sum(returned_sale_via_new_sale.'
+                                                '     returned_sale_item.sale_item.total_cost))',
+                    'sale.profit_margin': '(if((cmv - returned_items_cost) > 0,'
+                                          ' ((total_amount /'
+                                          '   (cmv - returned_items_cost)) - 1) * 100, 0))',
+
+                    # SaleItem Fixes
+                    'sale_item.total_price': '(price + ipi_info.v_ipi)',
+                    'sale_item.sale_discount': '(total_price * sale.discount_percentage)',
+                    'sale_item.sale_surcharge': '(total_price * sale.surcharge_percentage)',
+                    'sale_item.price_with_discount': (
+                        '(total_price - sale_discount + sale_surcharge)'),
+                    'sale_item.subtotal': '(total_price * quantity)',
+                    'sale_item.total_with_discount': '(price_with_discount * quantity)',
+                    'sale_item.total_cost': '(quantity * if(average_cost > 0,'
+                                            '               average_cost,'
+                                            '               sellable.cost))',
+
+                    # Other fixes
+
+                    'branch.main_address': '(person.address.filter(is_main_address))',
+                    'transfer_order.branch': '(source_branch)',
+                    'branch.description': ('(if(is_null(person.company.fancy_name),'
+                                           '    person.name,'
+                                           '    person.company.fancy_name))'),
+                },
                 'globals': {
-                    'between($date, $start, $end)': '($date >= $start & $date <= $end)',
-                    'trunc_hour($d)': 'datetime(year($d), month($d), day($d), hour($d))',
-                    'trunc_day($d)': 'datetime(year($d), month($d), day($d))',
+                    'identifier_str': ("branch.acronym + head('0000', 5 - "
+                                       "length(string(identifier)))"
+                                       "+ string(identifier)"),
                     'trunc_month($d)': 'datetime(year($d), month($d), 01)',
-                }},
+                    'trunc_day($d)': 'datetime(year($d), month($d), day($d))',
+                    'trunc_hour($d)': 'datetime(year($d), month($d), day($d), hour($d))',
+                    'between($date, $start, $end)': '($date >= $start & $date <= $end)',
+                    # FIXME supplier name cannot be on field labels because
+                    #       databases without nfe schema will cause an error when
+                    #       this method is called
+                    'supplier_name': ('(if(is_null(nfe_supplier.name),'
+                                      '    nfe_supplier.fancy_name,'
+                                      '    nfe_supplier.name))'),
+                }}
         }]
 
         # FIXME: This is to support old stoq versions, which didn't have
