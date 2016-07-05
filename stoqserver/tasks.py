@@ -23,6 +23,7 @@
 ##
 
 import datetime
+import collections
 import logging
 import os
 import random
@@ -38,14 +39,11 @@ from stoqlib.exceptions import DatabaseError
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.database.settings import db_settings
 from stoqlib.lib.configparser import get_config
-from twisted.internet import reactor, task
-from twisted.web import resource, server
 
 from stoqserver import library
 from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
 from stoqserver.lib import backup
-from stoqserver.lib.decorators import reactor_handler
-from stoqserver.lib.xmlrpcresource import ServerXMLRPCResource
+from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
 from stoqserver.server import StoqServer
 
 logger = logging.getLogger(__name__)
@@ -53,6 +51,13 @@ logger = logging.getLogger(__name__)
 
 class TaskException(Exception):
     """Default tasks exception"""
+
+
+def _setup_signal_termination():
+    def _sigterm_handler(_signal, _stack_frame):
+        os._exit(0)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, _sigterm_handler)
 
 
 def backup_database(full=False):
@@ -122,28 +127,22 @@ def backup_status(user_hash=None):
     backup.status(user_hash=user_hash)
 
 
-@reactor_handler
 def start_xmlrpc_server(pipe_conn):
+    _setup_signal_termination()
     logger.info("Starting the xmlrpc server")
 
     config = get_config()
     port = int(config.get('General', 'serverport') or SERVER_XMLRPC_PORT)
 
-    r = resource.Resource()
-    r.putChild('XMLRPC', ServerXMLRPCResource(r, pipe_conn))
-    site = server.Site(r)
-
-    reactor.callWhenRunning(reactor.listenTCP, port, site)
-    reactor.addSystemEventTrigger('before', 'shutdown', pipe_conn.close)
+    run_xmlrpcserver(pipe_conn, port)
 
 
-@reactor_handler
 def start_server():
+    _setup_signal_termination()
     logger.info("Starting stoq server")
 
     stoq_server = StoqServer()
-    reactor.callWhenRunning(stoq_server.start)
-    reactor.addSystemEventTrigger('before', 'shutdown', stoq_server.stop)
+    stoq_server.run()
 
 
 def start_rtc():
@@ -201,8 +200,9 @@ def start_rtc():
             retry = True
 
 
-@reactor_handler
 def start_backup_scheduler():
+    _setup_signal_termination()
+
     if not api.sysparam.get_bool('ONLINE_SERVICES'):
         logger.info("ONLINE_SERVICES not enabled. Not scheduling backups...")
         return
@@ -223,8 +223,20 @@ def start_backup_scheduler():
 
     backup_hours = [map(int, i.strip().split(':'))
                     for i in backup_schedule.split(',')]
+    now = datetime.datetime.now()
+    backup_dates = collections.deque(sorted(
+        now.replace(hour=bh[0], minute=bh[1], second=0, microsecond=0)
+        for bh in backup_hours))
 
-    def _backup_task():
+    while True:
+        now = datetime.datetime.now()
+        next_date = datetime.datetime.min
+        while next_date < now:
+            next_date = backup_dates.popleft()
+            backup_dates.append(next_date + datetime.timedelta(1))
+
+        time.sleep(max(1, (next_date - now).total_seconds()))
+
         for i in xrange(3):
             # FIXME: This is SO UGLY, we should be calling backup_database
             # task directly, but duplicity messes with multiprocessing in a
@@ -245,21 +257,3 @@ def start_backup_scheduler():
                     stdout, stderr)
                 # Retry again with a exponential backoff
                 time.sleep((60 * 2) ** (i + 1))
-
-    for backup_hour in backup_hours:
-        now = datetime.datetime.now()
-        backup_date = now.replace(hour=backup_hour[0], minute=backup_hour[1],
-                                  second=0, microsecond=0)
-        if backup_date < now:
-            backup_date = backup_date + datetime.timedelta(1)
-
-        delta = backup_date - now
-
-        backup_task = task.LoopingCall(_backup_task)
-        # Schedule the task to start at the backup hour and repeat
-        # every 24 hours
-        reactor.callWhenRunning(reactor.callLater, delta.seconds,
-                                backup_task.start, 24 * 60 * 60)
-        reactor.addSystemEventTrigger(
-            'before', 'shutdown',
-            lambda: getattr(task, 'running', False) and task.stop())

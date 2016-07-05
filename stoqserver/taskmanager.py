@@ -40,7 +40,6 @@ from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.database.settings import db_settings
 from stoqlib.lib.pluginmanager import PluginError, get_plugin_manager
 from stoqlib.lib.webservice import WebService
-from twisted.internet import reactor
 
 from stoqserver.tasks import (backup_status, restore_database,
                               start_xmlrpc_server, start_server,
@@ -56,25 +55,6 @@ def _get_plugin_task_name(plugin_name, task_name):
     # someone from "exploting" it and overwriting the task
     # with a possible "_foo" plugin.
     return '%s_%s' % (plugin_name.lstrip('_'), task_name)
-
-
-def _run_deferred(deferred, timeout=None):
-    def stop_reactor(*args):
-        if reactor.running:
-            reactor.stop()
-
-    deferred.addCallback(stop_reactor)
-    deferred.addErrback(stop_reactor)
-
-    if timeout is not None:
-        def timeout_func():
-            if deferred.called:
-                return
-            deferred.cancel()
-            stop_reactor()
-        reactor.callLater(timeout, timeout_func)
-
-    reactor.run()
 
 
 class Task(multiprocessing.Process):
@@ -551,7 +531,7 @@ class Worker(object):
         manager = get_plugin_manager()
         # Install conector plugin if it is not already installed
         if 'conector' not in manager.available_plugins_names:
-            _run_deferred(manager.download_plugin(u'conector'), timeout=30)
+            manager.download_plugin(u'conector')
         if 'conector' not in manager.installed_plugins_names:
             try:
                 manager.install_plugin(u'conector')

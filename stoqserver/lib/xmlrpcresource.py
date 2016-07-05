@@ -22,90 +22,80 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import logging
+import SimpleXMLRPCServer
+import threading
+import xmlrpclib
 
 import stoq
-from stoqlib.net.xmlrpcservice import XMLRPCResource
-from twisted.internet import reactor
-from twisted.web import xmlrpc
 
 import stoqserver
 
-logger = logging.getLogger(__name__)
+
+class _RequestHandler(SimpleXMLRPCServer.SimpleXMLRPCRequestHandler):
+    # Keep compatibility with old rpc path
+    rpc_paths = ('/XMLRPC', )
 
 
-class ServerXMLRPCResource(XMLRPCResource):
+class XMLRPCServer(object):
 
-    def __init__(self, root, pipe_conn):
+    def __init__(self, pipe_conn):
         self._pipe_conn = pipe_conn
-        XMLRPCResource.__init__(self, root)
 
-    def xmlrpc_ping(self):
-        return "Server is alive and running..."
+    #
+    #  Methods
+    #
 
-    def xmlrpc_version(self):
+    def ping(self):
+        return "pong"
+
+    def version(self):
         return stoqserver.version_str
 
-    def xmlrpc_stoq_version(self):
+    def stoq_version(self):
         return stoq.version
 
-    def xmlrpc_restart(self):
-        reactor.callLater(0.1, self._pipe_conn.send, ('restart', ))
+    def restart(self):
+        t = threading.Timer(1.0, self._run_action, args=('restart', ))
+        t.start()
         return "Restart command sent..."
 
-    def xmlrpc_pause_tasks(self):
-        self._pipe_conn.send(('pause_tasks', ))
+    def pause_tasks(self):
+        return self._run_action('pause_tasks')
+
+    def resume_tasks(self):
+        return self._run_action('resume_tasks')
+
+    def htsql_query(self, query):
+        return self._run_action('htsql_query', query)
+
+    def backup_status(self, user_hash=None):
+        return self._run_action('backup_status', user_hash)
+
+    def backup_restore(self, user_hash, time=None):
+        return self._run_action('backup_restore', user_hash, time)
+
+    def plugin_action(self, plugin_name, task_name, action, *args):
+        return self._run_action(
+            'plugin_action', plugin_name, task_name, action, args)
+
+    def register_link(self, pin):
+        return self._run_action('register_link', pin)
+
+    #
+    #  Private
+    #
+
+    def _run_action(self, action, *args):
+        self._pipe_conn.send((action, ) + args)
         retval, msg = self._pipe_conn.recv()
         if not retval:
-            raise xmlrpc.Fault(32000, msg)
-
+            raise xmlrpclib.Fault(32000, msg)
         return msg
 
-    def xmlrpc_resume_tasks(self):
-        self._pipe_conn.send(('resume_tasks', ))
-        retval, msg = self._pipe_conn.recv()
-        if not retval:
-            raise xmlrpc.Fault(32000, msg)
 
-        return msg
-
-    def xmlrpc_htsql_query(self, query):
-        self._pipe_conn.send(('htsql_query', query))
-        retval, msg = self._pipe_conn.recv()
-        if not retval:
-            raise xmlrpc.Fault(32000, msg)
-
-        return msg
-
-    def xmlrpc_backup_status(self, user_hash=None):
-        self._pipe_conn.send(('backup_status', user_hash))
-        retval, msg = self._pipe_conn.recv()
-        if not retval:
-            raise xmlrpc.Fault(32000, msg)
-
-        return msg
-
-    def xmlrpc_backup_restore(self, user_hash, time=None):
-        self._pipe_conn.send(('backup_restore', user_hash, time))
-        retval, msg = self._pipe_conn.recv()
-        if not retval:
-            raise xmlrpc.Fault(32000, msg)
-
-        return msg
-
-    def xmlrpc_plugin_action(self, plugin_name, task_name, action, *args):
-        self._pipe_conn.send(('plugin_action',
-                             plugin_name, task_name, action, args))
-        retval, msg = self._pipe_conn.recv()
-        if not retval:
-            raise xmlrpc.Fault(32000, msg)
-
-        return msg
-
-    def xmlrpc_register_link(self, pin):
-        self._pipe_conn.send(('register_link', pin))
-        retval, msg = self._pipe_conn.recv()
-        if not retval:
-            raise xmlrpc.Fault(32000, msg)
-
-        return msg
+def run_xmlrpcserver(pipe_conn, port):
+    server = SimpleXMLRPCServer.SimpleXMLRPCServer(
+        ('', port), requestHandler=_RequestHandler, allow_none=True)
+    server.register_introspection_functions()
+    server.register_instance(XMLRPCServer(pipe_conn))
+    server.serve_forever()

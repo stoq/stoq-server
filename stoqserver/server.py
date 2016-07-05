@@ -22,6 +22,10 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
+import BaseHTTPServer
+import SimpleHTTPServer
+import atexit
+import base64
 import dbus
 import logging
 import os
@@ -33,14 +37,6 @@ from stoqlib.domain.person import LoginUser
 from stoqlib.exceptions import LoginError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.fileutils import md5sum_for_filename
-from twisted.cred import portal, checkers, credentials, error as cred_error
-from twisted.internet import reactor, defer
-from twisted.web import static, server, resource
-from twisted.web.guard import BasicCredentialFactory
-from twisted.web.guard import HTTPAuthSessionWrapper
-from twisted.web.http import HTTPChannel
-from twisted.web.resource import IResource
-from zope.interface import implements
 
 from stoqserver import library
 from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
@@ -48,48 +44,63 @@ from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
                                SERVER_EGGS, APP_CONF_FILE)
 
 _ = lambda s: s
+_eggs_path = library.get_resource_filename('stoqserver', 'eggs')
+_md5sum_path = None
 logger = logging.getLogger(__name__)
 
 
-class _PasswordChecker(object):
-    implements(checkers.ICredentialsChecker)
-    credentialInterfaces = (credentials.IUsernamePassword, )
+# TODO: This is experimental and not used anywhere in production,
+# which means that we can tweak it a lot without having to worry
+# to break something.
+class _RequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
-    #
-    #  ICredentialsChecker
-    #
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
 
-    def requestAvatarId(self, credentials):
+    def do_GET(self):
+        auth = self.headers.getheader('Authorization')
+        if not auth or not auth.startswith('Basic '):
+            self.do_AUTHHEAD()
+            self.wfile.write('Missing authentication')
+            return
+
+        encoded_auth = auth.replace('Basic ', '')
+        username, password = base64.b64decode(encoded_auth).split(':')
         with api.new_store() as store:
             try:
                 login_ok = LoginUser.authenticate(
-                    store,
-                    unicode(credentials.username),
-                    unicode(credentials.password),
-                    None)
-            except LoginError as err:
-                return defer.fail(cred_error.UnauthorizedLogin(str(err)))
+                    store, unicode(username), unicode(password), None)
+            except LoginError:
+                login_ok = False
 
-        assert login_ok
-        return defer.succeed(credentials.username)
+        if not login_ok:
+            self.send_error(403, "User not found")
+            return
 
+        return SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
 
-class _HttpPasswordRealm(object):
-    implements(portal.IRealm)
+    def do_AUTHHEAD(self):
+        self.send_response(401)
+        self.send_header('WWW-Authenticate', 'Basic realm=\"Stoq Login\"')
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
 
-    def __init__(self, resource):
-        self._resource = resource
-
-    #
-    #  IRealm
-    #
-
-    def requestAvatar(self, user, mind, *interfaces):
-        if IResource in interfaces:
-            # self._resource is passed on regardless of user
-            return (IResource, self._resource, lambda: None)
-
-        raise NotImplementedError()
+    def translate_path(self, path):
+        # FIXME: Improve this when we really use it
+        if path == '/login':
+            return APP_CONF_FILE
+        elif path.startswith('/eggs'):
+            # SimpleHTTPRequestHandler calls this to translate the url path
+            # into a filesystem path. It will always start with os.getcwd(),
+            # which means we just need to replace it with the _static path
+            translated = SimpleHTTPServer.SimpleHTTPRequestHandler.translate_path(
+                # /eggs is just the endpoing name, the real path doesn't have it
+                self, path.replace('/eggs', ''))
+            return translated.replace(os.getcwd(), _eggs_path)
+        else:
+            return path
 
 
 class StoqServer(object):
@@ -99,66 +110,34 @@ class StoqServer(object):
         self._port = int(config.get('General', 'serveravahiport') or
                          SERVER_AVAHI_PORT)
 
-        self.group = None
-        self.listener = None
-
     #
     #  Public API
     #
 
-    def start(self):
-        self._setup_twisted()
+    def run(self):
         try:
             self._setup_avahi()
         except dbus.exceptions.DBusException as e:
             logger.warning("Failed to setup avahi: %s", str(e))
 
-    def stop(self):
-        if self.listener is not None:
-            self.listener.stopListening()
-        if self.group is not None:
-            self.group.Reset()
-
-    #
-    #  Private
-    #
-
-    def _get_resource_wrapper(self, resource, checker, credentials_factory):
-        realm = _HttpPasswordRealm(resource)
-        p = portal.Portal(realm, [checker])
-        return HTTPAuthSessionWrapper(p, [credentials_factory])
-
-    def _setup_twisted(self):
-        root = resource.Resource()
-        checker = _PasswordChecker()
-        cf = BasicCredentialFactory(SERVER_NAME)
-
-        # eggs
-        eggs_path = library.get_resource_filename('stoqserver', 'eggs')
-        root.putChild(
-            'eggs',
-            self._get_resource_wrapper(static.File(eggs_path), checker, cf))
-
-        # conf
-        root.putChild(
-            'login',
-            self._get_resource_wrapper(static.File(APP_CONF_FILE), checker, cf))
-
         # md5sum
         with tempfile.NamedTemporaryFile(delete=False) as f:
             for egg in SERVER_EGGS:
-                egg_path = os.path.join(eggs_path, egg)
-                if not os.path.exists(eggs_path):
+                egg_path = os.path.join(_eggs_path, egg)
+                if not os.path.exists(_eggs_path):
                     continue
 
                 f.write('%s:%s\n' % (egg, md5sum_for_filename(egg_path)))
 
-        root.putChild('md5sum', static.File(f.name))
+        global _md5sum_path
+        _md5sum_path = f.name
+        server = BaseHTTPServer.HTTPServer(('localhost', self._port),
+                                           _RequestHandler)
+        server.serve_forever()
 
-        site = server.Site(root)
-        site.protocol = HTTPChannel
-
-        self.listener = reactor.listenTCP(self._port, site)
+    #
+    #  Private
+    #
 
     def _setup_avahi(self):
         bus = dbus.SystemBus()
@@ -176,3 +155,4 @@ class StoqServer(object):
             avahi.string_array_to_txt_array(['foo=bar']))
 
         self.group.Commit()
+        atexit.register(lambda: self.group.Reset())
