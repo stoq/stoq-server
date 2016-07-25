@@ -31,6 +31,7 @@ import avahi
 from stoqlib.api import api
 from stoqlib.domain.person import LoginUser
 from stoqlib.exceptions import LoginError
+from stoqlib.lib.configparser import get_config
 from stoqlib.lib.fileutils import md5sum_for_filename
 from twisted.cred import portal, checkers, credentials, error as cred_error
 from twisted.internet import reactor, defer
@@ -94,6 +95,10 @@ class _HttpPasswordRealm(object):
 class StoqServer(object):
 
     def __init__(self):
+        config = get_config()
+        self._port = int(config.get('General', 'serveravahiport') or
+                         SERVER_AVAHI_PORT)
+
         self.group = None
         self.listener = None
 
@@ -153,7 +158,7 @@ class StoqServer(object):
         site = server.Site(root)
         site.protocol = HTTPChannel
 
-        self.listener = reactor.listenTCP(SERVER_AVAHI_PORT, site)
+        self.listener = reactor.listenTCP(self._port, site)
 
     def _setup_avahi(self):
         bus = dbus.SystemBus()
@@ -167,7 +172,7 @@ class StoqServer(object):
         self.group.AddService(
             avahi.IF_UNSPEC, avahi.PROTO_UNSPEC, dbus.UInt32(0), SERVER_NAME,
             AVAHI_STYPE, AVAHI_DOMAIN, AVAHI_HOST,
-            dbus.UInt16(SERVER_AVAHI_PORT),
+            dbus.UInt16(self._port),
             avahi.string_array_to_txt_array(['foo=bar']))
 
         self.group.Commit()

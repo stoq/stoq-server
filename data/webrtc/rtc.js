@@ -10,6 +10,8 @@ var cli = meow(`
 
   Options
     -c --cameras <camera-urls> Serve images frmo the given MJPEG streams, separated by spaces.
+    -h --host <address> The host in which the XMLRPC server in running
+    -p --port <port> The port in which the XMLRPC server in running
 
   Examples:
     Run rtc.js providing images from 10.1.1.2 and 10.1.1.3
@@ -17,11 +19,18 @@ var cli = meow(`
 `, {
   alias: {
     c: 'cameras',
+    h: 'host',
+    p: 'port',
   }
 });
 
 var socket;
-var stoqServer = xmlrpc.createClient({host: 'localhost', port: 6970, path: '/XMLRPC'});
+var stoqServer = xmlrpc.createClient({
+  host: cli.flags.host || 'localhost',
+  port: parseInt(cli.flags.port) || 6970,
+  path: '/XMLRPC',
+});
+
 var clients = new MultiRTC({wrtc: require('wrtc')});
 var host = process.env.STOQ_API_HOST || 'http://api.stoq.com.br';
 

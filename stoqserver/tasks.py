@@ -158,9 +158,15 @@ def start_rtc():
 
     config = get_config()
     extra_args = []
-    urls = config.get('Camera', 'url') or None
-    if urls:
-        extra_args.append('-c=' + ' '.join(set(urls.split(' '))))
+    camera_urls = config.get('Camera', 'url') or None
+    if camera_urls:
+        extra_args.append('-c=' + ' '.join(set(camera_urls.split(' '))))
+
+    xmlrpc_host = config.get('General', 'serveraddress') or '127.0.0.1'
+    extra_args.append('-h={}'.format(xmlrpc_host))
+
+    xmlrpc_port = config.get('General', 'serverport') or SERVER_XMLRPC_PORT
+    extra_args.append('-p={}'.format(xmlrpc_port))
 
     while retry:
         retry = False
