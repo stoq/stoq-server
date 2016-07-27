@@ -540,6 +540,10 @@ class Worker(object):
         if data['status'] not in ['associated', 'already_associated']:
             return False, "Unexpected status returned: %s" % (data['status'], )
 
+        # We should automatically enable online services registered users
+        with api.new_store() as store:
+            api.sysparam.set_bool(store, 'ONLINE_SERVICES', True)
+
         # If it is not premium, we are already done here
         if not data['is_premium']:
             return True, "Link registration successful"
