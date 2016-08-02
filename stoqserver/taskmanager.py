@@ -546,6 +546,23 @@ class Worker(object):
         return self.action_plugin_action(
             'conector', 'sync', 'get_credentials', [pin])
 
+    def action_install_plugin(self, plugin_name):
+        plugin_name = unicode(plugin_name)
+        manager = get_plugin_manager()
+        if (plugin_name not in manager.available_plugins_names or
+                plugin_name in manager.egg_plugins_names):
+            rv, msg = manager.download_plugin(plugin_name)
+            if not rv:
+                return False, msg
+
+        if plugin_name not in manager.installed_plugins_names:
+            try:
+                manager.install_plugin(plugin_name)
+            except PluginError as err:
+                return False, str(err)
+
+        return True, "Plugin installed/updated sucessfully"
+
     def action_plugin_action(self, plugin_name, task_name, action, args):
         name = _get_plugin_task_name(plugin_name, task_name)
         if not self._manager.is_running(name):

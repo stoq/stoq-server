@@ -81,6 +81,9 @@ class XMLRPCServer(object):
     def register_link(self, pin):
         return self._run_action('register_link', pin)
 
+    def install_plugin(self, plugin_name):
+        return self._run_action('install_plugin', plugin_name)
+
     #
     #  Private
     #
