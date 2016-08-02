@@ -23,12 +23,15 @@
 ##
 
 import SimpleXMLRPCServer
+import logging
 import threading
 import xmlrpclib
 
 import stoq
 
 import stoqserver
+
+logger = logging.getLogger(__name__)
 
 
 class _RequestHandler(SimpleXMLRPCServer.SimpleXMLRPCRequestHandler):
@@ -46,15 +49,19 @@ class XMLRPCServer(object):
     #
 
     def ping(self):
+        logger.info("XMLRPC: ping")
         return "pong"
 
     def version(self):
+        logger.info("XMLRPC: version")
         return stoqserver.version_str
 
     def stoq_version(self):
+        logger.info("XMLRPC: stoq_version")
         return stoq.version
 
     def restart(self):
+        logger.info("XMLRPC: restart")
         t = threading.Timer(1.0, self._run_action, args=('restart', ))
         t.start()
         return "Restart command sent..."
@@ -89,6 +96,8 @@ class XMLRPCServer(object):
     #
 
     def _run_action(self, action, *args):
+        logger.info("XMLRPC: action %s(%s)",
+                    action, ', '.join('"%s"' % (a, ) for a in args))
         self._pipe_conn.send((action, ) + args)
         retval, msg = self._pipe_conn.recv()
         if not retval:
