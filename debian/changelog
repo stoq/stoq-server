@@ -1,3 +1,9 @@
+stoq-server (0.11) trusty; urgency=medium
+
+  * New release
+
+ -- Thiago Bellini Ribeiro <hackedbellini@async.com.br>  Thu, 18 Aug 2016 12:25:56 -0300
+
 stoq-server (0.10) trusty; urgency=medium
 
   * New release
