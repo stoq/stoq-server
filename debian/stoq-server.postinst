@@ -100,6 +100,9 @@ EOF
         systemctl enable supervisor.service || true
         systemctl start supervisor.service || true
 
+        # Add stoqserver on dialout group so it can interact with usb/serial devices
+        adduser stoqserver dialout || true
+
         # Restart the supervisor process. We should be using reread here,
         # but it doesn't seem to recognize new services, just modifications
         # to existing ones.
