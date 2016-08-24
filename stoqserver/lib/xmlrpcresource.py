@@ -28,6 +28,7 @@ import threading
 import xmlrpclib
 
 import stoq
+from stoqlib.lib.configparser import get_config
 
 import stoqserver
 
@@ -66,6 +67,18 @@ class XMLRPCServer(object):
         t.start()
         return "Restart command sent..."
 
+    def get_backup_key(self):
+        config = get_config()
+        return config.get('Backup', 'key')
+
+    def set_backup_key(self, key):
+        config = get_config()
+        config.set('Backup', 'key', key)
+        config.flush()
+        # Restart stoqserver so the backup key will take effect immediately
+        self.restart()
+        return "Backup key set successfully"
+
     def pause_tasks(self):
         return self._run_action('pause_tasks')
 
@@ -74,6 +87,9 @@ class XMLRPCServer(object):
 
     def htsql_query(self, query):
         return self._run_action('htsql_query', query)
+
+    def backup_database(self):
+        return self._run_action('backup_database')
 
     def backup_status(self, user_hash=None):
         return self._run_action('backup_status', user_hash)

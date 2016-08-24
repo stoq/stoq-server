@@ -41,7 +41,7 @@ from stoqlib.database.settings import db_settings
 from stoqlib.lib.pluginmanager import PluginError, get_plugin_manager
 from stoqlib.lib.webservice import WebService
 
-from stoqserver.tasks import (backup_status, restore_database,
+from stoqserver.tasks import (backup_status, restore_database, backup_database,
                               start_xmlrpc_server, start_server,
                               start_backup_scheduler,
                               start_rtc)
@@ -491,6 +491,14 @@ class Worker(object):
             duplicity_log.removeHandler(handler)
 
         return retval, msg
+
+    def action_backup_database(self):
+        try:
+            backup_database()
+        except Exception as e:
+            return False, str(e)
+
+        return True, "Backup finished"
 
     def action_backup_restore(self, user_hash, time=None):
         self._stop_tasks()
