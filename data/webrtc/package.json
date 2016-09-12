@@ -11,10 +11,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "buffer-indexof": "^1.0.0",
+    "buffer-indexof": "1.0.0",
     "components": "git+https://github.com/stoq/stoq-react-components.git",
-    "meow": "^3.7.0",
-    "socket.io-client": "^0.9.17",
-    "xmlrpc": "^1.3.1"
+    "meow": "3.7.0",
+    "socket.io-client": "0.9.17",
+    "xmlrpc": "1.3.1"
   }
 }
