@@ -76,6 +76,13 @@ class Task(multiprocessing.Process):
         self._func_kwargs = kwargs
         self.daemon = True
 
+        # register_after_fork receives an object and a func,
+        # passing self._after_fork would make us have to receive self
+        # twice, which is the reason we use it this way.
+        # Other python modules (e.g. Queue) does the same
+        multiprocessing.util.register_after_fork(
+            self, self.__class__._after_fork)
+
     #
     #  Public API
     #
@@ -151,6 +158,11 @@ class Task(multiprocessing.Process):
     #
     #  Private
     #
+
+    def _after_fork(self):
+        # Close the default store so any call to get_default_store
+        # will create a new one directly in the forked process
+        set_default_store(None)
 
     def _check_parent_running(self):
         while self.is_alive():
@@ -612,13 +624,12 @@ class Worker(object):
         self._manager.stop_tasks(exclude=exclude)
 
     def _start_tasks(self):
-        for task in [
-                Task('_backup', start_backup_scheduler),
-                Task('_server', start_server),
-                Task('_rtc', start_rtc),
-                Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2)]:
-            if not self._manager.is_running(task.name):
-                self._manager.run_task(task)
+        tasks = [
+            Task('_backup', start_backup_scheduler),
+            Task('_server', start_server),
+            Task('_rtc', start_rtc),
+            Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2),
+        ]
 
         manager = get_plugin_manager()
         for plugin_name in manager.installed_plugins_names:
@@ -640,5 +651,8 @@ class Worker(object):
                     self._plugins_pipes[name] = conn1
                     kwargs['pipe_connection'] = conn2
 
-                self._manager.run_task(
-                    Task(name, plugin_task.start, **kwargs))
+                tasks.append(Task(name, plugin_task.start, **kwargs))
+
+        for task in tasks:
+            if not self._manager.is_running(task.name):
+                self._manager.run_task(task)
