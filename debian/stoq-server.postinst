@@ -43,7 +43,6 @@ case "$1" in
         # Create .stoq dir and configuration if they don't exist
         if [ ! -f /usr/share/stoqserver/.stoq/stoq.conf ]; then
             mkdir -p /usr/share/stoqserver/.stoq
-            BACKUP_KEY="`cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c64`"
             cat <<EOF > /usr/share/stoqserver/.stoq/stoq.conf
 [General]
 logfile = /usr/share/stoqserver/.stoq/stoqserver.log
@@ -56,7 +55,7 @@ dbname = $DBNAME
 dbusername = stoqserver
 
 [Backup]
-key = $BACKUP_KEY
+key = 
 EOF
         fi
 
