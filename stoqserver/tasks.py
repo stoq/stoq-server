@@ -22,9 +22,10 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import datetime
 import collections
+import datetime
 import logging
+import multiprocessing
 import os
 import random
 import shutil
@@ -34,11 +35,15 @@ import sys
 import tempfile
 import time
 
+import dateutil.parser
 from stoqlib.api import api
 from stoqlib.exceptions import DatabaseError
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.database.settings import db_settings
+from stoqlib.domain.plugin import PluginEgg
 from stoqlib.lib.configparser import get_config
+from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.lib.settings import UserSettings
 
 from stoqserver import library
 from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
@@ -47,6 +52,9 @@ from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
 from stoqserver.server import StoqServer
 
 logger = logging.getLogger(__name__)
+# Indicates if we are doing a backup. This uses a piece of shared memory
+# so forked processes will all see the same value when updated
+_doing_backup = multiprocessing.Value('i', 0)
 
 
 class TaskException(Exception):
@@ -200,7 +208,59 @@ def start_rtc():
             retry = True
 
 
+def start_plugins_update_scheduler(event):
+    _setup_signal_termination()
+
+    if not api.sysparam.get_bool('ONLINE_SERVICES'):
+        logger.info("ONLINE_SERVICES not enabled. Not scheduling plugin updates...")
+        return
+
+    manager = get_plugin_manager()
+
+    while True:
+        last_check_str = UserSettings().get('last-plugins-update', None)
+        last_check = (dateutil.parser.parse(last_check_str)
+                      if last_check_str else datetime.datetime.min)
+
+        # Check for updates once per day
+        if last_check.date() == datetime.date.today():
+            time.sleep(24 * 60 * 60)
+            continue
+
+        logger.info("Checking for plugins updates...")
+        updated = False
+        default_store = get_default_store()
+        # TODO: atm we are only updating the conector plugin to avoid
+        # problems with migrations. Let this update everything once we
+        # find a solution for this problem
+        for egg in default_store.find(PluginEgg, plugin_name=u'conector'):
+            md5sum = egg.egg_md5sum
+            manager.download_plugin(egg.plugin_name)
+
+            # If download_plugin updated the plugin, autoreload will
+            # make egg. be reloaded from the database
+            if md5sum != egg.egg_md5sum:
+                updated = True
+
+        settings = UserSettings()
+        settings.set('last-plugins-update',
+                     datetime.datetime.now().isoformat())
+        settings.flush()
+
+        if updated:
+            # Wait until any running backup is finished and restart
+            while _doing_backup.value:
+                time.sleep(60)
+
+            logger.info("Some plugins were updated. Restarting now "
+                        "to reflect the changes...")
+            event.set()
+        else:
+            logger.info("No update was found...")
+
+
 def start_backup_scheduler():
+    global _doing_backup
     _setup_signal_termination()
 
     if not api.sysparam.get_bool('ONLINE_SERVICES'):
@@ -247,8 +307,13 @@ def start_backup_scheduler():
                     args[i] = 'backup_database'
                     break
 
-            p = subprocess.Popen(args)
-            stdout, stderr = p.communicate()
+            _doing_backup.value = 1
+            try:
+                p = subprocess.Popen(args)
+                stdout, stderr = p.communicate()
+            finally:
+                _doing_backup.value = 0
+
             if p.returncode == 0:
                 break
             else:

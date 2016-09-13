@@ -42,6 +42,7 @@ from stoqlib.lib.pluginmanager import PluginError, get_plugin_manager
 from stoqlib.lib.webservice import WebService
 
 from stoqserver.tasks import (backup_status, restore_database, backup_database,
+                              start_plugins_update_scheduler,
                               start_xmlrpc_server, start_server,
                               start_backup_scheduler,
                               start_rtc)
@@ -308,6 +309,7 @@ class Worker(object):
     def __init__(self):
         self._paused = False
         self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
+        self._updater_event = multiprocessing.Event()
         self._plugins_pipes = {}
         self._manager = TaskManager()
 
@@ -327,15 +329,22 @@ class Worker(object):
         self._start_tasks()
 
         while True:
-            # EOFError will be raised when the the other side of the
-            # pipe closes the connection.
-            try:
-                action = self._xmlrpc_conn1.recv()
-            except EOFError:
-                break
-            meth = getattr(self, 'action_' + action[0])
-            assert meth, "Action handler for %s not found" % (action[0], )
-            self._xmlrpc_conn1.send(meth(*action[1:]))
+            if self._updater_event.is_set():
+                self.action_restart()
+
+            # Poll for 10 seconds so we can do other things (e.g. see if the
+            # updater event has been set) while there's nothing to read
+            # on the pipe
+            if self._xmlrpc_conn1.poll(10):
+                # EOFError will be raised when the the other side of the
+                # pipe closes the connection.
+                try:
+                    action = self._xmlrpc_conn1.recv()
+                except EOFError:
+                    break
+                meth = getattr(self, 'action_' + action[0])
+                assert meth, "Action handler for %s not found" % (action[0], )
+                self._xmlrpc_conn1.send(meth(*action[1:]))
 
     def stop(self):
         """Stop the worker.
@@ -629,6 +638,7 @@ class Worker(object):
             Task('_server', start_server),
             Task('_rtc', start_rtc),
             Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2),
+            Task('_updater', start_plugins_update_scheduler, self._updater_event),
         ]
 
         manager = get_plugin_manager()
