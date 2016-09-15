@@ -563,7 +563,8 @@ class Worker(object):
             manager.download_plugin(u'conector')
         if 'conector' not in manager.installed_plugins_names:
             try:
-                manager.install_plugin(u'conector')
+                with api.new_store() as store:
+                    manager.install_plugin(store, u'conector')
                 manager.activate_plugin(u'conector')
             except PluginError as e:
                 msg = "Failed to install conector plugin: %s" % (str(e), )
@@ -585,10 +586,11 @@ class Worker(object):
                 return False, msg
 
         if plugin_name not in manager.installed_plugins_names:
-            try:
-                manager.install_plugin(plugin_name)
-            except PluginError as err:
-                return False, str(err)
+            with api.new_store() as store:
+                try:
+                    manager.install_plugin(store, plugin_name)
+                except PluginError as err:
+                    return False, str(err)
 
         return True, "Plugin installed/updated sucessfully"
 
