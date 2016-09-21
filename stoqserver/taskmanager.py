@@ -668,3 +668,5 @@ class Worker(object):
         for task in tasks:
             if not self._manager.is_running(task.name):
                 self._manager.run_task(task)
+
+        set_default_store(None)
