@@ -669,4 +669,8 @@ class Worker(object):
             if not self._manager.is_running(task.name):
                 self._manager.run_task(task)
 
+        # Close the default store because it not functioning anymore since the
+        # forked processes closed its "clone", but open a new one later
+        # or else Stoq will not be able to find this instance
         set_default_store(None)
+        get_default_store()
