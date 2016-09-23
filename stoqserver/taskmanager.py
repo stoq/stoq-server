@@ -182,7 +182,6 @@ class TaskManager(threading.Thread):
     for restarting them if something unexpected happens to them.
     """
 
-    MAX_RESTARTS = 10
     BACKOFF_FACTOR = 2
 
     def __init__(self):
@@ -258,12 +257,10 @@ class TaskManager(threading.Thread):
             task = self._tasks[name]
 
             with self._lock:
-                if task.errors > self.MAX_RESTARTS:
-                    logger.warning("Reached max restarts for task %s. "
-                                   "Not restarting it anymore...", name)
-                    continue
-
-                backoff_value = self.BACKOFF_FACTOR * (2 ** task.errors)
+                # With a backoff factor of 2, 12 errors would make the task
+                # have to wait for 68 min before being restarted. This is
+                # a good max value for a problematic task
+                backoff_value = self.BACKOFF_FACTOR ** min(task.errors, 12)
                 task.errors += 1
                 logger.warning("Task %s crashed. Restarting again in %s seconds...",
                                name, backoff_value)
