@@ -14,7 +14,7 @@ Package: stoq-server
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends},
  stoq (>= 1.11.92), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
- python-requests (>= 2.2), python-avahi, python-netifaces
-Recommends: python-raven, python-htsql, python-htsql-pgsql, tmate
+ python-requests (>= 2.2), python-avahi, python-netifaces, python-htsql, python-htsql-pgsql
+Recommends: python-raven, tmate
 Homepage: http://www.stoq.com.br/
 Description: A server for Stoq.
