@@ -2,10 +2,10 @@
 
 
 VERSION_FILE=".version"
-NVM_URL="https://raw.githubusercontent.com/creationix/nvm/v0.31.1/install.sh"
+NVM_URL="https://raw.githubusercontent.com/creationix/nvm/v0.32.0/install.sh"
 NVM_DIR="$HOME/.nvm"
 NVM_SCRIPT="$NVM_DIR/nvm.sh"
-NODE_VERSION="4.4"  # LTS version
+NODE_VERSION="4.6"  # LTS version
 NODE_ABI="46"
 NODE_FILE="rtc.js"
 WRTC_VERSION="0.0.59"
