@@ -50,7 +50,8 @@ if [[ "$CURRENT_VERSION" != *"$NODE_VERSION"* ]]; then
         nvm use $NODE_VERSION
         if [ $? != 0 ]; then
             echo "Node installation corrupted and not recoverable. Resetting it..."
-            rm ~/.nvm -rf
+            # Remove node_modules/npm/nvm and start over
+            rm -rf node_modules $HOME/.npm $HOME/.nvm
             exit 12
         fi
     fi
@@ -74,7 +75,7 @@ npm install --silent > /dev/null
 # If that happens, remove it and do a 'npm install' again to fix it
 if [[ $? != 0 ]]; then
     echo "node_modules probably corrupted. Reinstalling it..."
-    rm -rf node_modules
+    rm -rf node_modules $HOME/.npm
     _run npm install
 fi
 
