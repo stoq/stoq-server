@@ -230,10 +230,7 @@ def start_plugins_update_scheduler(event):
         logger.info("Checking for plugins updates...")
         updated = False
         default_store = get_default_store()
-        # TODO: atm we are only updating the conector plugin to avoid
-        # problems with migrations. Let this update everything once we
-        # find a solution for this problem
-        for egg in default_store.find(PluginEgg, plugin_name=u'conector'):
+        for egg in default_store.find(PluginEgg):
             md5sum = egg.egg_md5sum
             manager.download_plugin(egg.plugin_name)
 
