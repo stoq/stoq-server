@@ -99,6 +99,30 @@ if _raven_client is not None:
     sys.excepthook = _excepthook
 
 
+def setup_stoq():
+    info = AppInfo()
+    info.set('name', "stoqserver")
+    info.set('version', stoqserver.version_str)
+    info.set('ver', stoqserver.version_str)
+    provide_utility(IAppInfo, info, replace=True)
+
+    # FIXME: Maybe we should check_schema and load plugins here?
+    setup(config=get_config(), options=None, register_station=False,
+          check_schema=False, load_plugins=True)
+
+
+def setup_logging():
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter(
+        '%(asctime)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(ch)
+
+
 class StoqServerCmdHandler(object):
 
     #
@@ -120,32 +144,6 @@ class StoqServerCmdHandler(object):
         group = optparse.OptionGroup(parser, '%s options' % cmd)
         meth(parser, group)
         parser.add_option_group(group)
-
-    #
-    #  Private
-    #
-
-    def _setup_stoq(self):
-        info = AppInfo()
-        info.set('name', "stoqserver")
-        info.set('version', stoqserver.version_str)
-        info.set('ver', stoqserver.version_str)
-        provide_utility(IAppInfo, info, replace=True)
-
-        # FIXME: Maybe we should check_schema and load plugins here?
-        setup(config=get_config(), options=None, register_station=False,
-              check_schema=False, load_plugins=True)
-
-    def _setup_logging(self):
-        ch = logging.StreamHandler(sys.stdout)
-        ch.setLevel(logging.INFO)
-        formatter = logging.Formatter(
-            '%(asctime)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s')
-        ch.setFormatter(formatter)
-
-        root = logging.getLogger()
-        root.setLevel(logging.INFO)
-        root.addHandler(ch)
 
     #
     #  Commands
@@ -174,14 +172,14 @@ class StoqServerCmdHandler(object):
 
     def cmd_run(self, options, *args):
         """Run the server daemon"""
-        self._setup_logging()
+        setup_logging()
 
         while True:
             # If the server was initialized before a stoq database exists,
             # don't let the process die. Instead, wait until the configuration
             # is valid so we can really start.
             try:
-                self._setup_stoq()
+                setup_stoq()
             except Exception as e:
                 logging.warning("Unable to initialize Stoq: %s\n"
                                 "Trying again in 1 minute...", str(e))
@@ -216,14 +214,15 @@ class StoqServerCmdHandler(object):
 
         signal.signal(signal.SIGTERM, _exit)
         signal.signal(signal.SIGINT, _exit)
-        signal.signal(signal.SIGQUIT, _exit)
+        if platform.system() != 'Windows':
+            signal.signal(signal.SIGQUIT, _exit)
 
         worker.run()
 
     def cmd_backup_database(self, options, *args):
         """Backup the Stoq database"""
-        self._setup_stoq()
-        self._setup_logging()
+        setup_stoq()
+        setup_logging()
         return backup_database(full=options.full)
 
     def opt_backup_database(self, parser, group):
@@ -234,7 +233,7 @@ class StoqServerCmdHandler(object):
 
     def cmd_restore_backup(self, options, *args):
         """Restore the Stoq database"""
-        self._setup_logging()
+        setup_logging()
         return restore_database(user_hash=options.user_hash,
                                 time=options.time)
 
@@ -248,8 +247,8 @@ class StoqServerCmdHandler(object):
 
     def cmd_backup_status(self, options, *args):
         """Get the status of the current backups"""
-        self._setup_stoq()
-        self._setup_logging()
+        setup_stoq()
+        setup_logging()
         return backup_status(user_hash=options.user_hash)
 
     def opt_backup_status(self, parser, group):
@@ -259,7 +258,7 @@ class StoqServerCmdHandler(object):
 
     def cmd_exec_action(self, options, *args):
         """Run an action on an already running server instance"""
-        self._setup_logging()
+        setup_logging()
 
         cmd = args[0]
         cmd_args = args[1:]

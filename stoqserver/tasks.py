@@ -47,7 +47,6 @@ from stoqlib.lib.settings import UserSettings
 
 from stoqserver import library
 from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
-from stoqserver.lib import backup
 from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
 from stoqserver.server import StoqServer
 
@@ -76,6 +75,8 @@ def backup_database(full=False):
     if not db_settings.dump_database(filename, format='plain'):
         raise TaskException("Failed to dump the database")
 
+    # FIXME: Change this to a global import when windows support it
+    from stoqserver.lib import backup
     backup.backup(APP_BACKUP_DIR, full=full)
     logger.info("Database backup finished sucessfully")
 
@@ -118,6 +119,8 @@ def restore_database(user_hash, time=None):
         set_default_store(None)
         restore_path = os.path.join(tmp_path, 'stoq')
 
+        # FIXME: Change this to a global import when windows support it
+        from stoqserver.lib import backup
         backup.restore(restore_path, user_hash, time=time)
 
         db_settings.clean_database(db_settings.dbname, force=True)
@@ -132,6 +135,8 @@ def restore_database(user_hash, time=None):
 
 
 def backup_status(user_hash=None):
+    # FIXME: Change this to a global import when windows support it
+    from stoqserver.lib import backup
     backup.status(user_hash=user_hash)
 
 

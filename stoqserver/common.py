@@ -23,6 +23,7 @@
 ##
 
 import os
+from stoqlib.lib.osutils import get_application_dir
 
 _ = lambda s: s
 
@@ -31,13 +32,15 @@ _ = lambda s: s
 #  General
 #
 
-APP_DIR = os.path.join(os.environ['HOME'], '.stoq')
+APP_DIR = get_application_dir()
 APP_EGGS_DIR = os.path.join(APP_DIR, 'eggs')
 APP_CONF_FILE = os.path.join(APP_DIR, 'stoq.conf')
 APP_BACKUP_DIR = os.path.join(APP_DIR, 'backup')
 
 SERVER_NAME = _('Stoq Server')
 SERVER_EGGS = ['kiwi.egg', 'stoqdrivers.egg', 'stoq.egg']
+# FIXME: Windows
+SERVER_EGGS = []
 SERVER_EXECUTABLE_EGG = 'stoq.egg'
 SERVER_AVAHI_PORT = 6969
 SERVER_XMLRPC_PORT = 6970

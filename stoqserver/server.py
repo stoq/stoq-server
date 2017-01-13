@@ -26,12 +26,18 @@ import BaseHTTPServer
 import SimpleHTTPServer
 import atexit
 import base64
-import dbus
+try:
+    import dbus
+    import avahi
+except ImportError:
+    # FIXME: Windows
+    dbus = None
+    avahi = None
+
 import logging
 import os
 import tempfile
 
-import avahi
 from stoqlib.api import api
 from stoqlib.domain.person import LoginUser
 from stoqlib.exceptions import LoginError
@@ -44,7 +50,12 @@ from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
                                SERVER_EGGS, APP_CONF_FILE)
 
 _ = lambda s: s
-_eggs_path = library.get_resource_filename('stoqserver', 'eggs')
+try:
+    _eggs_path = library.get_resource_filename('stoqserver', 'eggs')
+except KeyError:
+    # FIXME: Windows
+    _eggs_path = ''
+
 _md5sum_path = None
 logger = logging.getLogger(__name__)
 
@@ -115,10 +126,11 @@ class StoqServer(object):
     #
 
     def run(self):
-        try:
-            self._setup_avahi()
-        except dbus.exceptions.DBusException as e:
-            logger.warning("Failed to setup avahi: %s", str(e))
+        if dbus is not None:
+            try:
+                self._setup_avahi()
+            except dbus.exceptions.DBusException as e:
+                logger.warning("Failed to setup avahi: %s", str(e))
 
         # md5sum
         with tempfile.NamedTemporaryFile(delete=False) as f:

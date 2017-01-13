@@ -26,6 +26,7 @@ import io
 import logging
 import multiprocessing
 import os
+import platform
 import signal
 import sys
 import threading
@@ -49,6 +50,7 @@ from stoqserver.tasks import (backup_status, restore_database, backup_database,
 
 logger = logging.getLogger(__name__)
 _error_queue = multiprocessing.Queue()
+_is_windows = platform.system() == 'Windows'
 
 
 def _get_plugin_task_name(plugin_name, task_name):
@@ -120,7 +122,11 @@ class Task(multiprocessing.Process):
         """
         logger.info("Stopping task %s...", self.name)
 
-        pgid = os.getpgid(self.pid)
+        if not _is_windows:
+            pgid = os.getpgid(self.pid)
+        else:
+            pgid = None
+
         os.kill(self.pid, signal.SIGTERM)
         # Give it 2 seconds to exit. If that doesn't happen, force
         # its termination
@@ -131,22 +137,32 @@ class Task(multiprocessing.Process):
             self.terminate()
 
         # Try to kill any remaining child process that refused to
-        # terminate (e.g. wrtc client)
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-        except OSError:
-            pass
+        # terminate (e.g. wrtc client), but only on unix.
+        # FIXME: how to do this on Windows?
+        if not _is_windows:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except OSError:
+                pass
 
     #
     #  multiprocessing.Process
     #
 
     def run(self):
-        os.setpgrp()
-        self._ppid = os.getppid()
-        t = threading.Thread(target=self._check_parent_running)
-        t.daemon = True
-        t.start()
+        # FIXME: parent pid is not supported on windows. Maybe we should
+        # find a way for the task to check if the parent is alive in another
+        # way in this case?
+        if not _is_windows:
+            os.setpgrp()
+            self._ppid = os.getppid()
+            t = threading.Thread(target=self._check_parent_running)
+            t.daemon = True
+            t.start()
+        else:
+            from stoqserver.main import setup_stoq, setup_logging
+            setup_stoq()
+            setup_logging()
 
         # Workaround a python issue where multiprocessing/threading will not
         # use the modified sys.excepthook: https://bugs.python.org/issue1230540
@@ -633,12 +649,16 @@ class Worker(object):
 
     def _start_tasks(self):
         tasks = [
-            Task('_backup', start_backup_scheduler),
-            Task('_server', start_server),
-            Task('_rtc', start_rtc),
             Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2),
             Task('_updater', start_plugins_update_scheduler, self._updater_event),
         ]
+        # TODO: Make those work on windows
+        if not _is_windows:
+            tasks.extend([
+                Task('_backup', start_backup_scheduler),
+                Task('_server', start_server),
+                Task('_rtc', start_rtc),
+            ])
 
         manager = get_plugin_manager()
         for plugin_name in manager.installed_plugins_names:
