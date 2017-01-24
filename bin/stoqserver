@@ -15,10 +15,8 @@ if __name__ == '__main__':
         # stoq, kiwi and stoqdrivers), so make sure those are also in the path
         multiprocessing.freeze_support()
 
-        # FIXME: This is needed for windows multiprocessing. See:
-        # http://stackoverflow.com/questions/19984152/what-can-multiprocessing-and-dill-do-together
-        import dill
-        dill  # pyflakes
+        stoq_dir = os.path.join(os.environ['ALLUSERSPROFILE'], 'stoq')
+        os.environ['PGPASSFILE'] = os.path.join(stoq_dir, 'pgpass.conf')
 
         executable = os.path.realpath(os.path.abspath(sys.executable))
         root = os.path.dirname(executable)
@@ -29,6 +27,11 @@ if __name__ == '__main__':
 
         # Also add it to the OS PATH, so that the libraries are correclty found.
         os.environ['PATH'] = root + os.pathsep + os.environ['PATH']
+
+        # FIXME: This is needed for windows multiprocessing. See:
+        # http://stackoverflow.com/questions/19984152/what-can-multiprocessing-and-dill-do-together
+        import dill
+        dill  # pyflakes
 
     from stoqserver.main import main
     from stoqserver.common import SERVER_EGGS
