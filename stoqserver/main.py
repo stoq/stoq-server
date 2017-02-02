@@ -93,6 +93,10 @@ if _raven_client is not None:
         except Exception:
             pass
 
+        if hasattr(_raven_client, 'user_context'):
+            _raven_client.user_context({'id': tags.get('hash', None),
+                                        'username': tags.get('cnpj', None)})
+
         _raven_client.captureException((exctype, value, tb), tags=tags)
         traceback.print_exception(exctype, value, tb)
 
