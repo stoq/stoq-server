@@ -25,12 +25,11 @@
 import collections
 import datetime
 import logging
-import multiprocessing
 import os
+import platform
 import random
 import shutil
 import signal
-import subprocess
 import sys
 import tempfile
 import time
@@ -43,6 +42,7 @@ from stoqlib.database.settings import db_settings
 from stoqlib.domain.plugin import PluginEgg
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.lib.process import Process
 from stoqlib.lib.settings import UserSettings
 
 from stoqserver import library
@@ -50,10 +50,12 @@ from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
 from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
 from stoqserver.server import StoqServer
 
+if platform.system() != 'Windows':
+    from stoqserver.lib import duplicitybackup as backup
+else:
+    from stoqserver.lib import duplicatibackup as backup
+
 logger = logging.getLogger(__name__)
-# Indicates if we are doing a backup. This uses a piece of shared memory
-# so forked processes will all see the same value when updated
-_doing_backup = multiprocessing.Value('i', 0)
 
 
 class TaskException(Exception):
@@ -76,7 +78,6 @@ def backup_database(full=False):
         raise TaskException("Failed to dump the database")
 
     # FIXME: Change this to a global import when windows support it
-    from stoqserver.lib import backup
     backup.backup(APP_BACKUP_DIR, full=full)
     logger.info("Database backup finished sucessfully")
 
@@ -105,12 +106,19 @@ def restore_database(user_hash, time=None):
         else:
             default_store.unlock_database()
 
-        with tempfile.NamedTemporaryFile() as f:
+        # FIXME: Windows will not liberate resource for other process to
+        # write to the file. We should write our own TemporaryFile on Stoq
+        # that handles all those cases for us and use here
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            pass
+        try:
             if not db_settings.dump_database(f.name):
                 raise TaskException("Failed to dump the database")
             backup_name = db_settings.restore_database(f.name)
             logger.info("Created a backup of the current database state on %s",
                         backup_name)
+        finally:
+            os.unlink(f.name)
 
     tmp_path = tempfile.mkdtemp()
     try:
@@ -182,7 +190,7 @@ def start_rtc():
 
     while retry:
         retry = False
-        popen = subprocess.Popen(
+        popen = Process(
             ['bash', 'start.sh'] + extra_args, cwd=cwd)
 
         def _sigterm_handler(_signal, _stack_frame):
@@ -213,7 +221,7 @@ def start_rtc():
             retry = True
 
 
-def start_plugins_update_scheduler(event):
+def start_plugins_update_scheduler(event, doing_backup):
     _setup_signal_termination()
 
     if not api.sysparam.get_bool('ONLINE_SERVICES'):
@@ -251,7 +259,7 @@ def start_plugins_update_scheduler(event):
 
         if updated:
             # Wait until any running backup is finished and restart
-            while _doing_backup.value:
+            while doing_backup.value:
                 time.sleep(60)
 
             logger.info("Some plugins were updated. Restarting now "
@@ -261,8 +269,7 @@ def start_plugins_update_scheduler(event):
             logger.info("No update was found...")
 
 
-def start_backup_scheduler():
-    global _doing_backup
+def start_backup_scheduler(doing_backup):
     _setup_signal_termination()
 
     if not api.sysparam.get_bool('ONLINE_SERVICES'):
@@ -309,12 +316,12 @@ def start_backup_scheduler():
                     args[i] = 'backup_database'
                     break
 
-            _doing_backup.value = 1
+            doing_backup.value = 1
             try:
-                p = subprocess.Popen(args)
+                p = Process(args)
                 stdout, stderr = p.communicate()
             finally:
-                _doing_backup.value = 0
+                doing_backup.value = 0
 
             if p.returncode == 0:
                 break

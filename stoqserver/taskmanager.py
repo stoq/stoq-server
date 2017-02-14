@@ -320,6 +320,9 @@ class Worker(object):
     PLUGIN_ACTION_TIMEOUT = 3 * 60
 
     def __init__(self):
+        # Indicates if we are doing a backup. This uses a piece of shared memory
+        # so forked processes will all see the same value when updated
+        self._doing_backup = multiprocessing.Value('i', 0)
         self._paused = False
         self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
         self._updater_event = multiprocessing.Event()
@@ -650,12 +653,13 @@ class Worker(object):
     def _start_tasks(self):
         tasks = [
             Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2),
-            Task('_updater', start_plugins_update_scheduler, self._updater_event),
+            Task('_updater', start_plugins_update_scheduler,
+                 self._updater_event, self._doing_backup),
+            Task('_backup', start_backup_scheduler, self._doing_backup),
         ]
         # TODO: Make those work on windows
         if not _is_windows:
             tasks.extend([
-                Task('_backup', start_backup_scheduler),
                 Task('_server', start_server),
                 Task('_rtc', start_rtc),
             ])
