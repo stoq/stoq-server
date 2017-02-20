@@ -28,6 +28,10 @@ if __name__ == '__main__':
         # Also add it to the OS PATH, so that the libraries are correclty found.
         os.environ['PATH'] = root + os.pathsep + os.environ['PATH']
 
+        # Allow .pyd files to be imported from egg files
+        import zipextimporter
+        zipextimporter.install()
+
         # FIXME: This is needed for windows multiprocessing. See:
         # http://stackoverflow.com/questions/19984152/what-can-multiprocessing-and-dill-do-together
         import dill
