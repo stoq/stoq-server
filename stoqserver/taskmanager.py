@@ -50,6 +50,8 @@ from stoqserver.tasks import (backup_status, restore_database, backup_database,
 
 logger = logging.getLogger(__name__)
 _error_queue = multiprocessing.Queue()
+_executable = os.path.realpath(os.path.abspath(sys.executable))
+_root = os.path.dirname(_executable)
 _is_windows = platform.system() == 'Windows'
 
 
@@ -160,6 +162,11 @@ class Task(multiprocessing.Process):
             t.daemon = True
             t.start()
         else:
+            import requests
+            cacerts_path = os.path.join(_root, 'cacert.pem')
+            requests.utils.DEFAULT_CA_BUNDLE_PATH = cacerts_path
+            requests.adapters.DEFAULT_CA_BUNDLE_PATH = cacerts_path
+
             from stoqserver.main import setup_stoq, setup_logging
             setup_stoq()
             setup_logging()

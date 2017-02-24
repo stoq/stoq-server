@@ -103,6 +103,16 @@ if _raven_client is not None:
     sys.excepthook = _excepthook
 
 
+def _windows_fixes():
+    executable = os.path.realpath(os.path.abspath(sys.executable))
+    root = os.path.dirname(executable)
+
+    # Indicate the cert.pem location so requests can use it on verify
+    # From: http://stackoverflow.com/a/33334042
+    import requests
+    requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(root, 'cacert.pem')
+
+
 def setup_stoq():
     info = AppInfo()
     info.set('name', "stoqserver")
@@ -304,6 +314,9 @@ class StoqServerCmdHandler(object):
 
 
 def main(args):
+    if platform.system() == 'Windows':
+        _windows_fixes()
+
     handler = StoqServerCmdHandler()
     if not args:
         handler.cmd_help()
