@@ -171,10 +171,26 @@ class Task(multiprocessing.Process):
             setup_stoq()
             setup_logging()
 
+        if isinstance(self.func, tuple):
+            # Windows
+            plugin_name, task_name = self.func
+
+            manager = get_plugin_manager()
+            plugin = manager.get_plugin(plugin_name)
+            for task in plugin.get_server_tasks():
+                if task.name == task_name:
+                    break
+            else:
+                raise AssertionError
+
+            func = task.start
+        else:
+            func = self.func
+
         # Workaround a python issue where multiprocessing/threading will not
         # use the modified sys.excepthook: https://bugs.python.org/issue1230540
         try:
-            self.func(*self._func_args, **self._func_kwargs)
+            func(*self._func_args, **self._func_kwargs)
         except Exception:
             sys.excepthook(*sys.exc_info())
             _error_queue.put(self.name)
@@ -691,7 +707,16 @@ class Worker(object):
                     self._plugins_pipes[name] = conn1
                     kwargs['pipe_connection'] = conn2
 
-                tasks.append(Task(name, plugin_task.start, **kwargs))
+                # Since Windows has no os.fork, multiprocessing will actually
+                # run the process again and pass the required objects by
+                # pickling them. For some reason, passing a plugin task will
+                # break some places, since the it will make some objects
+                # like PluginManager be pickled/unpicled, and when unlicking
+                # it will run its contructor again, but it should wait
+                # to do that until we have configured the database.
+                func = (plugin_name, task_name)
+
+                tasks.append(Task(name, func, **kwargs))
 
         for task in tasks:
             if not self._manager.is_running(task.name):
