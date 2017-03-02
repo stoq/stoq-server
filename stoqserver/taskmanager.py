@@ -162,12 +162,16 @@ class Task(multiprocessing.Process):
             t.daemon = True
             t.start()
         else:
+            from stoqserver.main import (setup_stoq, setup_logging,
+                                         setup_excepthook)
+            # Do this as soon as possible so we can log any early traceback
+            setup_excepthook()
+
             import requests
             cacerts_path = os.path.join(_root, 'cacert.pem')
             requests.utils.DEFAULT_CA_BUNDLE_PATH = cacerts_path
             requests.adapters.DEFAULT_CA_BUNDLE_PATH = cacerts_path
 
-            from stoqserver.main import setup_stoq, setup_logging
             setup_stoq()
             setup_logging()
 

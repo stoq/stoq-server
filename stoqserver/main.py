@@ -24,6 +24,7 @@
 
 import atexit
 import logging
+import multiprocessing
 import optparse
 import os
 import platform
@@ -44,6 +45,7 @@ from stoqlib.lib.appinfo import AppInfo
 from stoqlib.lib.configparser import StoqConfig, register_config
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.interfaces import IAppInfo
+from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.pluginmanager import InstalledPlugin
 from stoqlib.lib.webservice import get_main_cnpj
 
@@ -65,12 +67,33 @@ try:
 except ImportError:
     _raven_client = None
 
-# Disable send sentry log if we are on developer mode.
-if stoqserver.library.uninstalled:
-    _raven_client = None
 
-# Do this as soon as possible so we can log any early traceback
-if _raven_client is not None:
+class _Tee(object):
+
+    def __init__(self, *files):
+        self._files = files
+
+    def write(self, string):
+        for f in self._files:
+            f.write(string)
+            f.flush()
+
+    def flush(self):
+        for f in self._files:
+            f.flush()
+
+
+def _windows_fixes():
+    executable = os.path.realpath(os.path.abspath(sys.executable))
+    root = os.path.dirname(executable)
+
+    # Indicate the cert.pem location so requests can use it on verify
+    # From: http://stackoverflow.com/a/33334042
+    import requests
+    requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(root, 'cacert.pem')
+
+
+def setup_excepthook():
     def _excepthook(exctype, value, tb):
         tags = {
             'version': stoqserver.version_str,
@@ -93,24 +116,17 @@ if _raven_client is not None:
         except Exception:
             pass
 
-        if hasattr(_raven_client, 'user_context'):
-            _raven_client.user_context({'id': tags.get('hash', None),
-                                        'username': tags.get('cnpj', None)})
+        # Disable send sentry log if we are on developer mode.
+        developer_mode = stoqserver.library.uninstalled
+        if _raven_client is not None and not developer_mode:
+            if hasattr(_raven_client, 'user_context'):
+                _raven_client.user_context({'id': tags.get('hash', None),
+                                            'username': tags.get('cnpj', None)})
+            _raven_client.captureException((exctype, value, tb), tags=tags)
 
-        _raven_client.captureException((exctype, value, tb), tags=tags)
         traceback.print_exception(exctype, value, tb)
 
     sys.excepthook = _excepthook
-
-
-def _windows_fixes():
-    executable = os.path.realpath(os.path.abspath(sys.executable))
-    root = os.path.dirname(executable)
-
-    # Indicate the cert.pem location so requests can use it on verify
-    # From: http://stackoverflow.com/a/33334042
-    import requests
-    requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(root, 'cacert.pem')
 
 
 def setup_stoq():
@@ -135,6 +151,25 @@ def setup_logging():
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.addHandler(ch)
+
+    if platform.system() == 'Windows':
+        # FIXME: We need some kind of log rotation here
+        log_dir = os.path.join(get_application_dir(), 'stoqserver-logs')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        log_filename = os.path.join(log_dir, multiprocessing.current_process().name)
+        stdout_file = open(log_filename + '-stdout', 'a')
+        # On windows, since it is not supervisor that is handling the logs,
+        # and some places/plugins will do logging by printing info to stdout
+        # (e.g. conector), we need to log them somewhere
+        sys.stdout = _Tee(sys.stdout, stdout_file)
+        sys.stderr = _Tee(sys.stderr, stdout_file)
+
+        hdlr = logging.FileHandler(log_filename)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        hdlr.setFormatter(formatter)
+        root.addHandler(hdlr)
 
 
 class StoqServerCmdHandler(object):
@@ -314,6 +349,9 @@ class StoqServerCmdHandler(object):
 
 
 def main(args):
+    # Do this as soon as possible so we can log any early traceback
+    setup_excepthook()
+
     if platform.system() == 'Windows':
         _windows_fixes()
 
