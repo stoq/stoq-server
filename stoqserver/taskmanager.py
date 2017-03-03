@@ -405,8 +405,13 @@ class Worker(object):
         logger.info("Restarting the process as requested...")
 
         self.stop()
-        # execv will restart the process and finish this one
-        os.execv(sys.argv[0], sys.argv)
+        if _is_windows:
+            # On windows, the service is expecting an exit value of 10 to
+            # restart us
+            sys.exit(10)
+        else:
+            # execv will restart the process and finish this one
+            os.execv(sys.argv[0], sys.argv)
 
     def action_pause_tasks(self):
         logger.info("Pausing the tasks as requested...")
