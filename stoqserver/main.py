@@ -229,7 +229,12 @@ class StoqServerCmdHandler(object):
             # is valid so we can really start.
             try:
                 setup_stoq()
-            except Exception as e:
+            # FIXME: We should not be excepting BaseException, but there are
+            # some issues (e.g. postgresql not installed) that will raise an
+            # exception that inherit from BaseException directly. We need this
+            # to make sure we will wait until the database is
+            # installed, configured and ready.
+            except BaseException as e:
                 logging.warning("Unable to initialize Stoq: %s\n"
                                 "Trying again in 1 minute...", str(e))
                 time.sleep(60)
