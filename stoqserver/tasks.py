@@ -122,15 +122,12 @@ def restore_database(user_hash, time=None):
 
     tmp_path = tempfile.mkdtemp()
     try:
+        restore_path = os.path.join(tmp_path, 'stoq')
+        backup.restore(restore_path, user_hash, time=time)
+
         # None will make the default store be closed, which we need
         # to sucessfully restore the database
         set_default_store(None)
-        restore_path = os.path.join(tmp_path, 'stoq')
-
-        # FIXME: Change this to a global import when windows support it
-        from stoqserver.lib import backup
-        backup.restore(restore_path, user_hash, time=time)
-
         db_settings.clean_database(db_settings.dbname, force=True)
         db_settings.execute_sql(os.path.join(restore_path, 'stoq.dump'),
                                 lock_database=True)
