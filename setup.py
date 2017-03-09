@@ -23,6 +23,7 @@
 ##
 
 import os
+import sys
 from kiwi.dist import setup, listpackages, listfiles
 
 import stoqserver
@@ -35,15 +36,18 @@ scripts = [
 ]
 
 data_files = [
-    ('etc/sudoers.d',
-     [os.path.join('data', 'sudoers.d', 'stoqserver')]),
-    ('etc/supervisor/conf.d',
-     [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
     ('$datadir/webrtc',
      [os.path.join('data', 'webrtc', 'package.json'),
       os.path.join('data', 'webrtc', 'start.sh')] +
      listfiles('data', 'webrtc', '*.js')),
 ]
+if 'bdist_egg' not in sys.argv:
+    data_files.extend([
+        ('/etc/sudoers.d',
+         [os.path.join('data', 'sudoers.d', 'stoqserver')]),
+        ('/etc/supervisor/conf.d',
+         [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
+    ])
 
 with open('requirements.txt') as f:
     install_requires = [l.strip() for l in f.readlines() if
