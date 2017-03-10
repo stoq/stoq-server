@@ -140,8 +140,6 @@ def restore_database(user_hash, time=None):
 
 
 def backup_status(user_hash=None):
-    # FIXME: Change this to a global import when windows support it
-    from stoqserver.lib import backup
     backup.status(user_hash=user_hash)
 
 
