@@ -2,10 +2,10 @@
 
 
 VERSION_FILE=".version"
-NVM_URL="https://raw.githubusercontent.com/creationix/nvm/v0.32.0/install.sh"
+NVM_URL="https://raw.githubusercontent.com/creationix/nvm/v0.33.1/install.sh"
 NVM_DIR="$HOME/.nvm"
 NVM_SCRIPT="$NVM_DIR/nvm.sh"
-NODE_VERSION="4.6"  # LTS version
+NODE_VERSION="4"  # LTS version
 NODE_ABI="46"
 NODE_FILE="rtc.js"
 WRTC_VERSION="0.0.59"
@@ -38,22 +38,19 @@ cd $NVM_DIR && git fetch origin && git checkout `git describe --abbrev=0 --tags`
 cd - > /dev/null
 source $NVM_SCRIPT
 
-CURRENT_VERSION="`nvm current`"
-if [[ "$CURRENT_VERSION" != *"$NODE_VERSION"* ]]; then
-    echo "Installing node $NODE_VERSION..."
+echo "Installing node $NODE_VERSION..."
+_run nvm install $NODE_VERSION
+nvm use $NODE_VERSION
+if [ $? != 0 ]; then
+    echo "Node installation corrupted. Reinstalling it..."
+    _run nvm uninstall $NODE_VERSION
     _run nvm install $NODE_VERSION
     nvm use $NODE_VERSION
     if [ $? != 0 ]; then
-        echo "Node installation corrupted. Reinstalling it..."
-        _run nvm uninstall $NODE_VERSION
-        _run nvm install $NODE_VERSION
-        nvm use $NODE_VERSION
-        if [ $? != 0 ]; then
-            echo "Node installation corrupted and not recoverable. Resetting it..."
-            # Remove node_modules/npm/nvm and start over
-            rm -rf node_modules $HOME/.npm $HOME/.nvm
-            exit 12
-        fi
+        echo "Node installation corrupted and not recoverable. Resetting it..."
+        # Remove node_modules/npm/nvm and start over
+        rm -rf node_modules $HOME/.npm $HOME/.nvm
+        exit 12
     fi
 fi
 
