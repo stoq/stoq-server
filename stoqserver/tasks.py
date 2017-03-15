@@ -28,6 +28,7 @@ import logging
 import os
 import platform
 import random
+import re
 import shutil
 import signal
 import sys
@@ -55,6 +56,7 @@ if platform.system() != 'Windows':
 else:
     from stoqserver.lib import duplicatibackup as backup
 
+_lock_remove_threshold = datetime.timedelta(hours=3)
 logger = logging.getLogger(__name__)
 
 
@@ -321,6 +323,21 @@ def start_backup_scheduler(doing_backup):
             if p.returncode == 0:
                 break
             else:
+                # When duplicity fails in unpredicted situations (e.g. the
+                # power is shut down suddenly) it can leave a lockfile behind,
+                # and that can make any future backup attempts fail to.
+                # Check if that was the reason of the failure and, if the
+                # lockfile is older than 3h remove it and try again.
+                # Note that this only happens for duplicity (linux) and
+                # not for duplicati (windows)
+                match = re.search('/.*lockfile.lock', stderr)
+                if match is not None:
+                    lockfile = match.group(0)
+                    now = datetime.datetime.now()
+                    mdate = datetime.datetime.fromtimestamp(os.path.getmtime(lockfile))
+                    if (now - mdate) > _lock_remove_threshold:
+                        os.unlink(lockfile)
+
                 logger.warning(
                     "Failed to backup database:\nstdout: %s\nstderr: %s",
                     stdout, stderr)
