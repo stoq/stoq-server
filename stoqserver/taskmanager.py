@@ -49,7 +49,6 @@ from stoqserver.tasks import (backup_status, restore_database, backup_database,
                               start_rtc)
 
 logger = logging.getLogger(__name__)
-_error_queue = multiprocessing.Queue()
 _executable = os.path.realpath(os.path.abspath(sys.executable))
 _root = os.path.dirname(_executable)
 _is_windows = platform.system() == 'Windows'
@@ -79,6 +78,7 @@ class Task(multiprocessing.Process):
         self.errors = 0
         self._func_args = args
         self._func_kwargs = kwargs
+        self._error_queue = None
         self.daemon = True
 
         # register_after_fork receives an object and a func,
@@ -151,6 +151,10 @@ class Task(multiprocessing.Process):
     #  multiprocessing.Process
     #
 
+    def start(self, error_queue):
+        self._error_queue = error_queue
+        return super(Task, self).start()
+
     def run(self):
         # FIXME: parent pid is not supported on windows. Maybe we should
         # find a way for the task to check if the parent is alive in another
@@ -197,7 +201,7 @@ class Task(multiprocessing.Process):
             func(*self._func_args, **self._func_kwargs)
         except Exception:
             sys.excepthook(*sys.exc_info())
-            _error_queue.put(self.name)
+            self._error_queue.put(self.name)
 
     #
     #  Private
@@ -233,6 +237,7 @@ class TaskManager(threading.Thread):
         self._tasks = {}
         self._timers = {}
         self._lock = threading.Lock()
+        self._error_queue = multiprocessing.Queue()
         self.daemon = True
 
     #
@@ -258,7 +263,7 @@ class TaskManager(threading.Thread):
                 timer.cancel()
 
             self._tasks[task.name] = task
-            task.start()
+            task.start(self._error_queue)
 
     def is_running(self, task_name):
         """Check if the task named *task_name* is running."""
@@ -296,7 +301,7 @@ class TaskManager(threading.Thread):
 
     def run(self):
         while True:
-            name = _error_queue.get()
+            name = self._error_queue.get()
             task = self._tasks[name]
 
             with self._lock:
@@ -328,7 +333,7 @@ class TaskManager(threading.Thread):
             logger.info("Restarting task %s", task_name)
             new_task = task.clone()
             self._tasks[task_name] = new_task
-            new_task.start()
+            new_task.start(self._error_queue)
 
             # Remove the timer that executed this method from the timers dict
             try:
