@@ -216,7 +216,10 @@ def backup(backup_dir, full=False):
             sys.argv.append('full')
 
         # Do a full backup monthly
+        # Also, ask duplicity to "allow source mismatch" or else it will
+        # fail if the computer hostname changed.
         sys.argv.extend(['--full-if-older-than', '1M',
+                         '--allow-source-mismatch',
                          backup_dir, _webservice_url])
 
         # Tell Stoq Link Admin that you're starting a backup
