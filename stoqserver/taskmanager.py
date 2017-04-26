@@ -171,6 +171,10 @@ class Task(multiprocessing.Process):
             # Do this as soon as possible so we can log any early traceback
             setup_excepthook()
 
+            # Allow .pyd files to be imported from egg files
+            import zipextimporter
+            zipextimporter.install()
+
             import requests
             cacerts_path = os.path.join(_root, 'cacert.pem')
             requests.utils.DEFAULT_CA_BUNDLE_PATH = cacerts_path
