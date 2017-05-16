@@ -23,7 +23,9 @@
 ##
 
 import os
+import platform
 import sys
+
 from kiwi.dist import setup, listpackages, listfiles
 
 import stoqserver
@@ -41,7 +43,7 @@ data_files = [
       os.path.join('data', 'webrtc', 'start.sh')] +
      listfiles('data', 'webrtc', '*.js')),
 ]
-if 'bdist_egg' not in sys.argv:
+if 'bdist_egg' not in sys.argv and platform.system() != "Windows":
     data_files.extend([
         ('/etc/sudoers.d',
          [os.path.join('data', 'sudoers.d', 'stoqserver')]),
