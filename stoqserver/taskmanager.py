@@ -31,22 +31,22 @@ import signal
 import sys
 import threading
 import time
-import urllib
-import urlparse
+import urllib.request
+import urllib.parse
+import urllib.error
 
 import requests
-import stoq
 from stoqlib.api import api
 from stoqlib.database.runtime import get_default_store, set_default_store
-from stoqlib.database.settings import db_settings
 from stoqlib.lib.pluginmanager import PluginError, get_plugin_manager
 from stoqlib.lib.webservice import WebService
+from stoqlib.net.socketutils import get_random_port
 
 from stoqserver.tasks import (backup_status, restore_database, backup_database,
                               start_plugins_update_scheduler,
                               start_xmlrpc_server, start_server,
                               start_backup_scheduler,
-                              start_rtc)
+                              start_rtc, start_htsql)
 
 logger = logging.getLogger(__name__)
 _executable = os.path.realpath(os.path.abspath(sys.executable))
@@ -359,6 +359,7 @@ class Worker(object):
         # Indicates if we are doing a backup. This uses a piece of shared memory
         # so forked processes will all see the same value when updated
         self._doing_backup = multiprocessing.Value('i', 0)
+        self._htsql_port = str(get_random_port())
         self._paused = False
         self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
         self._updater_event = multiprocessing.Event()
@@ -447,109 +448,15 @@ class Worker(object):
     def action_htsql_query(self, query):
         """Executes a HTSQL Query"""
         try:
-            from htsql.core.fmt.emit import emit
-            from htsql.core.error import Error as HTSQL_Error
-            from htsql import HTSQL
-        except ImportError:
-            return False, "HTSQL installation not found"
-
-        # Resolve RDBMSs to their respective HTSQL engines
-        engines = {
-            'postgres': 'pgsql',
-            'sqlite': 'sqlite',
-            'mysql': 'mysql',
-            'oracle': 'oracle',
-            'mssql': 'mssql',
-        }
-
-        if db_settings.password:
-            password = ":" + urllib.quote_plus(db_settings.password)
-        else:
-            password = ""
-        authority = '%s%s@%s:%s' % (
-            db_settings.username, password, db_settings.address,
-            db_settings.port)
-
-        uri = '%s://%s/%s' % (
-            engines[db_settings.rdbms], authority, db_settings.dbname)
-
-        # FIXME We should find a way to share this piece of code between Stoq
-        # Portal and Stoq Server, without having to duplicate it every time
-        exts = [{
-            'tweak.override': {
-                'field-labels': {
-                    # Sellable fixes
-                    'sellable.price': ('(if (on_sale_start_date <= now() &'
-                                       'now() <= on_sale_end_date, on_sale_price,'
-                                       'base_price))'),
-                    # Sale fixes
-                    # When the sale is not confirmed yet, the total_amount will be 0
-                    # (just like the discount and surcharge).
-                    'sale.subtotal': '(total_amount + discount_value - surcharge_value)',
-                    'sale.discount_percentage': '(if(subtotal > 0,'
-                                                '   (discount_value / subtotal), 0))',
-                    'sale.surcharge_percentage': '(if(subtotal > 0,'
-                                                 '   (surcharge_value / subtotal), 0))',
-                    'sale.cmv': '(sum(sale_item.total_cost))',
-                    'sale.returned_items_cost': '(sum(returned_sale_via_new_sale.'
-                                                '     returned_sale_item.sale_item.total_cost))',
-                    'sale.profit_margin': '(if((cmv - returned_items_cost) > 0,'
-                                          ' ((total_amount /'
-                                          '   (cmv - returned_items_cost)) - 1) * 100, 0))',
-
-                    # SaleItem Fixes
-                    'sale_item.total_price': '(price + ipi_info.v_ipi)',
-                    'sale_item.sale_discount': '(total_price * sale.discount_percentage)',
-                    'sale_item.sale_surcharge': '(total_price * sale.surcharge_percentage)',
-                    'sale_item.price_with_discount': (
-                        '(total_price - sale_discount + sale_surcharge)'),
-                    'sale_item.subtotal': '(total_price * quantity)',
-                    'sale_item.total_with_discount': '(price_with_discount * quantity)',
-                    'sale_item.total_cost': '(quantity * if(average_cost > 0,'
-                                            '               average_cost,'
-                                            '               sellable.cost))',
-
-                    # Other fixes
-
-                    'branch.main_address': '(person.address.filter(is_main_address))',
-                    'transfer_order.branch': '(source_branch)',
-                    'branch.description': ('(if(is_null(person.company.fancy_name),'
-                                           '    person.name,'
-                                           '    person.company.fancy_name))'),
-                },
-                'globals': {
-                    'identifier_str': ("branch.acronym + head('0000', 5 - "
-                                       "length(string(identifier)))"
-                                       "+ string(identifier)"),
-                    'trunc_month($d)': 'datetime(year($d), month($d), 01)',
-                    'trunc_day($d)': 'datetime(year($d), month($d), day($d))',
-                    'trunc_hour($d)': 'datetime(year($d), month($d), day($d), hour($d))',
-                    'between($date, $start, $end)': '($date >= $start & $date <= $end)',
-                    # FIXME supplier name cannot be on field labels because
-                    #       databases without nfe schema will cause an error when
-                    #       this method is called
-                    'supplier_name': ('(if(is_null(nfe_supplier.name),'
-                                      '    nfe_supplier.fancy_name,'
-                                      '    nfe_supplier.name))'),
-                }}
-        }]
-
-        # FIXME: This is to support old stoq versions, which didn't have
-        # a UNIQUE constraint on product.sellable_id column
-        if stoq.stoq_version < (1, 10, 90):
-            exts[0]['tweak.override']['unique_keys'] = 'product(sellable_id)'
-
-        store = HTSQL(uri, *exts)
-
-        try:
-            rows = store.produce(query)
-        except HTSQL_Error as e:
+            r = requests.get('http://127.0.0.1:{}/{}/:json'.format(
+                self._htsql_port, query.strip('/')))
+        except Exception as e:
             return False, str(e)
 
-        with store:
-            json = ''.join(emit('x-htsql/json', rows))
+        if r.status_code != 200:
+            return False, "htsql request failed with code " + str(r.status_code)
 
-        return True, json
+        return True, r.text
 
     def action_backup_status(self, user_hash=None):
         with io.StringIO() as f:
@@ -594,8 +501,8 @@ class Worker(object):
         return retval, msg
 
     def action_register_link(self, pin):
-        url = urlparse.urljoin(WebService.API_SERVER,
-                               'api/lite/associate_instance')
+        url = urllib.parse.urljoin(WebService.API_SERVER,
+                                   'api/lite/associate_instance')
         dbhash = api.sysparam.get_string('USER_HASH')
 
         rv = requests.post(url, data=dict(pin_code=pin, hash=dbhash))
@@ -617,12 +524,12 @@ class Worker(object):
         manager = get_plugin_manager()
         # Install conector plugin if it is not already installed
         if 'conector' not in manager.available_plugins_names:
-            manager.download_plugin(u'conector')
+            manager.download_plugin('conector')
         if 'conector' not in manager.installed_plugins_names:
             try:
                 with api.new_store() as store:
-                    manager.install_plugin(store, u'conector')
-                manager.activate_plugin(u'conector')
+                    manager.install_plugin(store, 'conector')
+                manager.activate_plugin('conector')
             except PluginError as e:
                 msg = "Failed to install conector plugin: %s" % (str(e), )
                 return False, msg
@@ -634,7 +541,6 @@ class Worker(object):
             'conector', 'sync', 'get_credentials', [pin])
 
     def action_install_plugin(self, plugin_name):
-        plugin_name = unicode(plugin_name)
         manager = get_plugin_manager()
         if (plugin_name not in manager.available_plugins_names or
                 plugin_name in manager.egg_plugins_names):
@@ -701,6 +607,7 @@ class Worker(object):
         # TODO: Make those work on windows
         if not _is_windows:
             tasks.extend([
+                Task('_htsql', start_htsql, self._htsql_port),
                 Task('_server', start_server),
                 Task('_rtc', start_rtc),
             ])

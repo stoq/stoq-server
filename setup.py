@@ -42,6 +42,8 @@ data_files = [
      [os.path.join('data', 'webrtc', 'package.json'),
       os.path.join('data', 'webrtc', 'start.sh')] +
      listfiles('data', 'webrtc', '*.js')),
+    ('$datadir/scripts', listfiles('data', 'scripts', '*.py')),
+    ('$datadir/htsql', listfiles('data', 'htsql', '*.yml')),
 ]
 if 'bdist_egg' not in sys.argv and platform.system() != "Windows":
     data_files.extend([

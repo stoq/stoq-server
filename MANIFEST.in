@@ -4,6 +4,8 @@ include data/supervisor/stoqserver.conf
 include data/webrtc/package.json
 include data/webrtc/*.js
 include data/webrtc/start.sh
+include data/scripts/duplicitybackup.py
+include data/htsql/config.yml
 include MANIFEST.in
 include Makefile
 include debian/changelog debian/compat debian/control

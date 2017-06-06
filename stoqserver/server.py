@@ -22,10 +22,9 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import BaseHTTPServer
-import SimpleHTTPServer
 import atexit
 import base64
+import http.server
 try:
     import dbus
     import avahi
@@ -63,7 +62,7 @@ logger = logging.getLogger(__name__)
 # TODO: This is experimental and not used anywhere in production,
 # which means that we can tweak it a lot without having to worry
 # to break something.
-class _RequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class _RequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_HEAD(self):
         self.send_response(200)
@@ -82,7 +81,7 @@ class _RequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         with api.new_store() as store:
             try:
                 login_ok = LoginUser.authenticate(
-                    store, unicode(username), unicode(password), None)
+                    store, str(username), str(password), None)
             except LoginError:
                 login_ok = False
 
@@ -90,7 +89,7 @@ class _RequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.send_error(403, "User not found")
             return
 
-        return SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
+        return http.server.SimpleHTTPRequestHandler.do_GET(self)
 
     def do_AUTHHEAD(self):
         self.send_response(401)
@@ -106,7 +105,7 @@ class _RequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
             # SimpleHTTPRequestHandler calls this to translate the url path
             # into a filesystem path. It will always start with os.getcwd(),
             # which means we just need to replace it with the _static path
-            translated = SimpleHTTPServer.SimpleHTTPRequestHandler.translate_path(
+            translated = http.server.SimpleHTTPRequestHandler.translate_path(
                 # /eggs is just the endpoing name, the real path doesn't have it
                 self, path.replace('/eggs', ''))
             return translated.replace(os.getcwd(), _eggs_path)
@@ -143,8 +142,7 @@ class StoqServer(object):
 
         global _md5sum_path
         _md5sum_path = f.name
-        server = BaseHTTPServer.HTTPServer(('localhost', self._port),
-                                           _RequestHandler)
+        server = http.server.HTTPServer(('localhost', self._port), _RequestHandler)
         server.serve_forever()
 
     #

@@ -33,7 +33,7 @@ import socket
 import sys
 import time
 import traceback
-import xmlrpclib
+import xmlrpc.client
 
 import stoq
 from kiwi.component import provide_utility
@@ -212,12 +212,12 @@ class StoqServerCmdHandler(object):
             max_len = max(max_len, len(name))
             cmds.append((name, doc.split(r'\n')[0]))
 
-        print 'Usage: stoqserver <command> [<args>]'
-        print
-        print 'Available commands:'
+        print('Usage: stoqserver <command> [<args>]')
+        print()
+        print('Available commands:')
 
         for name, doc in cmds:
-            print '  %s  %s' % (name.ljust(max_len), doc)
+            print('  %s  %s' % (name.ljust(max_len), doc))
 
     def cmd_run(self, options, *args):
         """Run the server daemon"""
@@ -247,16 +247,16 @@ class StoqServerCmdHandler(object):
                      "      application_name NOT LIKE ? AND "
                      "      datname = ? "
                      "LIMIT 1")
-            params = [u'stoqserver%', u'%%%d' % (os.getpid()),
-                      unicode(db_settings.dbname)]
+            params = ['stoqserver%', '%%%d' % (os.getpid()),
+                      str(db_settings.dbname)]
             res = store.execute(query, params=params).get_one()
             if res is not None:
-                print ("There's already a Stoq Server running in this "
-                       "database on address %s" % (res[0], ))
+                print(("There's already a Stoq Server running in this "
+                       "database on address %s" % (res[0], )))
                 return 1
 
         if not api.sysparam.get_string('USER_HASH'):
-            print "No USER_HASH found for this installation"
+            print("No USER_HASH found for this installation")
             return 1
 
         worker = Worker()
@@ -324,24 +324,24 @@ class StoqServerCmdHandler(object):
                    config.get('General', 'serveraddress') or
                    '127.0.0.1')
 
-        remote = xmlrpclib.ServerProxy(
+        remote = xmlrpc.client.ServerProxy(
             'http://%s:%s/XMLRPC' % (address, port), allow_none=True)
         # Backup commands can take a while to execute. Wait at least 10 minutes
         # before timing out so we can give a better feedback to the user
         if cmd.startswith('backup'):
             socket.setdefaulttimeout(60 * 10)
 
-        print "Executing '%s' on server. This might take a while..." % (cmd, )
+        print("Executing '%s' on server. This might take a while..." % (cmd, ))
         try:
-            print getattr(remote, cmd)(*cmd_args)
+            print(getattr(remote, cmd)(*cmd_args))
         except socket.timeout:
-            print "Connection timed out. The action may still be executing..."
+            print("Connection timed out. The action may still be executing...")
             return 1
-        except xmlrpclib.Fault as e:
-            print "Server fault (%s): %s" % (e.faultCode, e.faultString)
+        except xmlrpc.client.Fault as e:
+            print("Server fault (%s): %s" % (e.faultCode, e.faultString))
             return 1
         except Exception as e:
-            print "Could not send action to server: %s" % (str(e), )
+            print("Could not send action to server: %s" % (str(e), ))
             return 1
 
     def opt_exec_action(self, parser, group):

@@ -22,10 +22,10 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import SimpleXMLRPCServer
+import xmlrpc.server
 import logging
 import threading
-import xmlrpclib
+import xmlrpc.client
 
 import stoq
 from stoqlib.lib.configparser import get_config
@@ -35,7 +35,7 @@ import stoqserver
 logger = logging.getLogger(__name__)
 
 
-class _RequestHandler(SimpleXMLRPCServer.SimpleXMLRPCRequestHandler):
+class _RequestHandler(xmlrpc.server.SimpleXMLRPCRequestHandler):
     # Keep compatibility with old rpc path
     rpc_paths = ('/XMLRPC', )
 
@@ -117,12 +117,12 @@ class XMLRPCServer(object):
         self._pipe_conn.send((action, ) + args)
         retval, msg = self._pipe_conn.recv()
         if not retval:
-            raise xmlrpclib.Fault(32000, msg)
+            raise xmlrpc.client.Fault(32000, msg)
         return msg
 
 
 def run_xmlrpcserver(pipe_conn, port):
-    server = SimpleXMLRPCServer.SimpleXMLRPCServer(
+    server = xmlrpc.server.SimpleXMLRPCServer(
         ('', port), requestHandler=_RequestHandler, allow_none=True)
     server.register_introspection_functions()
     server.register_instance(XMLRPCServer(pipe_conn))

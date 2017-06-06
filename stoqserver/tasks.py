@@ -34,6 +34,7 @@ import signal
 import sys
 import tempfile
 import time
+import urllib.parse
 
 import dateutil.parser
 from stoqlib.api import api
@@ -163,6 +164,33 @@ def start_server():
     stoq_server.run()
 
 
+def start_htsql(port):
+    logger.info("Starting htsql server")
+
+    if db_settings.password:
+        password = ':' + urllib.parse.quote_plus(db_settings.password)
+    else:
+        password = ''
+    uri = 'pgsql://{}{}@{}:{}/{}'.format(
+        db_settings.username, password,
+        db_settings.address, db_settings.port, db_settings.dbname)
+
+    config = library.get_resource_filename('stoqserver', 'htsql', 'config.yml')
+
+    popen = Process(['htsql-ctl', 'server', '-C', config, uri,
+                     '--host', '127.0.0.1', '--port', port])
+
+    def _sigterm_handler(_signal, _stack_frame):
+        popen.poll()
+        if popen.returncode is None:
+            popen.terminate()
+        os._exit(0)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+
+    popen.wait()
+
+
 def start_rtc():
     if not api.sysparam.get_bool('ONLINE_SERVICES'):
         logger.info("ONLINE_SERVICES not enabled. Not starting rtc...")
@@ -287,7 +315,7 @@ def start_backup_scheduler(doing_backup):
         config.set('Backup', 'schedule', backup_schedule)
         config.flush()
 
-    backup_hours = [map(int, i.strip().split(':'))
+    backup_hours = [list(map(int, i.strip().split(':')))
                     for i in backup_schedule.split(',')]
     now = datetime.datetime.now()
     backup_dates = collections.deque(sorted(
@@ -303,7 +331,7 @@ def start_backup_scheduler(doing_backup):
 
         time.sleep(max(1, (next_date - now).total_seconds()))
 
-        for i in xrange(3):
+        for i in range(3):
             # FIXME: This is SO UGLY, we should be calling backup_database
             # task directly, but duplicity messes with multiprocessing in a
             # way that it will not work

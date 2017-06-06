@@ -22,15 +22,16 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
-import ConfigParser
+import configparser
 import hashlib
 import io
 import os
 import socket
 import sys
 import tempfile
-import urllib2
-import urlparse
+import urllib.request
+import urllib.error
+import urllib.parse
 
 import gtk
 import netifaces
@@ -147,10 +148,10 @@ class _StoqClient(gtk.Window):
             tmp = opener.open('%s/login' % (server_address, ))
             f.write(tmp.read())
             f.seek(0)
-            config = ConfigParser.ConfigParser()
+            config = configparser.ConfigParser()
             config.readfp(f)
 
-        parsed = urlparse.urlparse(server_address)
+        parsed = urllib.parse.urlparse(server_address)
         address = parsed.netloc.split(':')[0]
         config.set('General', 'serveraddress', address)
         config.set('General', 'serverport', parsed.port or SERVER_XMLRPC_PORT)
@@ -200,12 +201,12 @@ class _StoqClient(gtk.Window):
         return True
 
     def _get_opener(self, server_address):
-        passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        passman = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         passman.add_password(None, server_address,
                              self.username.get_text(),
                              hashlib.md5(self.password.get_text()).hexdigest())
-        authhandler = urllib2.HTTPBasicAuthHandler(passman)
-        return urllib2.build_opener(authhandler)
+        authhandler = urllib.request.HTTPBasicAuthHandler(passman)
+        return urllib.request.build_opener(authhandler)
 
     def _check_egg(self, egg_path, md5sum):
         if not os.path.exists(egg_path):

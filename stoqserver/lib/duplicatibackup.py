@@ -27,7 +27,7 @@ import os
 import re
 import shutil
 import sys
-import urlparse
+import urllib.parse
 
 import requests
 from stoqlib.api import api
@@ -41,7 +41,7 @@ _root = os.path.dirname(_executable)
 _duplicati_exe = os.path.join(_root, 'duplicati', 'Duplicati.CommandLine.exe')
 # Support both http and https
 _webservice_url = re.sub('https?', 'stoq',
-                         urlparse.urljoin(WebService.API_SERVER, 'api/backup'))
+                         urllib.parse.urljoin(WebService.API_SERVER, 'api/backup'))
 
 
 def _get_extra_args(user_hash=None):
@@ -61,13 +61,13 @@ def _get_extra_args(user_hash=None):
 
 def _watch_fd(fd):
     for l in iter(fd.readline, ''):
-        print l
+        print(l)
 
 
 def backup(backup_dir, full=False, retry=1):
     # Tell Stoq Link Admin that you're starting a backup
     user_hash = api.sysparam.get_string('USER_HASH')
-    start_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/start')
+    start_url = urllib.parse.urljoin(WebService.API_SERVER, 'api/backup/start')
     response = requests.get(start_url, params={'hash': user_hash})
 
     # If the server rejects the backup, don't even attempt to proceed. Log
@@ -94,7 +94,7 @@ def backup(backup_dir, full=False, retry=1):
         raise Exception("Failed to backup the database: {}".format(p.returncode))
 
     # Tell Stoq Link Admin that the backup has finished
-    end_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/end')
+    end_url = urllib.parse.urljoin(WebService.API_SERVER, 'api/backup/end')
     requests.get(end_url,
                  params={'log_id': response.content, 'hash': user_hash})
 
