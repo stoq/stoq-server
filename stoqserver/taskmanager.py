@@ -172,8 +172,9 @@ class Task(multiprocessing.Process):
             setup_excepthook()
 
             # Allow .pyd files to be imported from egg files
-            import zipextimporter
-            zipextimporter.install()
+            from zipextimporter import ZipExtensionImporter
+            sys.path_hooks.append(ZipExtensionImporter)
+            sys.path_importer_cache.clear()
 
             import requests
             cacerts_path = os.path.join(_root, 'cacert.pem')
