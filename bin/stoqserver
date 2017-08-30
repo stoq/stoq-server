@@ -4,8 +4,6 @@ import multiprocessing
 import os
 import sys
 
-import pkg_resources
-
 
 if __name__ == '__main__':
     if hasattr(sys, 'frozen'):
@@ -40,6 +38,9 @@ if __name__ == '__main__':
         import dill
         dill  # pyflakes
 
+    # pkg_resources import need to be delayed to work on windows (after the path is
+    # setup above)
+    import pkg_resources
     from stoqserver.main import main
     from stoqserver.common import SERVER_EGGS
 
