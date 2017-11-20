@@ -251,8 +251,8 @@ class StoqServerCmdHandler(object):
                       unicode(db_settings.dbname)]
             res = store.execute(query, params=params).get_one()
             if res is not None:
-                print ("There's already a Stoq Server running in this "
-                       "database on address %s" % (res[0], ))
+                print("There's already a Stoq Server running in this "
+                      "database on address %s" % (res[0], ))
                 return 1
 
         if not api.sysparam.get_string('USER_HASH'):
