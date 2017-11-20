@@ -1,3 +1,9 @@
+stoq-server (0.14.2) trusty; urgency=medium
+
+  * New bugfix release
+
+ -- Felipe Nehmi <felipe@async.com.br>  Mon, 20 Nov 2017 14:59:16 -0200
+
 stoq-server (0.14.1) trusty; urgency=medium
 
   * New bugfix release
