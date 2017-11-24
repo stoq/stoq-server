@@ -150,6 +150,9 @@ class StoqServer(object):
     #
 
     def _setup_avahi(self):
+        if avahi is None:
+            return
+
         bus = dbus.SystemBus()
         dbus_server = dbus.Interface(
             bus.get_object(avahi.DBUS_NAME, avahi.DBUS_PATH_SERVER),

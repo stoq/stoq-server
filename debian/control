@@ -13,8 +13,9 @@ X-Python3-Version: >= 3.4
 Package: stoq-server
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends},
- stoq (>= 3.0), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
- python3-requests (>= 2.2), python3-avahi, python3-netifaces, python-htsql, python-htsql-pgsql
-Recommends: python-raven, tmate
+ stoq (>= 2.1.90), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
+ python3-requests (>= 2.2), python3-netifaces, python-htsql, python-htsql-pgsql
+Recommends: python3-raven, tmate
+Suggests: python3-avahi
 Homepage: http://www.stoq.com.br/
 Description: A server for Stoq.
