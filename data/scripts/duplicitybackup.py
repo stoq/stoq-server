@@ -2,26 +2,26 @@
 # -*- coding: utf-8 -*-
 # vi:si:et:sw=4:sts=4:ts=4
 
-##
-## Copyright (C) 2015 Async Open Source <http://www.async.com.br>
-## All rights reserved
-##
-## This program is free software; you can redistribute it and/or
-## modify it under the terms of the GNU Lesser General Public License
-## as published by the Free Software Foundation; either version 2
-## of the License, or (at your option) any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU Lesser General Public License for more details.
-##
-## You should have received a copy of the GNU Lesser General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., or visit: http://www.gnu.org/.
-##
-## Author(s): Stoq Team <stoq-devel@async.com.br>
-##
+#
+# Copyright (C) 2015 Async Open Source <http://www.async.com.br>
+# All rights reserved
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., or visit: http://www.gnu.org/.
+#
+# Author(s): Stoq Team <stoq-devel@async.com.br>
+
 
 # NOTE: This code is python2
 
@@ -34,6 +34,8 @@ import os
 import re
 import sys
 import urlparse
+from ConfigParser import SafeConfigParser
+import psycopg2
 
 from duplicity import backend
 from duplicity import globals as duplicity_globals
@@ -46,9 +48,42 @@ else:
     _ensure_urlparser_initialized()
     uses_netloc = urlparser.uses_netloc
 import requests
-from stoqlib.api import api
-from stoqlib.lib.configparser import get_config
-from stoqlib.lib.webservice import WebService
+
+
+# We cant import stoq/stoqlib here, since this code is running python2 and stoq
+# is python3 now.
+def get_config():
+    config_path = os.path.join(os.environ['HOME'], '.stoq', 'stoq.conf')
+    config = SafeConfigParser()
+    config.read(config_path)
+    return config
+
+
+_user_hash = None
+
+
+def get_user_hash():
+    global _user_hash
+    if _user_hash:
+        return _user_hash
+    config = get_config()
+    dsn = "dbname={dbname} user={dbusername} port={port}".format(
+        dbname=config.get('Database', 'dbname'),
+        dbusername=config.get('Database', 'dbusername'),
+        port=config.get('Database', 'port'),
+    )
+    if config.get('Database', 'address'):
+        dsn = dsn + ' host={address}'.format(address=config.get('Database',
+                                                                'address'))
+    conn = psycopg2.connect(dsn)
+    cursor = conn.cursor()
+    cursor.execute("SELECT field_value FROM parameter_data WHERE field_name = 'USER_HASH'")
+    _user_hash = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    return _user_hash
+
+
 # Prefer requests's own urllib3 if it was packaged together with it
 try:
     from requests.packages.urllib3 import Retry
@@ -61,9 +96,11 @@ except ImportError:
 _duplicity_bin = '/usr/bin/duplicity'
 _duplicity_main = imp.load_source('main', _duplicity_bin)
 # Support both http and https
-_webservice_url = re.sub('https?', 'stoq', WebService.API_SERVER)
+API_SERVER = os.environ.get('STOQ_API_HOST', 'http://api.stoq.com.br')
+_webservice_url = re.sub('https?', 'stoq', API_SERVER)
 
-# Make pyflakes happy
+# unicode and reload are python2 only, but our pyflakes tests assume this is
+# python3. Make it happy.
 try:
     unicode
 except NameError:
@@ -71,7 +108,8 @@ except NameError:
 try:
     reload
 except NameError:
-    reload = lambda s: None
+    def reload(s):
+        return s
 
 
 class _Session(requests.Session):
@@ -210,8 +248,7 @@ def status(user_hash=''):
     reload(duplicity_globals)
 
     with _mock_environ():
-        os.environ['STOQ_BACKUP_HASH'] = (user_hash or
-                                          api.sysparam.get_string('USER_HASH'))
+        os.environ['STOQ_BACKUP_HASH'] = (user_hash or get_user_hash())
 
         sys.argv.extend([_duplicity_bin, 'collection-status', _webservice_url])
         _duplicity_main.main()
@@ -221,7 +258,7 @@ def backup(backup_dir, full='0'):
     reload(duplicity_globals)
 
     with _mock_environ():
-        user_hash = api.sysparam.get_string('USER_HASH')
+        user_hash = get_user_hash()
         os.environ['STOQ_BACKUP_HASH'] = user_hash
 
         sys.argv.append(_duplicity_bin)
@@ -236,7 +273,7 @@ def backup(backup_dir, full='0'):
                          backup_dir, _webservice_url])
 
         # Tell Stoq Link Admin that you're starting a backup
-        start_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/start')
+        start_url = urlparse.urljoin(API_SERVER, 'api/backup/start')
         with _Session() as s:
             response = s.get(start_url, params={'hash': user_hash})
 
@@ -249,7 +286,7 @@ def backup(backup_dir, full='0'):
         _duplicity_main.main()
 
         # Tell Stoq Link Admin that the backup has finished
-        end_url = urlparse.urljoin(WebService.API_SERVER, 'api/backup/end')
+        end_url = urlparse.urljoin(API_SERVER, 'api/backup/end')
         with _Session() as s:
             s.get(end_url,
                   params={'log_id': response.content, 'hash': user_hash})
