@@ -307,8 +307,8 @@ def restore(restore_dir, user_hash, time=''):
 
 
 if __name__ == '__main__':
-    cmd = sys.argv[0]
-    args = sys.argv[1:]
+    cmd = sys.argv[1]
+    args = sys.argv[2:]
     func = {'status': status,
             'restore': restore,
             'backup': backup}
