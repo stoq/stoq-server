@@ -159,14 +159,14 @@ def setup_logging():
             os.makedirs(log_dir)
 
         log_filename = os.path.join(log_dir, multiprocessing.current_process().name)
-        stdout_file = open(log_filename + '-stdout', 'a')
+        stdout_file = open(log_filename + '-stdout.txt', 'a')
         # On windows, since it is not supervisor that is handling the logs,
         # and some places/plugins will do logging by printing info to stdout
         # (e.g. conector), we need to log them somewhere
         sys.stdout = _Tee(sys.stdout, stdout_file)
         sys.stderr = _Tee(sys.stderr, stdout_file)
 
-        hdlr = logging.FileHandler(log_filename)
+        hdlr = logging.FileHandler(log_filename + '.txt')
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         hdlr.setFormatter(formatter)
         root.addHandler(hdlr)
