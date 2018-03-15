@@ -22,30 +22,23 @@
 # Author(s): Stoq Team <stoq-devel@async.com.br>
 #
 
-from stoqlib.lib.process import Process
+from stoqlib.lib.process import Process, PIPE
 from stoqlib.lib.threadutils import threadit
 
 from stoqserver import library
 
 
-def _watch_fd(process, std):
-    # Use p.communicate() instead of p.stdout, since no stdout is passed in the
-    # constructor
-    stdout, stderr = process.communicate()
-    if std == 'stdout':
-        for l in iter(stdout.readline, ''):
-            print(l)
-    if std == 'stderr':
-        for l in iter(stderr.readline, ''):
-            print(l)
+def _watch_fd(fd):
+    for l in iter(fd.readline, ''):
+        print(l)
 
 
 def _run(cmd, *args):
     script = library.get_resource_filename('stoqserver', 'scripts',
                                            'duplicitybackup.py')
-    p = Process(['python2', script, cmd] + list(args))
-    threadit(_watch_fd, p, 'stdout')
-    threadit(_watch_fd, p, 'stderr')
+    p = Process(['python2', script, cmd] + list(args), stdout=PIPE, stderr=PIPE)
+    threadit(_watch_fd, p.stdout)
+    threadit(_watch_fd, p.stderr)
     p.wait()
     return p.returncode == 0
 
