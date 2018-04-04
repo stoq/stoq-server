@@ -40,6 +40,7 @@ from kiwi.component import provide_utility
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.api import api
+from stoqlib.database.interfaces import ICurrentBranch
 from stoqlib.database.settings import get_database_version, db_settings
 from stoqlib.lib.appinfo import AppInfo
 from stoqlib.lib.configparser import StoqConfig, register_config
@@ -139,6 +140,12 @@ def setup_stoq():
     # FIXME: Maybe we should check_schema and load plugins here?
     setup(config=get_config(), options=None, register_station=False,
           check_schema=False, load_plugins=True)
+
+    # This is needed for api calls that requires the current branch set,
+    # e.g. Sale.confirm
+    main_company = api.sysparam.get_object(
+        api.get_default_store(), 'MAIN_COMPANY')
+    provide_utility(ICurrentBranch, main_company, replace=True)
 
 
 def setup_logging():

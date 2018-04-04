@@ -33,9 +33,8 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
-import gtk
+from gi.repository import Gtk, GObject
 import netifaces
-from zeroconf import ServiceBrowser, Zeroconf
 
 from stoqserver.common import (APP_EGGS_DIR, SERVER_EGGS,
                                SERVER_EXECUTABLE_EGG, AVAHI_STYPE,
@@ -44,9 +43,9 @@ from stoqserver.common import (APP_EGGS_DIR, SERVER_EGGS,
 _ = lambda s: s
 
 
-class _StoqClient(gtk.Window):
+class _StoqClient(Gtk.Window):
     def __init__(self, *args, **kwargs):
-        gtk.Window.__init__(self, *args, **kwargs)
+        Gtk.Window.__init__(self, *args, **kwargs)
 
         if not os.path.exists(APP_EGGS_DIR):
             os.makedirs(APP_EGGS_DIR)
@@ -91,43 +90,43 @@ class _StoqClient(gtk.Window):
     #
 
     def _setup_widgets(self):
-        vbox = gtk.VBox(spacing=6)
+        vbox = Gtk.VBox(spacing=6)
 
-        self.store = gtk.ListStore(str, object)
-        self.treeview = gtk.TreeView(self.store)
+        self.store = Gtk.ListStore(str, object)
+        self.treeview = Gtk.TreeView(self.store)
 
-        self.server_column = gtk.TreeViewColumn(_("Server"))
-        self.cell = gtk.CellRendererText()
+        self.server_column = Gtk.TreeViewColumn(_("Server"))
+        self.cell = Gtk.CellRendererText()
         self.server_column.pack_start(self.cell, True)
         self.server_column.add_attribute(self.cell, 'text', 0)
 
         self.treeview.append_column(self.server_column)
         self.selection = self.treeview.get_selection()
         self.selection.connect('changed', self._on_treeview_selection__changed)
-        vbox.pack_start(self.treeview, expand=True)
+        vbox.pack_start(self.treeview, True, True, 0)
 
-        self.username = gtk.Entry()
-        username_hbox = gtk.HBox(spacing=6)
-        username_hbox.pack_start(gtk.Label(_("Username:")), expand=False)
+        self.username = Gtk.Entry()
+        username_hbox = Gtk.HBox(spacing=6)
+        username_hbox.pack_start(Gtk.Label(_("Username:")), False, True, 0)
         self.username.connect('activate', self._on_username__activate)
         self.username.connect('changed', self._on_username__changed)
-        username_hbox.pack_start(self.username, expand=True)
-        vbox.pack_start(username_hbox, expand=False)
+        username_hbox.pack_start(self.username, True, True, 0)
+        vbox.pack_start(username_hbox, False, True, 0)
 
-        self.password = gtk.Entry()
+        self.password = Gtk.Entry()
         self.password.set_property('visibility', False)
-        password_hbox = gtk.HBox(spacing=6)
-        password_hbox.pack_start(gtk.Label(_("Password:")), expand=False)
+        password_hbox = Gtk.HBox(spacing=6)
+        password_hbox.pack_start(Gtk.Label(_("Password:")), False, True, 0)
         self.password.connect('activate', self._on_password__activate)
-        password_hbox.pack_start(self.password, expand=True)
-        vbox.pack_start(password_hbox, expand=False)
+        password_hbox.pack_start(self.password, True, True, 0)
+        vbox.pack_start(password_hbox, False, True, 0)
 
-        self.login_btn = gtk.Button(_("Start"))
+        self.login_btn = Gtk.Button(_("Start"))
         self.login_btn.connect('activate', self._on_login_btn__activate)
-        vbox.pack_start(self.login_btn, expand=False)
+        vbox.pack_start(self.login_btn, False, True, 0)
         self.login_btn.set_sensitive(False)
 
-        alignment = gtk.Alignment(0.5, 0.5, 1.0, 1.0)
+        alignment = Gtk.Alignment.new(0.5, 0.5, 1.0, 1.0)
         alignment.set_padding(6, 6, 6, 6)
         alignment.add(vbox)
 
@@ -229,7 +228,7 @@ class _StoqClient(gtk.Window):
             return
 
         self.hide()
-        gtk.main_quit()
+        Gtk.main_quit()
 
     #
     #  Callbacks
@@ -253,14 +252,15 @@ class _StoqClient(gtk.Window):
 
 def main(args):
     try:
+        from zeroconf import ServiceBrowser, Zeroconf
         # FIXME: Maybe we should not use zeroconf and instead implement
         # our own avahi browser.
         zeroconf = Zeroconf()
         client = _StoqClient()
         client.show_all()
         ServiceBrowser(zeroconf, '%s.local.' % (AVAHI_STYPE, ), client)
-        gtk.gdk.threads_init()
-        gtk.main()
+        GObject.threads_init()
+        Gtk.main()
     finally:
         zeroconf.close()
 

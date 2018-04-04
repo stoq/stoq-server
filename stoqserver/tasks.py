@@ -48,8 +48,10 @@ from stoqlib.lib.process import Process
 from stoqlib.lib.settings import UserSettings
 
 from stoqserver import library
-from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT
+from stoqserver.common import (APP_BACKUP_DIR, SERVER_XMLRPC_PORT,
+                               SERVER_FLASK_PORT)
 from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
+from stoqserver.lib.restful import run_flaskserver
 from stoqserver.server import StoqServer
 
 if platform.system() != 'Windows':
@@ -154,6 +156,17 @@ def start_xmlrpc_server(pipe_conn):
     port = int(config.get('General', 'serverport') or SERVER_XMLRPC_PORT)
 
     run_xmlrpcserver(pipe_conn, port)
+
+
+def start_flask_server():
+    _setup_signal_termination()
+    logger.info("Starting the flask server")
+
+    config = get_config()
+    # XXX: Is flaskport a good name for this?
+    port = int(config.get('General', 'flaskport') or SERVER_FLASK_PORT)
+
+    run_flaskserver(port)
 
 
 def start_server():

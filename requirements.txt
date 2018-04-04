@@ -1,4 +1,6 @@
 Twisted >= 10.0.0
+flask >= 0.10.1
+flask-restful >= 0.3.4
 requests >= 2.2
-stoq >= 1.10
+#stoq >= 1.10
 netifaces

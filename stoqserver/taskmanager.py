@@ -46,7 +46,7 @@ from stoqserver.tasks import (backup_status, restore_database, backup_database,
                               start_plugins_update_scheduler,
                               start_xmlrpc_server, start_server,
                               start_backup_scheduler,
-                              start_rtc, start_htsql)
+                              start_rtc, start_htsql, start_flask_server)
 
 logger = logging.getLogger(__name__)
 _executable = os.path.realpath(os.path.abspath(sys.executable))
@@ -601,6 +601,7 @@ class Worker(object):
     def _start_tasks(self):
         tasks = [
             Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2),
+            Task('_flask', start_flask_server),
             Task('_updater', start_plugins_update_scheduler,
                  self._updater_event, self._doing_backup),
             Task('_backup', start_backup_scheduler, self._doing_backup),
