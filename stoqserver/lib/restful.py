@@ -30,6 +30,7 @@ import logging
 import os
 import pickle
 import uuid
+from base64 import b64encode
 from hashlib import md5
 
 from kiwi.component import provide_utility, remove_utility
@@ -40,6 +41,7 @@ from flask_restful import Api, Resource
 from stoqlib.api import api
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
+from stoqlib.domain.image import Image
 from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData
@@ -169,10 +171,16 @@ class _BaseResource(Resource):
                 products_list = c_dict.setdefault('products', [])
 
                 for s in store.find(Sellable, category=c):
+                    image_cls = store.find(Image, sellable_id=s.id,
+                                           is_main=True).one()
+                    image = ('data:image/png;base64,' +
+                             b64encode(image_cls.image).decode()) if image_cls else None
                     products_list.append({
                         'id': s.id,
                         'description': s.description,
                         'price': str(s.price),
+                        'color': s.product.part_number,
+                        'image': image,
                         'availability': (
                             s.product and s.product.storable and
                             {
