@@ -1,3 +1,9 @@
+stoq-server (0.16) xenial; urgency=medium
+
+  * New Release
+
+ -- Felipe Nehmi <felipe@async.com.br>  Mon, 09 Apr 2018 11:15:16 -0300
+
 stoq-server (0.15.1) xenial; urgency=medium
 
   * New bugfix release
