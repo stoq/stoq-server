@@ -307,9 +307,11 @@ class SaleResource(_BaseResource):
     method_decorators = [_login_required]
 
     def post(self):
-        document = self.get_arg('client_document')
-        products = self.get_arg('products')
-        payments = self.get_arg('payments')
+        data = request.get_json()
+
+        document = data['client_document']
+        products = data['products']
+        payments = data['payments']
 
         with api.new_store() as store:
             user = store.get(LoginUser, session['user_id'])
@@ -318,6 +320,7 @@ class SaleResource(_BaseResource):
             provide_utility(ICurrentUser, user, replace=True)
 
             if document:
+                document = format_cpf(raw_document(document))
                 person = Person.get_by_document(store, document)
                 client = person and person.client
             else:
