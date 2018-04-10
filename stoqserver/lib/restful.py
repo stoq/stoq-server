@@ -48,11 +48,14 @@ from stoqlib.domain.payment.card import CreditCardData
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import LoginUser, Person
 from stoqlib.domain.sale import Sale
-from stoqlib.domain.sellable import Sellable, SellableCategory
+from stoqlib.domain.sellable import (Sellable, SellableCategory,
+                                     ClientCategoryPrice)
 from stoqlib.exceptions import LoginError
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
+from stoqlib.lib.formatters import raw_document
+from storm.expr import Desc
 
 _last_gc = None
 _expire_time = datetime.timedelta(days=1)
@@ -170,7 +173,12 @@ class _BaseResource(Resource):
                 c_dict.setdefault('children', [])
                 products_list = c_dict.setdefault('products', [])
 
-                for s in store.find(Sellable, category=c):
+                for s in store.find(Sellable, category=c).order_by('description'):
+                    ccp = store.find(ClientCategoryPrice, sellable_id=s.id)
+                    ccp_dict = {}
+                    for item in ccp:
+                        ccp_dict[item.category_id] = str(item.price)
+
                     image_cls = store.find(Image, sellable_id=s.id,
                                            is_main=True).one()
                     image = ('data:image/png;base64,' +
@@ -179,6 +187,7 @@ class _BaseResource(Resource):
                         'id': s.id,
                         'description': s.description,
                         'price': str(s.price),
+                        'category_prices': ccp_dict,
                         'color': s.product.part_number,
                         'image': image,
                         'availability': (
@@ -216,6 +225,43 @@ class PingResource(_BaseResource):
 
     def get(self):
         return 'pong from stoqserver'
+
+
+def format_cpf(document):
+    return '%s.%s.%s-%s' % (document[0:3], document[3:6], document[6:9],
+                            document[9:11])
+
+
+class ClientResource(_BaseResource):
+    """Client RESTful resource."""
+    routes = ['/client']
+
+    def post(self):
+        data = request.get_json()
+
+        with api.new_store() as store:
+            # Extra precaution in case we ever send the cpf already formatted
+            document = format_cpf(raw_document(data['doc']))
+
+            person = Person.get_by_document(store, document)
+            if not person:
+                return data
+
+            birthdate = person.individual.birth_date if person.individual else None
+
+            saleviews = person.client.get_client_sales().order_by(Desc('confirm_date'))
+            last_items = {}
+            for saleview in saleviews:
+                for item in saleview.sale.get_items():
+                    last_items[item.sellable_id] = item.sellable.description
+                    # Just the last 3 products the client bought
+                    if len(last_items) == 3:
+                        break
+
+            data['last_items'] = last_items
+            data['name'] = person.name
+            data['birthdate'] = birthdate
+        return data
 
 
 class LoginResource(_BaseResource):
