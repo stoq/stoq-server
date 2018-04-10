@@ -244,7 +244,7 @@ class ClientResource(_BaseResource):
             document = format_cpf(raw_document(data['doc']))
 
             person = Person.get_by_document(store, document)
-            if not person:
+            if not (person and person.client):
                 return data
 
             birthdate = person.individual.birth_date if person.individual else None
@@ -258,6 +258,7 @@ class ClientResource(_BaseResource):
                     if len(last_items) == 3:
                         break
 
+            data['category'] = person.client.category_id
             data['last_items'] = last_items
             data['name'] = person.name
             data['birthdate'] = birthdate
