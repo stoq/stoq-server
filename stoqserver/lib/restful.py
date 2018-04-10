@@ -39,6 +39,7 @@ from flask import Flask, request, session, abort
 from flask_restful import Api, Resource
 
 from stoqlib.api import api
+from stoqlib.database.runtime import set_current_branch_station
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
@@ -314,6 +315,7 @@ class SaleResource(_BaseResource):
         payments = data['payments']
 
         with api.new_store() as store:
+            set_current_branch_station(store, station_name=None)
             user = store.get(LoginUser, session['user_id'])
             # StoqTransactionHistory will use the current user to set the
             # responsible for the stock change

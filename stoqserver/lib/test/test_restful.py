@@ -30,6 +30,7 @@ import mock
 from kiwi.currency import currency
 from stoqlib.api import api
 from stoqlib.domain.sale import Sale
+# from stoqlib.domain.station import BranchStation
 from stoqlib.domain.test.domaintest import DomainTest
 from storm.expr import Desc
 
@@ -243,105 +244,106 @@ class TestSaleResource(_TestFlask):
     resource_class = SaleResource
 
     def test_post(self):
-        with self.fake_store() as es:
-            e = es.enter_context(
-                mock.patch('stoqserver.lib.restful.SaleConfirmedRemoteEvent.emit'))
-            d = datetime.datetime(2018, 3, 6)
-            now = es.enter_context(
-                mock.patch('stoqserver.lib.restful.localnow'))
-            now.return_value = d
-            tt = es.enter_context(
-                mock.patch('stoqlib.domain.sale.TransactionTimestamp'))
-            tt.return_value = d
-            s = self.login()
-            b = api.get_current_branch(self.store)
+        with self.sysparam(DEMO_MODE=True):
+            with self.fake_store() as es:
+                b = api.get_current_branch(self.store)
+                e = es.enter_context(
+                    mock.patch('stoqserver.lib.restful.SaleConfirmedRemoteEvent.emit'))
+                d = datetime.datetime(2018, 3, 6)
+                now = es.enter_context(
+                    mock.patch('stoqserver.lib.restful.localnow'))
+                now.return_value = d
+                tt = es.enter_context(
+                    mock.patch('stoqlib.domain.sale.TransactionTimestamp'))
+                tt.return_value = d
+                s = self.login()
 
-            p1 = self.create_product(price=10)
-            p1.manage_stock = False
-            s1 = p1.sellable
+                p1 = self.create_product(price=10)
+                p1.manage_stock = False
+                s1 = p1.sellable
 
-            p2 = self.create_product(price=currency('20.5'))
-            p2.manage_stock = False
-            s2 = p2.sellable
+                p2 = self.create_product(price=currency('20.5'))
+                p2.manage_stock = False
+                s2 = p2.sellable
 
-            c = self.create_client()
-            c.person.individual.cpf = '333.341.828-27'
+                c = self.create_client()
+                c.person.individual.cpf = '333.341.828-27'
 
-            rv = self.client.post(
-                '/sale',
-                headers={'stoq-session': s},
-                content_type='application/json',
-                data=json.dumps({
-                    'client_document': '333.341.828-27',
-                    'products': [
-                        {'id': s1.id,
-                         'price': str(s1.price),
-                         'quantity': 2},
-                        {'id': s2.id,
-                         'price': str(s2.price),
-                         'quantity': 1},
-                    ],
-                    'payments': [
-                        {'method': 'money',
-                         'installments': 1,
-                         'value': '10.5'},
-                        {'method': 'card',
-                         'installments': 2,
-                         'value': '30',
-                         'card_type': 'credit'},
-                    ],
-                }),
-            )
+                rv = self.client.post(
+                    '/sale',
+                    headers={'stoq-session': s},
+                    content_type='application/json',
+                    data=json.dumps({
+                        'client_document': '333.341.828-27',
+                        'products': [
+                            {'id': s1.id,
+                             'price': str(s1.price),
+                             'quantity': 2},
+                            {'id': s2.id,
+                             'price': str(s2.price),
+                             'quantity': 1},
+                        ],
+                        'payments': [
+                            {'method': 'money',
+                             'installments': 1,
+                             'value': '10.5'},
+                            {'method': 'card',
+                             'installments': 2,
+                             'value': '30',
+                             'card_type': 'credit'},
+                        ],
+                    }),
+                )
 
-            self.assertEqual(rv.status_code, 200)
-            self.assertEqual(json.loads(rv.data.decode())['branch'], b.id)
+                self.assertEqual(rv.status_code, 200)
+                self.assertEqual(json.loads(rv.data.decode())['branch'], b.id)
 
-            # This should be the sale made by the call above
-            sale = self.store.find(Sale).order_by(Desc(Sale.open_date)).first()
-            self.assertEqual(sale.get_total_sale_amount(), currency('40.5'))
-            self.assertEqual(sale.open_date, d)
-            self.assertEqual(sale.confirm_date, d)
-            self.assertEqual(
-                {(i.sellable, i.quantity, i.price) for i in sale.get_items()},
-                {(s1, 2, s1.price),
-                 (s2, 1, s2.price)})
-            self.assertEqual(
-                {(p.method.method_name, p.due_date, p.value)
-                 for p in sale.group.get_items()},
-                {('card', d, currency('15')),
-                 ('card', datetime.datetime(2018, 4, 6), currency('15')),
-                 ('money', d, currency('10.5'))}
-            )
+                # This should be the sale made by the call above
+                sale = self.store.find(Sale).order_by(Desc(Sale.open_date)).first()
+                self.assertEqual(sale.get_total_sale_amount(), currency('40.5'))
+                self.assertEqual(sale.open_date, d)
+                self.assertEqual(sale.confirm_date, d)
+                self.assertEqual(
+                    {(i.sellable, i.quantity, i.price) for i in sale.get_items()},
+                    {(s1, 2, s1.price),
+                     (s2, 1, s2.price)})
+                self.assertEqual(
+                    {(p.method.method_name, p.due_date, p.value)
+                     for p in sale.group.get_items()},
+                    {('card', d, currency('15')),
+                     ('card', datetime.datetime(2018, 4, 6), currency('15')),
+                     ('money', d, currency('10.5'))}
+                )
 
-            self.assertEqual(e.call_count, 1)
-            (sale, doc), _ = e.call_args_list[0]
-            self.assertEqual(doc, '333.341.828-27')
+                self.assertEqual(e.call_count, 1)
+                (sale, doc), _ = e.call_args_list[0]
+                self.assertEqual(doc, '333.341.828-27')
 
-            # Test the same sale again, but this time, lets mimic an exception
-            # happening in SaleConfirmedRemoteEvent
-            e.side_effect = Exception('foobar exception')
-            # NOTE: This will print the original traceback to stdout, that
-            # doesn't mean that the test is failing (unless it really fail)
-            rv = self.client.post(
-                '/sale',
-                headers={'stoq-session': s},
-                content_type='application/json',
-                data=json.dumps({
-                    'client_document': '333.341.828-27',
-                    'products': [
-                        {'id': s1.id,
-                         'price': str(s1.price),
-                         'quantity': 2},
-                        {'id': s2.id,
-                         'price': str(s2.price),
-                         'quantity': 1},
-                    ],
-                    'payments': [
-                        {'method': 'money',
-                         'value': '40.5'},
-                    ],
-                }),
-            )
-            self.assertEqual(rv.status_code, 500)
-            self.assertEqual(json.loads(rv.data.decode()),
-                             {'message': 'foobar exception'})
+                # Test the same sale again, but this time, lets mimic an exception
+                # happening in SaleConfirmedRemoteEvent
+                e.side_effect = Exception('foobar exception')
+                # NOTE: This will print the original traceback to stdout, that
+                # doesn't mean that the test is failing (unless it really fail)
+                rv = self.client.post(
+                    '/sale',
+                    headers={'stoq-session': s},
+                    content_type='application/json',
+                    data=json.dumps({
+                        'client_document': '333.341.828-27',
+                        'products': [
+                            {'id': s1.id,
+                             'price': str(s1.price),
+                             'quantity': 2},
+                            {'id': s2.id,
+                             'price': str(s2.price),
+                             'quantity': 1},
+                        ],
+                        'payments': [
+                            {'method': 'money',
+                             'value': '40.5'},
+                        ],
+                    }),
+                )
+                self.assertEqual(rv.status_code, 500)
+                self.assertEqual(json.loads(rv.data.decode()),
+                                 {'message': 'foobar exception'})
