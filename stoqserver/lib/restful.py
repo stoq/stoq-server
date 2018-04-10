@@ -357,7 +357,11 @@ class SaleResource(_BaseResource):
 
                 # Add payments
                 for p in payments:
-                    method = PaymentMethod.get_by_name(store, p['method'])
+                    name = p['method']
+                    if name in ('tef_credit', 'tef_debit'):
+                        name = 'card'
+
+                    method = PaymentMethod.get_by_name(store, name)
                     installments = p.get('installments', 1) or 1
 
                     due_dates = list(create_date_interval(
