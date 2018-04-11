@@ -192,6 +192,7 @@ class _BaseResource(Resource):
                         'id': s.id,
                         'description': s.description,
                         'price': str(s.price),
+                        'order': str(s.product.height),
                         'category_prices': ccp_dict,
                         'color': s.product.part_number,
                         'image': image,
