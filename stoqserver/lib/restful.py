@@ -310,7 +310,7 @@ class SaleResource(_BaseResource):
     def post(self):
         data = request.get_json()
 
-        document = data['client_document']
+        document = data.get('client_document', '')
         products = data['products']
         payments = data['payments']
 
