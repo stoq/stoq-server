@@ -48,6 +48,7 @@ from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import LoginUser, Person
+from stoqlib.domain.product import Product
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
@@ -56,7 +57,7 @@ from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
 from stoqlib.lib.formatters import raw_document
-from storm.expr import Desc
+from storm.expr import Desc, LeftJoin
 
 _last_gc = None
 _expire_time = datetime.timedelta(days=1)
@@ -174,7 +175,10 @@ class _BaseResource(Resource):
                 c_dict.setdefault('children', [])
                 products_list = c_dict.setdefault('products', [])
 
-                for s in store.find(Sellable, category=c).order_by('description'):
+                tables = [Sellable, LeftJoin(Product, Product.id == Sellable.id)]
+                sellables = store.using(*tables).find(
+                    Sellable, category=c).order_by('height', 'description')
+                for s in sellables:
                     ccp = store.find(ClientCategoryPrice, sellable_id=s.id)
                     ccp_dict = {}
                     for item in ccp:
