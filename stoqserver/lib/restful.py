@@ -133,7 +133,9 @@ class _BaseResource(Resource):
 
     def get_arg(self, attr, default=None):
         """Get the attr from querystring, form data or json"""
-        if request.is_json:
+        # This is not working on all versions.
+        #if request.is_json:
+        if request.get_json():
             return request.get_json().get(attr, None)
 
         return request.form.get(attr, request.args.get(attr, default))
