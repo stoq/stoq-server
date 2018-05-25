@@ -30,12 +30,12 @@ import logging
 import os
 import pickle
 import uuid
-from base64 import b64encode
+import io
 from hashlib import md5
 
 from kiwi.component import provide_utility, remove_utility
 from kiwi.currency import currency
-from flask import Flask, request, session, abort
+from flask import Flask, request, session, abort, send_file
 from flask_restful import Api, Resource
 
 from stoqlib.api import api
@@ -186,10 +186,6 @@ class _BaseResource(Resource):
                     for item in ccp:
                         ccp_dict[item.category_id] = str(item.price)
 
-                    image_cls = store.find(Image, sellable_id=s.id,
-                                           is_main=True).one()
-                    image = ('data:image/png;base64,' +
-                             b64encode(image_cls.image).decode()) if image_cls else None
                     products_list.append({
                         'id': s.id,
                         'description': s.description,
@@ -197,7 +193,6 @@ class _BaseResource(Resource):
                         'order': str(s.product.height),
                         'category_prices': ccp_dict,
                         'color': s.product.part_number,
-                        'image': image,
                         'availability': (
                             s.product and s.product.storable and
                             {
@@ -296,6 +291,25 @@ class LoginResource(_BaseResource):
             }
 
         return session_id
+
+
+class ImageResource(_BaseResource):
+    """Image RESTful resource."""
+
+    routes = ['/image/<id>']
+
+    def get(self, id):
+        is_main = bool(request.args.get('is_main', None))
+        # FIXME: The images should store tags so they could be requested by that tag and
+        # product_id. At the moment, we simply check if the image is main or not and
+        # return the first one.
+        with api.new_store() as store:
+            image = store.find(Image, sellable_id=id, is_main=is_main).any()
+
+            if image:
+                return send_file(io.BytesIO(image.image), mimetype='image/png')
+
+            return None
 
 
 class DataResource(_BaseResource):

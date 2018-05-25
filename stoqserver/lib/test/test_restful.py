@@ -38,7 +38,8 @@ from stoqserver.lib.restful import (bootstrap_app,
                                     PingResource,
                                     LoginResource,
                                     DataResource,
-                                    SaleResource)
+                                    SaleResource,
+                                    ImageResource)
 
 
 class _TestFlask(DomainTest):
@@ -212,14 +213,12 @@ class TestDataResource(_TestFlask):
                                               'order': '0',
                                               'category_prices': {},
                                               'color': '',
-                                              'image': None,
                                               'description': 's2',
                                               'price': '10'},
                                              {'availability': None,
                                               'order': '0',
                                               'category_prices': {},
                                               'color': '',
-                                              'image': None,
                                               'description': 's4',
                                               'price': '10'}]}],
                   'description': 'c1',
@@ -227,7 +226,6 @@ class TestDataResource(_TestFlask):
                                 'order': '0',
                                 'category_prices': {},
                                 'color': '',
-                                'image': None,
                                 'description': 's1',
                                 'price': '10'}]},
                  {'children': [],
@@ -236,7 +234,6 @@ class TestDataResource(_TestFlask):
                                 'order': '0',
                                 'category_prices': {},
                                 'color': '',
-                                'image': None,
                                 'description': 's3',
                                 'price': '10'}]},
                  {'children': [], 'description': 'c4', 'products': []}]
@@ -351,3 +348,23 @@ class TestSaleResource(_TestFlask):
                 self.assertEqual(rv.status_code, 500)
                 self.assertEqual(json.loads(rv.data.decode()),
                                  {'message': 'foobar exception'})
+
+
+class TestImageResource(_TestFlask):
+
+    resource_class = ImageResource
+
+    def test_get(self):
+        with self.sysparam(DEMO_MODE=True):
+            with self.fake_store():
+                api.get_current_branch(self.store)
+                s = self.login()
+
+                sellable = self.create_sellable()
+                img = self.create_image()
+                img.image = b'foobar'
+                img.sellable_id = sellable.id
+
+                rv = self.client.get('/image/' + sellable.id, headers={'stoq-session': s})
+                self.assertEqual(rv.status_code, 200)
+                self.assertEqual(rv.data, b'foobar')
