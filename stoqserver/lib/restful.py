@@ -39,7 +39,7 @@ from flask import Flask, request, session, abort, send_file
 from flask_restful import Api, Resource
 
 from stoqlib.api import api
-from stoqlib.database.runtime import set_current_branch_station
+from stoqlib.database.runtime import set_current_branch_station, get_current_station
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
@@ -52,7 +52,8 @@ from stoqlib.domain.product import Product
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
-from stoqlib.exceptions import LoginError
+from stoqlib.domain.till import Till
+from stoqlib.exceptions import LoginError, TillError
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
@@ -233,6 +234,63 @@ class PingResource(_BaseResource):
 def format_cpf(document):
     return '%s.%s.%s-%s' % (document[0:3], document[3:6], document[6:9],
                             document[9:11])
+
+
+class TillResource(_BaseResource):
+    """Till RESTful resource."""
+    routes = ['/till']
+
+    def _open_till(self, store, initial_cash_amount=0):
+        station = get_current_station(store)
+        last_till = Till.get_last(store)
+        if not last_till or last_till.status == Till.STATUS_CLOSED:
+            # Create till and open
+            till = Till(store=store, station=station)
+            till.open_till()
+            till.initial_cash_amount = decimal.Decimal(initial_cash_amount)
+        else:
+            # Error, till already opened
+            assert False
+
+    def _close_till(self, store):
+        # Here till object must exist
+        till = Till.get_current(store)
+        till.close_till()
+
+    def post(self):
+        data = request.get_json()
+        with api.new_store() as store:
+            try:
+                set_current_branch_station(store, station_name=None)
+                # Provide responsible
+                if data['operation'] == 'open_till':
+                    self._open_till(store, data['initial_cash_amount'])
+                elif data['operation'] == 'close_till':
+                    self._close_till(store)
+            except TillError:
+                return 500
+
+        return 200
+
+    def get(self):
+        # Retrieve Till data
+        with api.new_store() as store:
+            set_current_branch_station(store, station_name=None)
+            till = Till.get_last(store)
+
+            if not till:
+                return None
+
+            till_data = {
+                'status': till.status,
+                'opening_date': till.opening_date.strftime('%Y-%m-%d'),
+                'closing_date': (till.closing_date.strftime('%Y-%m-%d') if
+                                 till.closing_date else None),
+                'initial_cash_amount': str(till.initial_cash_amount),
+                'final_cash_amount': str(till.final_cash_amount),
+            }
+
+        return till_data
 
 
 class ClientResource(_BaseResource):
