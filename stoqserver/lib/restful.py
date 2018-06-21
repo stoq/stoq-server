@@ -45,15 +45,15 @@ from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
 from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
-from stoqlib.domain.payment.card import CreditCardData
+from stoqlib.domain.payment.card import CreditCardData, CreditProvider
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import LoginUser, Person
 from stoqlib.domain.product import Product
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
-from stoqlib.domain.till import Till
-from stoqlib.exceptions import LoginError, TillError
+from stoqlib.domain.till import Till, TillSummary
+from stoqlib.exceptions import LoginError
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
@@ -252,23 +252,49 @@ class TillResource(_BaseResource):
             # Error, till already opened
             assert False
 
-    def _close_till(self, store):
+    def _close_till(self, store, till_summaries):
         # Here till object must exist
-        till = Till.get_current(store)
+        till = Till.get_last(store)
+
+        for summary in till_summaries:
+            method = (store.find(PaymentMethod, method_name=summary['method']).one()
+                      if summary['method'] else None)
+            if summary['provider']:
+                provider = store.find(CreditProvider, short_name=summary['provider']).one()
+                till_summary = TillSummary(store, till=till, method=method.id,
+                                           provider=provider.id, card_type=summary['card_type'])
+            # Money method has no card_data or provider
+            else:
+                till_summary = TillSummary(store, till=till, method=method.id)
+
+            till_summary.user_value = decimal.Decimal(summary['user_value'])
         till.close_till()
+
+    def _get_till_summary(self, store, till):
+
+        payment_data = []
+        for summary in till.get_day_summary():
+            payment_data.append({
+                'method': summary.method.method_name,
+                'provider': summary.provider.short_name if summary.provider else None,
+                'card_type': summary.card_type,
+            })
+
+        # XXX: We shouldn't create TIllSummaries since we are not closing the Till,
+        # so we must rollback.
+        store.rollback(close=False)
+
+        return payment_data
 
     def post(self):
         data = request.get_json()
         with api.new_store() as store:
-            try:
-                set_current_branch_station(store, station_name=None)
-                # Provide responsible
-                if data['operation'] == 'open_till':
-                    self._open_till(store, data['initial_cash_amount'])
-                elif data['operation'] == 'close_till':
-                    self._close_till(store)
-            except TillError:
-                return 500
+            set_current_branch_station(store, station_name=None)
+            # Provide responsible
+            if data['operation'] == 'open_till':
+                self._open_till(store, data['initial_cash_amount'])
+            elif data['operation'] == 'close_till':
+                self._close_till(store, data['till_summaries'])
 
         return 200
 
@@ -288,6 +314,8 @@ class TillResource(_BaseResource):
                                  till.closing_date else None),
                 'initial_cash_amount': str(till.initial_cash_amount),
                 'final_cash_amount': str(till.final_cash_amount),
+                # Get payments data that will be used on 'close_till' action.
+                'entry_types': self._get_till_summary(store, till),
             }
 
         return till_data
@@ -447,17 +475,23 @@ class SaleResource(_BaseResource):
                         Payment.TYPE_IN, group, branch,
                         currency(p['value']), due_dates)
 
-                    if method == 'card':
+                    if method.method_name == 'card':
                         for payment in p_list:
                             data = method.operation.get_card_data_by_payment(
                                 payment)
-                            data.card_type = payment['card_type']
+                            data.card_type = p['mode']
                             data.installments = installments
+                            if p['provider']:
+                                provider = store.find(CreditProvider,
+                                                      short_name=p['provider']).one()
+                                data.provider = provider
 
                 # Confirm the sale
                 group.confirm()
                 sale.order()
-                sale.confirm()
+
+                till = Till.get_last(store)
+                sale.confirm(till)
 
                 # Fiscal plugins will connect to this event and "do their job"
                 # It's their responsibility to raise an exception in case of

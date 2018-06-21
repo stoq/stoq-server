@@ -286,9 +286,13 @@ class TestSaleResource(_TestFlask):
                         ],
                         'payments': [
                             {'method': 'money',
+                             'mode': None,
+                             'provider': None,
                              'installments': 1,
                              'value': '10.5'},
                             {'method': 'card',
+                             'mode': 'credit',
+                             'provider': 'VISA',
                              'installments': 2,
                              'value': '30',
                              'card_type': 'credit'},
@@ -323,6 +327,10 @@ class TestSaleResource(_TestFlask):
                 # Test the same sale again, but this time, lets mimic an exception
                 # happening in SaleConfirmedRemoteEvent
                 e.side_effect = Exception('foobar exception')
+
+                # Add a till to Store
+                self.create_till()
+
                 # NOTE: This will print the original traceback to stdout, that
                 # doesn't mean that the test is failing (unless it really fail)
                 rv = self.client.post(
