@@ -53,7 +53,7 @@ from stoqlib.lib.webservice import get_main_cnpj
 import stoqserver
 from stoqserver.common import APP_CONF_FILE, SERVER_XMLRPC_PORT
 from stoqserver.taskmanager import Worker
-from stoqserver.tasks import backup_database, restore_database, backup_status
+from stoqserver.tasks import backup_database, restore_database, backup_status, start_flask_server
 
 logger = logging.getLogger(__name__)
 
@@ -279,6 +279,21 @@ class StoqServerCmdHandler(object):
             signal.signal(signal.SIGQUIT, _exit)
 
         worker.run()
+
+    def cmd_flask(self, options, *args):
+        """Run the server daemon"""
+        setup_stoq()
+        setup_logging()
+
+        def _exit(*args):
+            sys.exit(0)
+
+        signal.signal(signal.SIGTERM, _exit)
+        signal.signal(signal.SIGINT, _exit)
+        if platform.system() != 'Windows':
+            signal.signal(signal.SIGQUIT, _exit)
+
+        start_flask_server()
 
     def cmd_backup_database(self, options, *args):
         """Backup the Stoq database"""
