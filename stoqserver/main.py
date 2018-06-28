@@ -293,7 +293,7 @@ class StoqServerCmdHandler(object):
         if platform.system() != 'Windows':
             signal.signal(signal.SIGQUIT, _exit)
 
-        start_flask_server()
+        start_flask_server(options.debug)
 
     def cmd_backup_database(self, options, *args):
         """Backup the Stoq database"""

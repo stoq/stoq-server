@@ -158,7 +158,7 @@ def start_xmlrpc_server(pipe_conn):
     run_xmlrpcserver(pipe_conn, port)
 
 
-def start_flask_server():
+def start_flask_server(debug=False):
     _setup_signal_termination()
     logger.info("Starting the flask server")
 
@@ -166,7 +166,7 @@ def start_flask_server():
     # XXX: Is flaskport a good name for this?
     port = int(config.get('General', 'flaskport') or SERVER_FLASK_PORT)
 
-    run_flaskserver(port)
+    run_flaskserver(port, debug)
 
 
 def start_server():

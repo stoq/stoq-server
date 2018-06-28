@@ -22,6 +22,7 @@
 ## Author(s): Stoq Team <stoq-devel@async.com.br>
 ##
 
+import base64
 import contextlib
 import datetime
 import decimal
@@ -35,7 +36,7 @@ from hashlib import md5
 
 from kiwi.component import provide_utility, remove_utility
 from kiwi.currency import currency
-from flask import Flask, request, session, abort, send_file
+from flask import Flask, request, session, abort, send_file, make_response
 from flask_restful import Api, Resource
 
 from stoqlib.api import api
@@ -64,6 +65,9 @@ _last_gc = None
 _expire_time = datetime.timedelta(days=1)
 _session = None
 log = logging.getLogger(__name__)
+
+
+TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
 
 
 def _get_user_hash():
@@ -394,8 +398,10 @@ class ImageResource(_BaseResource):
 
             if image:
                 return send_file(io.BytesIO(image.image), mimetype='image/png')
-
-            return None
+            else:
+                response = make_response(base64.b64decode(TRANSPARENT_PIXEL))
+                response.headers.set('Content-Type', 'image/jpeg')
+                return response
 
 
 class DataResource(_BaseResource):
@@ -522,7 +528,7 @@ def bootstrap_app():
     return app
 
 
-def run_flaskserver(port):
+def run_flaskserver(port, debug=False):
     app = bootstrap_app()
 
     @app.after_request
@@ -538,4 +544,4 @@ def run_flaskserver(port):
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
-    app.run('0.0.0.0', port=port)
+    app.run('0.0.0.0', port=port, debug=debug)
