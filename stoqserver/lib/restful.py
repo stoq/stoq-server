@@ -260,19 +260,29 @@ class TillResource(_BaseResource):
         # Here till object must exist
         till = Till.get_last(store)
 
-        for summary in till_summaries:
-            method = (store.find(PaymentMethod, method_name=summary['method']).one()
-                      if summary['method'] else None)
-            if summary['provider']:
-                provider = store.find(CreditProvider, short_name=summary['provider']).one()
-                till_summary = TillSummary(store, till=till, method=method.id,
-                                           provider=provider.id, card_type=summary['card_type'])
-            # Money method has no card_data or provider
-            else:
-                till_summary = TillSummary(store, till=till, method=method.id)
+        try:
+            # Create TillSummaries
+            till.get_day_summary()
 
-            till_summary.user_value = decimal.Decimal(summary['user_value'])
-        till.close_till()
+            # Find TillSummary and store the user_value
+            for till_summary in till_summaries:
+                method = PaymentMethod.get_by_name(till_summary['method'])
+
+                if till_summary['provider']:
+                    provider = store.find(CreditProvider, short_name=till_summary['provider']).one()
+                    summary = TillSummary.get_or_create(store, till=till, method=method.id,
+                                                        provider=provider.id,
+                                                        card_type=till_summary['card_type'])
+                # Money method has no card_data or provider
+                else:
+                    summary = TillSummary.get_or_create(store, till=till, method=method.id)
+
+                summary.user_value = decimal.Decimal(till_summary['user_value'])
+
+            till.close_till()
+        except Exception:
+            # Log something ?
+            store.rollback(close=False)
 
     def _get_till_summary(self, store, till):
 
