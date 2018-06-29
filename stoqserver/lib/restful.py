@@ -27,16 +27,19 @@ import contextlib
 import datetime
 import decimal
 import functools
+import json
 import logging
 import os
 import pickle
+from queue import Queue
+from threading import Event
 import uuid
 import io
 from hashlib import md5
 
 from kiwi.component import provide_utility, remove_utility
 from kiwi.currency import currency
-from flask import Flask, request, session, abort, send_file, make_response
+from flask import Flask, request, session, abort, send_file, make_response, Response
 from flask_restful import Api, Resource
 
 from stoqlib.api import api
@@ -46,7 +49,7 @@ from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
 from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
-from stoqlib.domain.payment.card import CreditCardData, CreditProvider
+from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import LoginUser, Person
 from stoqlib.domain.product import Product
@@ -55,17 +58,25 @@ from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
 from stoqlib.domain.till import Till, TillSummary
 from stoqlib.exceptions import LoginError
+from stoqlib.lib.configparser import get_config
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
 from stoqlib.lib.formatters import raw_document
 from storm.expr import Desc, LeftJoin
 
+try:
+    from stoqntk.ntkapi import Ntk, NtkException, PwInfo, PwCnf
+    # The ntk lib instance.
+    has_ntk = True
+except ImportError:
+    has_ntk = False
+    ntk = None
+
 _last_gc = None
 _expire_time = datetime.timedelta(days=1)
 _session = None
 log = logging.getLogger(__name__)
-
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
 
@@ -154,6 +165,8 @@ class _BaseResource(Resource):
         - What categories does it have
             - What sellables those categories have
                 - The stock amount for each sellable (if it controls stock)
+
+        # FIXME: This does not need to be a method. Could be a function
         """
         retval = {}
         with api.new_store() as store:
@@ -393,6 +406,120 @@ class LoginResource(_BaseResource):
         return session_id
 
 
+class EventStream(_BaseResource):
+    """A stream of events from this server to the application.
+
+    Callsites can use EventStream.put(event) to send a message from the server to the client
+    asynchronously.
+
+    Note that there should be only one client connected at a time. If more than one are connected,
+    all of them will receive all events
+    """
+    _streams = []
+
+    routes = ['/stream']
+
+    @classmethod
+    def put(cls, data):
+        # Put event in all streams
+        for stream in cls._streams:
+            stream.put(data)
+
+    def _loop(self, stream):
+        while True:
+            data = stream.get()
+            yield "data: " + json.dumps(data) + "\n\n"
+
+    def get(self):
+        stream = Queue()
+        self._streams.append(stream)
+
+        # If we dont put one event, the event stream does not seem to get stabilished in the browser
+        stream.put(json.dumps({}))
+        return Response(self._loop(stream), mimetype="text/event-stream")
+
+
+class TefResource(_BaseResource):
+    routes = ['/tef']
+    method_decorators = [_login_required]
+
+    pending_transaction = None
+
+    waiting_reply = Event()
+    reply = Queue()
+
+    NTK_MODES = {
+        'credit': Ntk.TYPE_CREDIT,
+        'debit': Ntk.TYPE_DEBIT,
+        'voucher': Ntk.TYPE_VOUCHER,
+    }
+
+    def _print_callback(self, full, holder, merchant, short):
+        # TODO: Print receipt
+        print('print', len(full or ''), len(holder or ''), len(merchant or ''), len(short or ''))
+
+    def _message_callback(self, message):
+        EventStream.put({
+            'type': 'TEF_DISPLAY_MESSAGE',
+            'message': message
+        })
+
+    def _question_callback(self, questions):
+        self.waiting_reply.set()
+
+        # Right now we support asking only one question at a time. This could be imporved
+        info = questions[0]
+        EventStream.put({
+            'type': 'TEF_ASK_QUESTION',
+            'data': info.get_dict()
+        })
+
+        reply = self.reply.get()
+        self.waiting_reply.clear()
+
+        kwargs = {
+            info.identificador.name: reply
+        }
+        ntk.add_params(**kwargs)
+        return True
+
+    def post(self):
+        if not ntk:
+            return
+
+        if TefResource.pending_transaction:
+            # There is a pending transaction, but the user just tried to add another tef payment. We
+            # should confirm this one, otherwise a pending transaction error will be raised
+            ntk.confirm_transaction(PwCnf.CNF_AUTO, TefResource.pending_transaction)
+
+        if self.waiting_reply.is_set():
+            # There is already an operation happening, but its waiting for a user reply.
+            # This is the reply
+            self.reply.put(request.get_json()['value'])
+            return
+
+        ntk.set_message_callback(self._message_callback)
+        ntk.set_question_callback(self._question_callback)
+        ntk.set_print_callback(self._print_callback)
+
+        data = request.get_json()
+        try:
+            # This operation will be blocked here until its complete, but since we are running each
+            # request using threads, the server will still be available to handle other requests
+            # (specially when handling comunication with the user through the callbacks above)
+            retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
+        except NtkException:
+            retval = False
+
+        TefResource.pending_transaction = retval
+        message = ntk.get_info(PwInfo.RESULTMSG)
+        EventStream.put({
+            'type': 'TEF_OPERATION_FINISHED',
+            'success': retval,
+            'message': message,
+        })
+
+
 class ImageResource(_BaseResource):
     """Image RESTful resource."""
 
@@ -429,6 +556,12 @@ class SaleResource(_BaseResource):
 
     routes = ['/sale']
     method_decorators = [_login_required]
+
+    def _get_card_device(self, store, name):
+        device = store.find(CardPaymentDevice, description=name).any()
+        if not device:
+            device = CardPaymentDevice(store=store, description=name)
+        return device
 
     def post(self):
         data = request.get_json()
@@ -475,11 +608,13 @@ class SaleResource(_BaseResource):
 
                 # Add payments
                 for p in payments:
-                    name = p['method']
-                    if name in ('tef_credit', 'tef_debit'):
-                        name = 'card'
+                    method_name = p['method']
+                    tef_data = p.get('tef_data', {})
+                    if method_name == 'tef':
+                        p['provider'] = tef_data['card_name']
+                        method_name = 'card'
 
-                    method = PaymentMethod.get_by_name(store, name)
+                    method = PaymentMethod.get_by_name(store, method_name)
                     installments = p.get('installments', 1) or 1
 
                     due_dates = list(create_date_interval(
@@ -493,14 +628,16 @@ class SaleResource(_BaseResource):
 
                     if method.method_name == 'card':
                         for payment in p_list:
-                            data = method.operation.get_card_data_by_payment(
-                                payment)
-                            data.card_type = p['mode']
-                            data.installments = installments
-                            if p['provider']:
-                                provider = store.find(CreditProvider,
-                                                      short_name=p['provider']).one()
-                                data.provider = provider
+                            card_data = method.operation.get_card_data_by_payment(payment)
+
+                            card_type = p['mode']
+                            device = self._get_card_device(store, 'TEF')
+                            provider = store.find(CreditProvider, short_name=p['provider']).one()
+
+                            if tef_data:
+                                card_data.nsu = int(tef_data['aut_loc_ref'])
+                                card_data.auth = int(tef_data['aut_ext_ref'])
+                            card_data.update_card_data(device, provider, card_type, installments)
 
                 # Confirm the sale
                 group.confirm()
@@ -519,6 +656,10 @@ class SaleResource(_BaseResource):
             finally:
                 remove_utility(ICurrentUser)
 
+            if TefResource.pending_transaction:
+                # TODO: Implement endpoint to cancel pending transaction
+                ntk.confirm_transaction(PwCnf.CNF_AUTO, TefResource.pending_transaction)
+
         # This will make sure we update any stock or price changes products may
         # have between sales
         return self.get_data()
@@ -535,11 +676,27 @@ def bootstrap_app():
     for cls in _BaseResource.__subclasses__():
         flask_api.add_resource(cls, *cls.routes)
 
+    if has_ntk:
+        global ntk
+        config = get_config()
+        if config:
+            config_dir = config.get_config_directory()
+            tef_dir = os.path.join(config_dir, 'ntk')
+        else:
+            # Tests don't have a config set. Use the plugin path as tef_dir, since it also has the
+            # library
+            import stoqntk
+            tef_dir = os.path.dirname(os.path.dirname(stoqntk.__file__))
+
+        ntk = Ntk(os.path.join(tef_dir, 'PGWebLib.so'))
+        ntk.init(tef_dir)
+
     return app
 
 
 def run_flaskserver(port, debug=False):
     app = bootstrap_app()
+    app.debug = debug
 
     @app.after_request
     def after_request(response):
@@ -554,4 +711,4 @@ def run_flaskserver(port, debug=False):
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
-    app.run('0.0.0.0', port=port, debug=debug)
+    app.run('0.0.0.0', port=port, debug=debug, threaded=True)

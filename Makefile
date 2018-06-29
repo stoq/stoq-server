@@ -12,7 +12,7 @@ coverage: check-source-all
 	#cd data/webrtc && npm test
 
 flask:
-	./bin/stoqserver flask
+	./bin/stoqserver flask --debug
 
 include utils/utils.mk
 .PHONY: check coverage
