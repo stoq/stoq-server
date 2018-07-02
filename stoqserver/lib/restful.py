@@ -474,11 +474,13 @@ class TefResource(_BaseResource):
         with api.new_store() as store:
             self._setup_printer(store)
 
-        for line in holder.split('\n'):
-            self.printer.print_line(line)
-        self.printer.cut_paper()
-        for line in merchant.split('\n'):
-            self.printer.print_line(line)
+        if holder and merchant:
+            self.printer.print_line(holder)
+            self.printer.cut_paper()
+            self.printer.print_line(merchant)
+        elif full:
+            self.printer.print_line(full)
+            self.printer.cut_paper()
 
     def _message_callback(self, message):
         EventStream.put({
