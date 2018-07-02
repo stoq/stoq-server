@@ -45,6 +45,7 @@ from flask_restful import Api, Resource
 from stoqlib.api import api
 from stoqlib.database.runtime import set_current_branch_station, get_current_station
 from stoqlib.database.interfaces import ICurrentUser
+from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
 from stoqlib.domain.payment.group import PaymentGroup
@@ -454,9 +455,30 @@ class TefResource(_BaseResource):
         'voucher': Ntk.TYPE_VOUCHER,
     }
 
+    def _setup_printer(self, store):
+        if getattr(self, 'printer', None):
+            return self.printer
+
+        self.printer = None
+        station = api.get_current_station(store)
+        device = DeviceSettings.get_by_station_and_type(
+            store, station, DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
+
+        if not device:
+            return
+
+        self.printer = device.get_interface()
+
     def _print_callback(self, full, holder, merchant, short):
-        # TODO: Print receipt
-        print('print', len(full or ''), len(holder or ''), len(merchant or ''), len(short or ''))
+        #print('print', len(full or ''), len(holder or ''), len(merchant or ''), len(short or ''))
+        with api.new_store() as store:
+            self._setup_printer(store)
+
+        for line in holder.split('\n'):
+            self.printer.print_line(line)
+        self.printer.cut_paper()
+        for line in merchant.split('\n'):
+            self.printer.print_line(line)
 
     def _message_callback(self, message):
         EventStream.put({
@@ -507,7 +529,10 @@ class TefResource(_BaseResource):
             # This operation will be blocked here until its complete, but since we are running each
             # request using threads, the server will still be available to handle other requests
             # (specially when handling comunication with the user through the callbacks above)
-            retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
+            if data['operation'] == 'sale':
+                retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
+            elif data['operation'] == 'admin':
+                retval = ntk.admin()
         except NtkException:
             retval = False
 
