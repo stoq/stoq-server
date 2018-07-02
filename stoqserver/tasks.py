@@ -51,7 +51,6 @@ from stoqserver import library
 from stoqserver.common import (APP_BACKUP_DIR, SERVER_XMLRPC_PORT,
                                SERVER_FLASK_PORT)
 from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
-from stoqserver.lib.restful import run_flaskserver
 from stoqserver.server import StoqServer
 
 if platform.system() != 'Windows':
@@ -159,6 +158,9 @@ def start_xmlrpc_server(pipe_conn):
 
 
 def start_flask_server(debug=False):
+    # We need to delay importing from restfull so that the plugin infrastructure gets setup correcly
+    from stoqserver.lib.restful import run_flaskserver
+
     _setup_signal_termination()
     logger.info("Starting the flask server")
 
