@@ -516,29 +516,30 @@ class TefResource(_BaseResource):
             # should confirm this one, otherwise a pending transaction error will be raised
             ntk.confirm_transaction(PwCnf.CNF_AUTO, TefResource.pending_transaction)
 
-        if self.waiting_reply.is_set():
+        data = request.get_json()
+        if self.waiting_reply.is_set() and data['operation'] == 'reply':
             # There is already an operation happening, but its waiting for a user reply.
             # This is the reply
-            self.reply.put(request.get_json()['value'])
+            self.reply.put(data['value'])
             return
 
         ntk.set_message_callback(self._message_callback)
         ntk.set_question_callback(self._question_callback)
         ntk.set_print_callback(self._print_callback)
 
-        data = request.get_json()
         try:
             # This operation will be blocked here until its complete, but since we are running each
             # request using threads, the server will still be available to handle other requests
             # (specially when handling comunication with the user through the callbacks above)
             if data['operation'] == 'sale':
                 retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
+                TefResource.pending_transaction = retval
             elif data['operation'] == 'admin':
+                # Admin operation does not leave pending transaction
                 retval = ntk.admin()
         except NtkException:
             retval = False
 
-        TefResource.pending_transaction = retval
         message = ntk.get_info(PwInfo.RESULTMSG)
         EventStream.put({
             'type': 'TEF_OPERATION_FINISHED',
