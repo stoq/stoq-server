@@ -280,7 +280,7 @@ class TillResource(_BaseResource):
 
             # Find TillSummary and store the user_value
             for till_summary in till_summaries:
-                method = PaymentMethod.get_by_name(till_summary['method'])
+                method = PaymentMethod.get_by_name(store, till_summary['method'])
 
                 if till_summary['provider']:
                     provider = store.find(CreditProvider, short_name=till_summary['provider']).one()
