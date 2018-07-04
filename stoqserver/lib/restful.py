@@ -171,6 +171,15 @@ class _BaseResource(Resource):
         """
         retval = {}
         with api.new_store() as store:
+            # Current station
+            station = get_current_station(store)
+            if station:
+                retval['branch_station'] = station.name
+
+            # Current user
+            user = store.get(LoginUser, session['user_id'])
+            retval['user'] = user.username
+
             # Current branch data
             retval['branch'] = api.get_current_branch(store).id
 
