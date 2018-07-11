@@ -60,11 +60,15 @@ from stoqlib.domain.sellable import (Sellable, SellableCategory,
 from stoqlib.domain.till import Till, TillSummary
 from stoqlib.exceptions import LoginError
 from stoqlib.lib.configparser import get_config
-from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
 from stoqlib.lib.formatters import raw_document
+from stoqlib.lib.osutils import get_application_dir
+from stoqlib.lib.translation import stoqlib_gettext
 from storm.expr import Desc, LeftJoin
+
+
+_ = stoqlib_gettext
 
 try:
     from stoqntk.ntkapi import Ntk, NtkException, PwInfo, PwCnf
@@ -266,6 +270,7 @@ def format_cpf(document):
 class TillResource(_BaseResource):
     """Till RESTful resource."""
     routes = ['/till']
+    method_decorators = [_login_required]
 
     def _open_till(self, store, initial_cash_amount=0):
         station = get_current_station(store)
@@ -307,6 +312,18 @@ class TillResource(_BaseResource):
             # Log something ?
             store.rollback(close=False)
 
+    def _add_credit_or_debit_entry(self, store, data):
+        # Here till object must exist
+        till = Till.get_last(store)
+        user = store.get(LoginUser, session['user_id'])
+
+        if data['operation'] == 'debit_entry':
+            reason = _('The user %s removed cash from till') % user.username
+            till.add_debit_entry(decimal.Decimal(data['entry_value']), reason)
+        elif data['operation'] == 'credit_entry':
+            reason = _('The user %s supplied cash to the till') % user.username
+            till.add_credit_entry(decimal.Decimal(data['entry_value']), reason)
+
     def _get_till_summary(self, store, till):
 
         payment_data = []
@@ -332,6 +349,8 @@ class TillResource(_BaseResource):
                 self._open_till(store, data['initial_cash_amount'])
             elif data['operation'] == 'close_till':
                 self._close_till(store, data['till_summaries'])
+            elif data['operation'] in ['debit_entry', 'credit_entry']:
+                self._add_credit_or_debit_entry(store, data)
 
         return 200
 
