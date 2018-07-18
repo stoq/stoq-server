@@ -35,6 +35,7 @@ from queue import Queue
 from threading import Event
 import uuid
 import io
+import time
 from hashlib import md5
 
 from kiwi.component import provide_utility, remove_utility
@@ -65,6 +66,7 @@ from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import stoqlib_gettext
+from stoqlib.lib.threadutils import threadit
 from storm.expr import Desc, LeftJoin
 
 
@@ -251,6 +253,60 @@ class _BaseResource(Resource):
                 payment_methods.append(data)
 
         return retval
+
+
+class PrinterException(Exception):
+    pass
+
+
+class DrawerResource(_BaseResource):
+    """Drawer RESTful resource."""
+
+    routes = ['/drawer']
+    method_decorators = [_login_required]
+
+    @classmethod
+    def _open_drawer(cls):
+        if not api.device_manager.printer:
+            raise PrinterException('Printer not configured in this station')
+        api.device_manager.printer.open_drawer()
+
+    @classmethod
+    def _is_open(cls):
+        if not api.device_manager.printer:
+            return False
+        return api.device_manager.printer.is_drawer_open()
+
+    @classmethod
+    def check_drawer_loop(cls):
+        is_open = cls._is_open()
+
+        # Check every second if it is opened.
+        # Alert only if changes.
+        while True:
+            if not is_open and cls._is_open():
+                is_open = True
+                EventStream.put({
+                    'type': 'DRAWER_ALERT_OPEN',
+                })
+            elif is_open and not cls._is_open():
+                is_open = False
+                EventStream.put({
+                    'type': 'DRAWER_ALERT_CLOSE',
+                })
+            time.sleep(1)
+
+    def get(self):
+        """Get the current status of the drawer"""
+        return self._is_open()
+
+    def post(self):
+        """Send a signal to open the drawer"""
+        try:
+            api.printer.open_drawer()
+        except Exception as e:
+            raise PrinterException('Could not proceed with the operation. Reason: ', str(e))
+        return 'success', 200
 
 
 class PingResource(_BaseResource):
@@ -751,6 +807,9 @@ def bootstrap_app():
 
 
 def run_flaskserver(port, debug=False):
+    # Check drawer in a separated thread
+    threadit(DrawerResource.check_drawer_loop)
+
     app = bootstrap_app()
     app.debug = debug
 
