@@ -303,9 +303,9 @@ class DrawerResource(_BaseResource):
     def post(self):
         """Send a signal to open the drawer"""
         try:
-            api.printer.open_drawer()
+            self._open_drawer()
         except Exception as e:
-            raise PrinterException('Could not proceed with the operation. Reason: ', str(e))
+            raise PrinterException('Could not proceed with the operation. Reason: ' + str(e))
         return 'success', 200
 
 
