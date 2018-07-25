@@ -44,7 +44,7 @@ from flask import Flask, request, session, abort, send_file, make_response, Resp
 from flask_restful import Api, Resource
 
 from stoqlib.api import api
-from stoqlib.database.runtime import set_current_branch_station, get_current_station
+from stoqlib.database.runtime import get_current_station
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
@@ -143,6 +143,7 @@ def _login_required(f):
 
             # Refresh last date to avoid it expiring while being used
             session_data['date'] = localnow()
+            # TODO: provide ICurrentUser with this object
             session['user_id'] = session_data['user_id']
 
         return f(*args, **kwargs)
@@ -179,8 +180,7 @@ class _BaseResource(Resource):
         with api.new_store() as store:
             # Current station
             station = get_current_station(store)
-            if station:
-                retval['branch_station'] = station.name
+            retval['branch_station'] = station.name
 
             # Current user
             user = store.get(LoginUser, session['user_id'])
@@ -399,7 +399,6 @@ class TillResource(_BaseResource):
     def post(self):
         data = request.get_json()
         with api.new_store() as store:
-            set_current_branch_station(store, station_name=None)
             # Provide responsible
             if data['operation'] == 'open_till':
                 self._open_till(store, data['initial_cash_amount'])
@@ -413,7 +412,6 @@ class TillResource(_BaseResource):
     def get(self):
         # Retrieve Till data
         with api.new_store() as store:
-            set_current_branch_station(store, station_name=None)
             till = Till.get_last(store)
 
             if not till:
@@ -683,7 +681,6 @@ class SaleResource(_BaseResource):
         payments = data['payments']
 
         with api.new_store() as store:
-            set_current_branch_station(store, station_name=None)
             user = store.get(LoginUser, session['user_id'])
             # StoqTransactionHistory will use the current user to set the
             # responsible for the stock change

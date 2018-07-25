@@ -130,7 +130,7 @@ def setup_excepthook():
     sys.excepthook = _excepthook
 
 
-def setup_stoq():
+def setup_stoq(register_station=False):
     info = AppInfo()
     info.set('name', "stoqserver")
     info.set('version', stoqserver.version_str)
@@ -138,7 +138,7 @@ def setup_stoq():
     provide_utility(IAppInfo, info, replace=True)
 
     # FIXME: Maybe we should check_schema and load plugins here?
-    setup(config=get_config(), options=None, register_station=False,
+    setup(config=get_config(), options=None, register_station=register_station,
           check_schema=False, load_plugins=True)
 
     # This is needed for api calls that requires the current branch set,
@@ -282,7 +282,7 @@ class StoqServerCmdHandler(object):
 
     def cmd_flask(self, options, *args):
         """Run the server daemon"""
-        setup_stoq()
+        setup_stoq(register_station=True)
         setup_logging()
 
         def _exit(*args):
