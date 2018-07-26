@@ -273,9 +273,12 @@ class DrawerResource(_BaseResource):
 
     @classmethod
     def _is_open(cls):
-        if not api.device_manager.printer:
+        try:
+            if not api.device_manager.printer:
+                return False
+            return api.device_manager.printer.is_drawer_open()
+        except Exception:
             return False
-        return api.device_manager.printer.is_drawer_open()
 
     @classmethod
     def check_drawer_loop(cls):
@@ -526,8 +529,6 @@ class TefResource(_BaseResource):
     routes = ['/tef']
     method_decorators = [_login_required]
 
-    pending_transaction = None
-
     waiting_reply = Event()
     reply = Queue()
 
@@ -557,9 +558,9 @@ class TefResource(_BaseResource):
             self._setup_printer(store)
 
         if holder and merchant:
-            self.printer.print_line(holder)
-            self.printer.cut_paper()
             self.printer.print_line(merchant)
+            self.printer.cut_paper()
+            self.printer.print_line(short or holder)
         elif full:
             self.printer.print_line(full)
             self.printer.cut_paper()
@@ -593,10 +594,10 @@ class TefResource(_BaseResource):
         if not ntk:
             return
 
-        if TefResource.pending_transaction:
+        if ntk.pending_transaction:
             # There is a pending transaction, but the user just tried to add another tef payment. We
             # should confirm this one, otherwise a pending transaction error will be raised
-            ntk.confirm_transaction(PwCnf.CNF_AUTO, TefResource.pending_transaction)
+            ntk.confirm_transaction(PwCnf.CNF_AUTO)
 
         data = request.get_json()
         if self.waiting_reply.is_set() and data['operation'] == 'reply':
@@ -615,7 +616,6 @@ class TefResource(_BaseResource):
             # (specially when handling comunication with the user through the callbacks above)
             if data['operation'] == 'sale':
                 retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
-                TefResource.pending_transaction = retval
             elif data['operation'] == 'admin':
                 # Admin operation does not leave pending transaction
                 retval = ntk.admin()
@@ -672,6 +672,12 @@ class SaleResource(_BaseResource):
         if not device:
             device = CardPaymentDevice(store=store, description=name)
         return device
+
+    def _get_provider(self, store, name):
+        provider = store.find(CreditProvider, short_name=name).one()
+        if not provider:
+            provider = CreditProvider(store=store, short_name=name)
+        return provider
 
     def post(self):
         data = request.get_json()
@@ -741,11 +747,11 @@ class SaleResource(_BaseResource):
 
                             card_type = p['mode']
                             device = self._get_card_device(store, 'TEF')
-                            provider = store.find(CreditProvider, short_name=p['provider']).one()
+                            provider = self._get_provider(store, p['provider'])
 
                             if tef_data:
-                                card_data.nsu = int(tef_data['aut_loc_ref'])
-                                card_data.auth = int(tef_data['aut_ext_ref'])
+                                card_data.nsu = tef_data['aut_loc_ref']
+                                card_data.auth = tef_data['aut_ext_ref']
                             card_data.update_card_data(device, provider, card_type, installments)
 
                 # Confirm the sale
@@ -765,9 +771,9 @@ class SaleResource(_BaseResource):
             finally:
                 remove_utility(ICurrentUser)
 
-            if TefResource.pending_transaction:
+            if ntk.pending_transaction:
                 # TODO: Implement endpoint to cancel pending transaction
-                ntk.confirm_transaction(PwCnf.CNF_AUTO, TefResource.pending_transaction)
+                ntk.confirm_transaction(PwCnf.CNF_AUTO)
 
         # This will make sure we update any stock or price changes products may
         # have between sales
