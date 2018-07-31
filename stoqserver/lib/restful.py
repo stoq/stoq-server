@@ -151,6 +151,19 @@ def _login_required(f):
     return wrapper
 
 
+def _store_provider(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        with api.new_store() as store:
+            try:
+                return f(store, *args, **kwargs)
+            except Exception as e:
+                store.retval = False
+                abort(500, str(e))
+
+    return wrapper
+
+
 class _BaseResource(Resource):
 
     routes = []
@@ -297,7 +310,7 @@ class DrawerResource(_BaseResource):
                 EventStream.put({
                     'type': 'DRAWER_ALERT_CLOSE',
                 })
-            time.sleep(1)
+            time.sleep(5)
 
     def get(self):
         """Get the current status of the drawer"""
@@ -525,109 +538,114 @@ class EventStream(_BaseResource):
         return Response(self._loop(stream), mimetype="text/event-stream")
 
 
-class TefResource(_BaseResource):
-    routes = ['/tef']
-    method_decorators = [_login_required]
+if has_ntk:
+    class TefResource(_BaseResource):
+        routes = ['/tef']
+        method_decorators = [_login_required]
 
-    waiting_reply = Event()
-    reply = Queue()
+        waiting_reply = Event()
+        reply = Queue()
 
-    NTK_MODES = {
-        'credit': Ntk.TYPE_CREDIT,
-        'debit': Ntk.TYPE_DEBIT,
-        'voucher': Ntk.TYPE_VOUCHER,
-    }
-
-    def _setup_printer(self, store):
-        if getattr(self, 'printer', None):
-            return self.printer
-
-        self.printer = None
-        station = api.get_current_station(store)
-        device = DeviceSettings.get_by_station_and_type(
-            store, station, DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
-
-        if not device:
-            return
-
-        self.printer = device.get_interface()
-
-    def _print_callback(self, full, holder, merchant, short):
-        #print('print', len(full or ''), len(holder or ''), len(merchant or ''), len(short or ''))
-        with api.new_store() as store:
-            self._setup_printer(store)
-
-        if holder and merchant:
-            self.printer.print_line(merchant)
-            self.printer.cut_paper()
-            self.printer.print_line(short or holder)
-        elif full:
-            self.printer.print_line(full)
-            self.printer.cut_paper()
-
-    def _message_callback(self, message):
-        EventStream.put({
-            'type': 'TEF_DISPLAY_MESSAGE',
-            'message': message
-        })
-
-    def _question_callback(self, questions):
-        self.waiting_reply.set()
-
-        # Right now we support asking only one question at a time. This could be imporved
-        info = questions[0]
-        EventStream.put({
-            'type': 'TEF_ASK_QUESTION',
-            'data': info.get_dict()
-        })
-
-        reply = self.reply.get()
-        self.waiting_reply.clear()
-
-        kwargs = {
-            info.identificador.name: reply
+        NTK_MODES = {
+            'credit': Ntk.TYPE_CREDIT,
+            'debit': Ntk.TYPE_DEBIT,
+            'voucher': Ntk.TYPE_VOUCHER,
         }
-        ntk.add_params(**kwargs)
-        return True
 
-    def post(self):
-        if not ntk:
-            return
+        def _setup_printer(self, store):
+            if getattr(self, 'printer', None):
+                return self.printer
 
-        if ntk.pending_transaction:
-            # There is a pending transaction, but the user just tried to add another tef payment. We
-            # should confirm this one, otherwise a pending transaction error will be raised
-            ntk.confirm_transaction(PwCnf.CNF_AUTO)
+            self.printer = None
+            station = api.get_current_station(store)
+            device = DeviceSettings.get_by_station_and_type(
+                store, station, DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
 
-        data = request.get_json()
-        if self.waiting_reply.is_set() and data['operation'] == 'reply':
-            # There is already an operation happening, but its waiting for a user reply.
-            # This is the reply
-            self.reply.put(data['value'])
-            return
+            if not device:
+                return
 
-        ntk.set_message_callback(self._message_callback)
-        ntk.set_question_callback(self._question_callback)
-        ntk.set_print_callback(self._print_callback)
+            self.printer = device.get_interface()
 
-        try:
-            # This operation will be blocked here until its complete, but since we are running each
-            # request using threads, the server will still be available to handle other requests
-            # (specially when handling comunication with the user through the callbacks above)
-            if data['operation'] == 'sale':
-                retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
-            elif data['operation'] == 'admin':
-                # Admin operation does not leave pending transaction
-                retval = ntk.admin()
-        except NtkException:
-            retval = False
+        def _print_callback(self, full, holder, merchant, short):
+            with api.new_store() as store:
+                self._setup_printer(store)
 
-        message = ntk.get_info(PwInfo.RESULTMSG)
-        EventStream.put({
-            'type': 'TEF_OPERATION_FINISHED',
-            'success': retval,
-            'message': message,
-        })
+            if holder and merchant:
+                self.printer.print_line(merchant)
+                self.printer.cut_paper()
+                self.printer.print_line(short or holder)
+            elif full:
+                self.printer.print_line(full)
+                self.printer.cut_paper()
+
+        def _message_callback(self, message):
+            EventStream.put({
+                'type': 'TEF_DISPLAY_MESSAGE',
+                'message': message
+            })
+
+        def _question_callback(self, questions):
+            self.waiting_reply.set()
+
+            # Right now we support asking only one question at a time. This could be imporved
+            info = questions[0]
+            EventStream.put({
+                'type': 'TEF_ASK_QUESTION',
+                'data': info.get_dict()
+            })
+
+            reply = self.reply.get()
+            self.waiting_reply.clear()
+
+            kwargs = {
+                info.identificador.name: reply
+            }
+            ntk.add_params(**kwargs)
+            return True
+
+        def post(self):
+            if not ntk:
+                return
+
+            if ntk.pending_transaction:
+                # There is a pending transaction, but the user just tried to add another tef
+                # payment. We should confirm this one, otherwise a pending transaction error will be
+                # raised
+                ntk.confirm_transaction(PwCnf.CNF_AUTO)
+
+            data = request.get_json()
+            if self.waiting_reply.is_set() and data['operation'] == 'reply':
+                # There is already an operation happening, but its waiting for a user reply.
+                # This is the reply
+                self.reply.put(data['value'])
+                return
+
+            ntk.set_message_callback(self._message_callback)
+            ntk.set_question_callback(self._question_callback)
+            ntk.set_print_callback(self._print_callback)
+
+            try:
+                # This operation will be blocked here until its complete, but since we are running
+                # each request using threads, the server will still be available to handle other
+                # requests (specially when handling comunication with the user through the callbacks
+                # above)
+                if data['operation'] == 'sale':
+                    retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
+                elif data['operation'] == 'admin':
+                    # Admin operation does not leave pending transaction
+                    retval = ntk.admin()
+                elif data['operation'] == 'sale_void':
+                    # Admin operation does not leave pending transaction
+                    retval = ntk.sale_void()
+            except NtkException:
+                retval = False
+
+            message = ntk.get_info(PwInfo.RESULTMSG)
+            EventStream.put({
+                'type': 'TEF_OPERATION_FINISHED',
+                'success': retval,
+                'message': message,
+            })
 
 
 class ImageResource(_BaseResource):
@@ -665,7 +683,7 @@ class SaleResource(_BaseResource):
     """Sellable category RESTful resource."""
 
     routes = ['/sale']
-    method_decorators = [_login_required]
+    method_decorators = [_login_required, _store_provider]
 
     def _get_card_device(self, store, name):
         device = store.find(CardPaymentDevice, description=name).any()
@@ -679,101 +697,97 @@ class SaleResource(_BaseResource):
             provider = CreditProvider(store=store, short_name=name)
         return provider
 
-    def post(self):
+    def post(self, store):
         data = request.get_json()
 
         document = data.get('client_document', '')
         products = data['products']
         payments = data['payments']
 
-        with api.new_store() as store:
-            user = store.get(LoginUser, session['user_id'])
-            # StoqTransactionHistory will use the current user to set the
-            # responsible for the stock change
-            provide_utility(ICurrentUser, user, replace=True)
+        user = store.get(LoginUser, session['user_id'])
+        # StoqTransactionHistory will use the current user to set the
+        # responsible for the stock change
+        provide_utility(ICurrentUser, user, replace=True)
 
-            if document:
-                document = format_cpf(raw_document(document))
-                person = Person.get_by_document(store, document)
-                client = person and person.client
-            else:
-                # XXX: How to inform the document in this case
-                client = None
+        if document:
+            document = format_cpf(raw_document(document))
+            person = Person.get_by_document(store, document)
+            client = person and person.client
+        else:
+            # XXX: How to inform the document in this case
+            client = None
 
-            # Create the sale
-            branch = api.get_current_branch(store)
-            group = PaymentGroup(store=store)
-            sale = Sale(
-                store=store,
-                branch=branch,
-                salesperson=user.person.sales_person,
-                client=client,
-                group=group,
-                open_date=localnow(),
-                coupon_id=None,
-            )
+        # Create the sale
+        branch = api.get_current_branch(store)
+        group = PaymentGroup(store=store)
+        sale = Sale(
+            store=store,
+            branch=branch,
+            salesperson=user.person.sales_person,
+            client=client,
+            group=group,
+            open_date=localnow(),
+            coupon_id=None,
+        )
 
-            try:
-                # Add products
-                for p in products:
-                    sellable = store.get(Sellable, p['id'])
-                    sale.add_sellable(sellable,
-                                      price=currency(p['price']),
-                                      quantity=decimal.Decimal(p['quantity']))
+        try:
+            # Add products
+            for p in products:
+                sellable = store.get(Sellable, p['id'])
+                sale.add_sellable(sellable,
+                                  price=currency(p['price']),
+                                  quantity=decimal.Decimal(p['quantity']))
 
-                # Add payments
-                for p in payments:
-                    method_name = p['method']
-                    tef_data = p.get('tef_data', {})
-                    if method_name == 'tef':
-                        p['provider'] = tef_data['card_name']
-                        method_name = 'card'
+            # Add payments
+            for p in payments:
+                method_name = p['method']
+                tef_data = p.get('tef_data', {})
+                if method_name == 'tef':
+                    p['provider'] = tef_data['card_name']
+                    method_name = 'card'
 
-                    method = PaymentMethod.get_by_name(store, method_name)
-                    installments = p.get('installments', 1) or 1
+                method = PaymentMethod.get_by_name(store, method_name)
+                installments = p.get('installments', 1) or 1
 
-                    due_dates = list(create_date_interval(
-                        INTERVALTYPE_MONTH,
-                        interval=1,
-                        start_date=localnow(),
-                        count=installments))
-                    p_list = method.create_payments(
-                        Payment.TYPE_IN, group, branch,
-                        currency(p['value']), due_dates)
+                due_dates = list(create_date_interval(
+                    INTERVALTYPE_MONTH,
+                    interval=1,
+                    start_date=localnow(),
+                    count=installments))
+                p_list = method.create_payments(
+                    Payment.TYPE_IN, group, branch,
+                    currency(p['value']), due_dates)
 
-                    if method.method_name == 'card':
-                        for payment in p_list:
-                            card_data = method.operation.get_card_data_by_payment(payment)
+                if method.method_name == 'card':
+                    for payment in p_list:
+                        card_data = method.operation.get_card_data_by_payment(payment)
 
-                            card_type = p['mode']
-                            device = self._get_card_device(store, 'TEF')
-                            provider = self._get_provider(store, p['provider'])
+                        card_type = p['mode']
+                        device = self._get_card_device(store, 'TEF')
+                        provider = self._get_provider(store, p['provider'])
 
-                            if tef_data:
-                                card_data.nsu = tef_data['aut_loc_ref']
-                                card_data.auth = tef_data['aut_ext_ref']
-                            card_data.update_card_data(device, provider, card_type, installments)
+                        if tef_data:
+                            card_data.nsu = tef_data['aut_loc_ref']
+                            card_data.auth = tef_data['aut_ext_ref']
+                        card_data.update_card_data(device, provider, card_type, installments)
 
-                # Confirm the sale
-                group.confirm()
-                sale.order()
+            # Confirm the sale
+            group.confirm()
+            sale.order()
 
-                till = Till.get_last(store)
-                sale.confirm(till)
+            till = Till.get_last(store)
+            sale.confirm(till)
 
-                # Fiscal plugins will connect to this event and "do their job"
-                # It's their responsibility to raise an exception in case of
-                # any error, which will then trigger the abort bellow
-                SaleConfirmedRemoteEvent.emit(sale, document)
-            except Exception as e:
-                store.retval = False
-                abort(500, str(e))
-            finally:
-                remove_utility(ICurrentUser)
+            # Fiscal plugins will connect to this event and "do their job"
+            # It's their responsibility to raise an exception in case of
+            # any error, which will then trigger the abort bellow
+            SaleConfirmedRemoteEvent.emit(sale, document)
+        finally:
+            remove_utility(ICurrentUser)
 
-            if ntk.pending_transaction:
-                # TODO: Implement endpoint to cancel pending transaction
-                ntk.confirm_transaction(PwCnf.CNF_AUTO)
+        if ntk.pending_transaction:
+            # TODO: Implement endpoint to cancel pending transaction
+            ntk.confirm_transaction(PwCnf.CNF_AUTO)
 
         # This will make sure we update any stock or price changes products may
         # have between sales
