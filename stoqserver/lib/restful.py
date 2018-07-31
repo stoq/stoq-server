@@ -310,7 +310,7 @@ class DrawerResource(_BaseResource):
                 EventStream.put({
                     'type': 'DRAWER_ALERT_CLOSE',
                 })
-            time.sleep(5)
+            time.sleep(1)
 
     def get(self):
         """Get the current status of the drawer"""
