@@ -1,4 +1,10 @@
-stoq-server (0.16.1) UNRELEASED; urgency=medium
+stoq-server (0.17) xenial; urgency=medium
+
+  * New release
+
+ -- Ronaldo Maia <romaia@async.com.br>  Wed, 01 Aug 2018 16:22:18 -0300
+
+stoq-server (0.16.1) xenial; urgency=medium
 
   * Bugfix release
 
