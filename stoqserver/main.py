@@ -130,9 +130,9 @@ def setup_excepthook():
     sys.excepthook = _excepthook
 
 
-def setup_stoq(register_station=False):
+def setup_stoq(register_station=False, name='stoqserver'):
     info = AppInfo()
-    info.set('name', "stoqserver")
+    info.set('name', name)
     info.set('version', stoqserver.version_str)
     info.set('ver', stoqserver.version_str)
     provide_utility(IAppInfo, info, replace=True)
@@ -282,7 +282,7 @@ class StoqServerCmdHandler(object):
 
     def cmd_flask(self, options, *args):
         """Run the server daemon"""
-        setup_stoq(register_station=True)
+        setup_stoq(register_station=True, name='stoqflask')
         setup_logging()
 
         def _exit(*args):
