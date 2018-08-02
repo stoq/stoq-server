@@ -73,7 +73,7 @@ from storm.expr import Desc, LeftJoin
 _ = stoqlib_gettext
 
 try:
-    from stoqntk.ntkapi import Ntk, NtkException, PwInfo, PwCnf
+    from stoqntk.ntkapi import Ntk, NtkException, PwInfo
     # The ntk lib instance.
     has_ntk = True
 except ImportError:
@@ -570,7 +570,14 @@ if has_ntk:
             with api.new_store() as store:
                 self._setup_printer(store)
 
-            if holder and merchant:
+            if not self.printer:
+                print(full)
+                print(holder)
+                print(merchant)
+                print(short)
+                return
+
+            if (holder or short) and merchant:
                 self.printer.print_line(merchant)
                 self.printer.cut_paper()
                 self.printer.print_line(short or holder)
@@ -596,6 +603,9 @@ if has_ntk:
 
             reply = self.reply.get()
             self.waiting_reply.clear()
+            if not reply:
+                print('cancelled')
+                return False
 
             kwargs = {
                 info.identificador.name: reply
@@ -607,17 +617,11 @@ if has_ntk:
             if not ntk:
                 return
 
-            if ntk.pending_transaction:
-                # There is a pending transaction, but the user just tried to add another tef
-                # payment. We should confirm this one, otherwise a pending transaction error will be
-                # raised
-                ntk.confirm_transaction(PwCnf.CNF_AUTO)
-
             data = request.get_json()
             if self.waiting_reply.is_set() and data['operation'] == 'reply':
                 # There is already an operation happening, but its waiting for a user reply.
                 # This is the reply
-                self.reply.put(data['value'])
+                self.reply.put(json.loads(data['value']))
                 return
 
             ntk.set_message_callback(self._message_callback)
@@ -770,6 +774,7 @@ class SaleResource(_BaseResource):
                             card_data.nsu = tef_data['aut_loc_ref']
                             card_data.auth = tef_data['aut_ext_ref']
                         card_data.update_card_data(device, provider, card_type, installments)
+                        card_data.te.metadata = tef_data
 
             # Confirm the sale
             group.confirm()
@@ -784,10 +789,6 @@ class SaleResource(_BaseResource):
             SaleConfirmedRemoteEvent.emit(sale, document)
         finally:
             remove_utility(ICurrentUser)
-
-        if ntk.pending_transaction:
-            # TODO: Implement endpoint to cancel pending transaction
-            ntk.confirm_transaction(PwCnf.CNF_AUTO)
 
         # This will make sure we update any stock or price changes products may
         # have between sales
