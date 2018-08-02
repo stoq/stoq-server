@@ -696,9 +696,9 @@ class SaleResource(_BaseResource):
         return device
 
     def _get_provider(self, store, name):
-        provider = store.find(CreditProvider, short_name=name).one()
+        provider = store.find(CreditProvider, short_name=name.strip()).one()
         if not provider:
-            provider = CreditProvider(store=store, short_name=name)
+            provider = CreditProvider(store=store, short_name=name.strip())
         return provider
 
     def post(self, store):
