@@ -738,9 +738,12 @@ class SaleResource(_BaseResource):
             # Add products
             for p in products:
                 sellable = store.get(Sellable, p['id'])
-                sale.add_sellable(sellable,
-                                  price=currency(p['price']),
-                                  quantity=decimal.Decimal(p['quantity']))
+                item = sale.add_sellable(sellable, price=currency(p['price']),
+                                         quantity=decimal.Decimal(p['quantity']))
+                # XXX: bdil has requested that when there is a special discount, the discount does
+                # not appear on the coupon. Instead, the item wil be sold using the discount price
+                # as the base price. Maybe this should be a parameter somewhere
+                item.base_price = item.price
 
             # Add payments
             for p in payments:
