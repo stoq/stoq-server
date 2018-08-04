@@ -31,14 +31,16 @@ import json
 import logging
 import os
 import pickle
+import psycopg2
 from queue import Queue
 from threading import Event
 import uuid
 import io
+import select
 import time
 from hashlib import md5
 
-from kiwi.component import provide_utility, remove_utility
+from kiwi.component import provide_utility
 from kiwi.currency import currency
 from flask import Flask, request, session, abort, send_file, make_response, Response
 from flask_restful import Api, Resource
@@ -86,6 +88,8 @@ _session = None
 log = logging.getLogger(__name__)
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
+
+WORKERS = []
 
 
 def _get_user_hash():
@@ -164,6 +168,16 @@ def _store_provider(f):
     return wrapper
 
 
+def worker(f):
+    """A marker for a function that should be threaded when the server executes.
+
+    Usefull for regular checks that should be made on the server that will require warning the
+    client
+    """
+    WORKERS.append(f)
+    return f
+
+
 class _BaseResource(Resource):
 
     routes = []
@@ -177,7 +191,45 @@ class _BaseResource(Resource):
 
         return request.form.get(attr, request.args.get(attr, default))
 
-    def get_data(self):
+
+class DataResource(_BaseResource):
+    """All the data the POS needs RESTful resource."""
+
+    routes = ['/data']
+    method_decorators = [_login_required]
+
+    # All the tables get_data uses (directly or indirectly)
+    watch_tables = ['sellable', 'product', 'storable', 'product_stock_item', 'branch_station',
+                    'branch', 'login_user', 'sellable_category', 'client_category_price',
+                    'payment_method']
+
+    @worker
+    def _postgres_listen():
+        store = api.new_store()
+        conn = store._connection._raw_connection
+        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        cursor = store._connection.build_raw_cursor()
+        cursor.execute("LISTEN update_te;")
+
+        message = False
+        while True:
+            if select.select([conn], [], [], 5) != ([], [], []):
+                conn.poll()
+                while conn.notifies:
+                    notify = conn.notifies.pop(0)
+                    te_id, table = notify.payload.split(',')
+                    # Update the data the client has when one of those changes
+                    message = message or table in DataResource.watch_tables
+
+            if message:
+                EventStream.put({
+                    'type': 'SERVER_UPDATE_DATA',
+                    'data': DataResource.get_data()
+                })
+                message = False
+
+    @classmethod
+    def get_data(cls):
         """Returns all data the POS needs to run
 
         This includes:
@@ -196,8 +248,9 @@ class _BaseResource(Resource):
             retval['branch_station'] = station.name
 
             # Current user
-            user = store.get(LoginUser, session['user_id'])
-            retval['user'] = user.username
+            user = api.get_current_user(store)
+            if user:
+                retval['user'] = user.username
 
             # Current branch data
             retval['branch'] = api.get_current_branch(store).id
@@ -267,6 +320,9 @@ class _BaseResource(Resource):
 
         return retval
 
+    def get(self):
+        return self.get_data()
+
 
 class PrinterException(Exception):
     pass
@@ -294,18 +350,19 @@ class DrawerResource(_BaseResource):
             return False
 
     @classmethod
-    def check_drawer_loop(cls):
-        is_open = cls._is_open()
+    @worker
+    def check_drawer_loop():
+        is_open = DrawerResource._is_open()
 
         # Check every second if it is opened.
         # Alert only if changes.
         while True:
-            if not is_open and cls._is_open():
+            if not is_open and DrawerResource._is_open():
                 is_open = True
                 EventStream.put({
                     'type': 'DRAWER_ALERT_OPEN',
                 })
-            elif is_open and not cls._is_open():
+            elif is_open and not DrawerResource._is_open():
                 is_open = False
                 EventStream.put({
                     'type': 'DRAWER_ALERT_CLOSE',
@@ -492,6 +549,9 @@ class LoginResource(_BaseResource):
         with api.new_store() as store:
             try:
                 user = LoginUser.authenticate(store, username, pw_hash, None)
+                # StoqTransactionHistory will use the current user to set the
+                # responsible for the stock change
+                provide_utility(ICurrentUser, user, replace=True)
             except LoginError as e:
                 abort(403, str(e))
 
@@ -673,16 +733,6 @@ class ImageResource(_BaseResource):
                 return response
 
 
-class DataResource(_BaseResource):
-    """All the data the POS needs RESTful resource."""
-
-    routes = ['/data']
-    method_decorators = [_login_required]
-
-    def get(self):
-        return self.get_data()
-
-
 class SaleResource(_BaseResource):
     """Sellable category RESTful resource."""
 
@@ -709,9 +759,6 @@ class SaleResource(_BaseResource):
         payments = data['payments']
 
         user = store.get(LoginUser, session['user_id'])
-        # StoqTransactionHistory will use the current user to set the
-        # responsible for the stock change
-        provide_utility(ICurrentUser, user, replace=True)
 
         if document:
             document = format_cpf(raw_document(document))
@@ -734,68 +781,65 @@ class SaleResource(_BaseResource):
             coupon_id=None,
         )
 
-        try:
-            # Add products
-            for p in products:
-                sellable = store.get(Sellable, p['id'])
-                item = sale.add_sellable(sellable, price=currency(p['price']),
-                                         quantity=decimal.Decimal(p['quantity']))
-                # XXX: bdil has requested that when there is a special discount, the discount does
-                # not appear on the coupon. Instead, the item wil be sold using the discount price
-                # as the base price. Maybe this should be a parameter somewhere
-                item.base_price = item.price
+        # Add products
+        for p in products:
+            sellable = store.get(Sellable, p['id'])
+            item = sale.add_sellable(sellable, price=currency(p['price']),
+                                     quantity=decimal.Decimal(p['quantity']))
+            # XXX: bdil has requested that when there is a special discount, the discount does
+            # not appear on the coupon. Instead, the item wil be sold using the discount price
+            # as the base price. Maybe this should be a parameter somewhere
+            item.base_price = item.price
 
-            # Add payments
-            for p in payments:
-                method_name = p['method']
-                tef_data = p.get('tef_data', {})
-                if method_name == 'tef':
-                    p['provider'] = tef_data['card_name']
-                    method_name = 'card'
+        # Add payments
+        for p in payments:
+            method_name = p['method']
+            tef_data = p.get('tef_data', {})
+            if method_name == 'tef':
+                p['provider'] = tef_data['card_name']
+                method_name = 'card'
 
-                method = PaymentMethod.get_by_name(store, method_name)
-                installments = p.get('installments', 1) or 1
+            method = PaymentMethod.get_by_name(store, method_name)
+            installments = p.get('installments', 1) or 1
 
-                due_dates = list(create_date_interval(
-                    INTERVALTYPE_MONTH,
-                    interval=1,
-                    start_date=localnow(),
-                    count=installments))
-                p_list = method.create_payments(
-                    Payment.TYPE_IN, group, branch,
-                    currency(p['value']), due_dates)
+            due_dates = list(create_date_interval(
+                INTERVALTYPE_MONTH,
+                interval=1,
+                start_date=localnow(),
+                count=installments))
+            p_list = method.create_payments(
+                Payment.TYPE_IN, group, branch,
+                currency(p['value']), due_dates)
 
-                if method.method_name == 'card':
-                    for payment in p_list:
-                        card_data = method.operation.get_card_data_by_payment(payment)
+            if method.method_name == 'card':
+                for payment in p_list:
+                    card_data = method.operation.get_card_data_by_payment(payment)
 
-                        card_type = p['mode']
-                        device = self._get_card_device(store, 'TEF')
-                        provider = self._get_provider(store, p['provider'])
+                    card_type = p['mode']
+                    device = self._get_card_device(store, 'TEF')
+                    provider = self._get_provider(store, p['provider'])
 
-                        if tef_data:
-                            card_data.nsu = tef_data['aut_loc_ref']
-                            card_data.auth = tef_data['aut_ext_ref']
-                        card_data.update_card_data(device, provider, card_type, installments)
-                        card_data.te.metadata = tef_data
+                    if tef_data:
+                        card_data.nsu = tef_data['aut_loc_ref']
+                        card_data.auth = tef_data['aut_ext_ref']
+                    card_data.update_card_data(device, provider, card_type, installments)
+                    card_data.te.metadata = tef_data
 
-            # Confirm the sale
-            group.confirm()
-            sale.order()
+        # Confirm the sale
+        group.confirm()
+        sale.order()
 
-            till = Till.get_last(store)
-            sale.confirm(till)
+        till = Till.get_last(store)
+        sale.confirm(till)
 
-            # Fiscal plugins will connect to this event and "do their job"
-            # It's their responsibility to raise an exception in case of
-            # any error, which will then trigger the abort bellow
-            SaleConfirmedRemoteEvent.emit(sale, document)
-        finally:
-            remove_utility(ICurrentUser)
+        # Fiscal plugins will connect to this event and "do their job"
+        # It's their responsibility to raise an exception in case of
+        # any error, which will then trigger the abort bellow
+        SaleConfirmedRemoteEvent.emit(sale, document)
 
         # This will make sure we update any stock or price changes products may
         # have between sales
-        return self.get_data()
+        return True
 
 
 def bootstrap_app():
@@ -829,7 +873,8 @@ def bootstrap_app():
 
 def run_flaskserver(port, debug=False):
     # Check drawer in a separated thread
-    threadit(DrawerResource.check_drawer_loop)
+    for function in WORKERS:
+        threadit(function)
 
     app = bootstrap_app()
     app.debug = debug

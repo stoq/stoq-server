@@ -247,7 +247,6 @@ class TestSaleResource(_TestFlask):
     def test_post(self):
         with self.sysparam(DEMO_MODE=True):
             with self.fake_store() as es:
-                b = api.get_current_branch(self.store)
                 e = es.enter_context(
                     mock.patch('stoqserver.lib.restful.SaleConfirmedRemoteEvent.emit'))
                 d = datetime.datetime(2018, 3, 6)
@@ -301,7 +300,7 @@ class TestSaleResource(_TestFlask):
                 )
 
                 self.assertEqual(rv.status_code, 200)
-                self.assertEqual(json.loads(rv.data.decode())['branch'], b.id)
+                self.assertEqual(json.loads(rv.data.decode()), True)
 
                 # This should be the sale made by the call above
                 sale = self.store.find(Sale).order_by(Desc(Sale.open_date)).first()
