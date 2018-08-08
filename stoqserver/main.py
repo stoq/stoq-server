@@ -28,6 +28,7 @@ import multiprocessing
 import optparse
 import os
 import platform
+import raven
 import signal
 import socket
 import sys
@@ -62,11 +63,7 @@ _SENTRY_URL = ('http://d971a2c535ab444ab18fa14b4b6495ea:'
 _LOGGING_FORMAT = '%(asctime)-15s %(name)-35s %(levelname)-8s %(message)s'
 _LOGGING_DATE_FORMAT = '%y-%m-%d %H:%M:%S'
 
-try:
-    import raven
-    _raven_client = raven.Client(_SENTRY_URL, release=stoqserver.version_str)
-except ImportError:
-    _raven_client = None
+_raven_client = raven.Client(_SENTRY_URL, release=stoqserver.version_str)
 
 
 class _Tee(object):
