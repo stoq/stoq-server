@@ -437,8 +437,9 @@ class TillResource(_BaseResource):
                 summary.user_value = decimal.Decimal(till_summary['user_value'])
 
             till.close_till()
-        except Exception:
+        except Exception as e:
             # Log something ?
+            log.info('Error closing till', str(e))
             store.rollback(close=False)
 
     def _add_credit_or_debit_entry(self, store, data):
@@ -548,7 +549,8 @@ class LoginResource(_BaseResource):
 
         with api.new_store() as store:
             try:
-                user = LoginUser.authenticate(store, username, pw_hash, None)
+                # FIXME: Respect the branch the user is in.
+                user = LoginUser.authenticate(store, username, pw_hash, current_branch=None)
                 # StoqTransactionHistory will use the current user to set the
                 # responsible for the stock change
                 provide_utility(ICurrentUser, user, replace=True)
@@ -563,6 +565,31 @@ class LoginResource(_BaseResource):
             }
 
         return session_id
+
+
+class AuthResource(_BaseResource):
+    """Authenticate a user agasint the database.
+
+    This will not replace the ICurrentUser. It will just validate if a login/password is valid.
+    """
+
+    routes = ['/auth']
+    method_decorators = [_login_required, _store_provider]
+
+    def post(self, store):
+        username = self.get_arg('user')
+        pw_hash = self.get_arg('pw_hash')
+        permission = self.get_arg('permission')
+
+        try:
+            # FIXME: Respect the branch the user is in.
+            user = LoginUser.authenticate(store, username, pw_hash, current_branch=None)
+        except LoginError as e:
+            return make_response(str(e), 403)
+
+        if user.profile.check_app_permission(permission):
+            return True
+        return make_response(_('User does not have permission'), 403)
 
 
 class EventStream(_BaseResource):
