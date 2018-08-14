@@ -76,6 +76,7 @@ _ = stoqlib_gettext
 
 try:
     from stoqntk.ntkapi import Ntk, NtkException, PwInfo
+    from stoqntk.ntkenums import PwDat
     # The ntk lib instance.
     has_ntk = True
 except ImportError:
@@ -147,8 +148,10 @@ def _login_required(f):
 
             # Refresh last date to avoid it expiring while being used
             session_data['date'] = localnow()
-            # TODO: provide ICurrentUser with this object
             session['user_id'] = session_data['user_id']
+            with api.new_store() as store:
+                user = store.get(LoginUser, session['user_id'])
+                provide_utility(ICurrentUser, user, replace=True)
 
         return f(*args, **kwargs)
 
@@ -196,12 +199,12 @@ class DataResource(_BaseResource):
     """All the data the POS needs RESTful resource."""
 
     routes = ['/data']
-    method_decorators = [_login_required]
+    method_decorators = [_login_required, _store_provider]
 
     # All the tables get_data uses (directly or indirectly)
     watch_tables = ['sellable', 'product', 'storable', 'product_stock_item', 'branch_station',
                     'branch', 'login_user', 'sellable_category', 'client_category_price',
-                    'payment_method']
+                    'payment_method', 'credit_provider']
 
     @worker
     def _postgres_listen():
@@ -224,104 +227,117 @@ class DataResource(_BaseResource):
             if message:
                 EventStream.put({
                     'type': 'SERVER_UPDATE_DATA',
-                    'data': DataResource.get_data()
+                    'data': DataResource.get_data(store)
                 })
                 message = False
 
     @classmethod
-    def get_data(cls):
+    def _get_categories(cls, store):
+        categories_root = []
+        aux = {}
+        # SellableCategory and Sellable/Product data
+        for c in store.find(SellableCategory):
+            if c.category_id is None:
+                parent_list = categories_root
+            else:
+                parent_list = aux.setdefault(
+                    c.category_id, {}).setdefault('children', [])
+
+            c_dict = aux.setdefault(c.id, {})
+            parent_list.append(c_dict)
+
+            # Set/Update the data
+            c_dict.update({
+                'id': c.id,
+                'description': c.description,
+            })
+            c_dict.setdefault('children', [])
+            products_list = c_dict.setdefault('products', [])
+
+            tables = [Sellable, LeftJoin(Product, Product.id == Sellable.id)]
+            sellables = store.using(*tables).find(
+                Sellable, category=c).order_by('height', 'description')
+            for s in sellables:
+                ccp = store.find(ClientCategoryPrice, sellable_id=s.id)
+                ccp_dict = {}
+                for item in ccp:
+                    ccp_dict[item.category_id] = str(item.price)
+
+                products_list.append({
+                    'id': s.id,
+                    'description': s.description,
+                    'price': str(s.price),
+                    'order': str(s.product.height),
+                    'category_prices': ccp_dict,
+                    'color': s.product.part_number,
+                    'availability': (
+                        s.product and s.product.storable and
+                        {
+                            si.branch.id: str(si.quantity)
+                            for si in s.product.storable.get_stock_items()
+                        }
+                    )
+                })
+
+            aux[c.id] = c_dict
+        return categories_root
+
+    @classmethod
+    def _get_payment_methods(self, store):
+        # PaymentMethod data
+        payment_methods = []
+        for pm in PaymentMethod.get_active_methods(store):
+            if not pm.selectable():
+                continue
+
+            data = {'name': pm.method_name,
+                    'max_installments': pm.max_installments}
+            if pm.method_name == 'card':
+                # FIXME: Add voucher
+                data['card_types'] = [CreditCardData.TYPE_CREDIT,
+                                      CreditCardData.TYPE_DEBIT]
+
+            payment_methods.append(data)
+
+        return payment_methods
+
+    @classmethod
+    def _get_card_providers(self, store):
+        providers = []
+        for i in CreditProvider.get_card_providers(store):
+            providers.append({'short_name': i.short_name, 'provider_id': i.provider_id})
+
+        return providers
+
+    @classmethod
+    def get_data(cls, store):
         """Returns all data the POS needs to run
 
         This includes:
 
-        - Which branch he is operating for
-        - What categories does it have
+        - Which branch and statoin he is operating for
+        - Current loged in user
+        - What categories it has
             - What sellables those categories have
                 - The stock amount for each sellable (if it controls stock)
-
-        # FIXME: This does not need to be a method. Could be a function
         """
-        retval = {}
-        with api.new_store() as store:
-            # Current station
-            station = get_current_station(store)
-            retval['branch_station'] = station.name
+        station = get_current_station(store)
+        user = api.get_current_user(store)
 
-            # Current user
-            user = api.get_current_user(store)
-            if user:
-                retval['user'] = user.username
-
-            # Current branch data
-            retval['branch'] = api.get_current_branch(store).id
-
-            categories_root = retval.setdefault('categories', [])
-            aux = {}
-
-            # SellableCategory and Sellable/Product data
-            for c in store.find(SellableCategory):
-                if c.category_id is None:
-                    parent_list = categories_root
-                else:
-                    parent_list = aux.setdefault(
-                        c.category_id, {}).setdefault('children', [])
-
-                c_dict = aux.setdefault(c.id, {})
-                parent_list.append(c_dict)
-
-                # Set/Update the data
-                c_dict.update({
-                    'id': c.id,
-                    'description': c.description,
-                })
-                c_dict.setdefault('children', [])
-                products_list = c_dict.setdefault('products', [])
-
-                tables = [Sellable, LeftJoin(Product, Product.id == Sellable.id)]
-                sellables = store.using(*tables).find(
-                    Sellable, category=c).order_by('height', 'description')
-                for s in sellables:
-                    ccp = store.find(ClientCategoryPrice, sellable_id=s.id)
-                    ccp_dict = {}
-                    for item in ccp:
-                        ccp_dict[item.category_id] = str(item.price)
-
-                    products_list.append({
-                        'id': s.id,
-                        'description': s.description,
-                        'price': str(s.price),
-                        'order': str(s.product.height),
-                        'category_prices': ccp_dict,
-                        'color': s.product.part_number,
-                        'availability': (
-                            s.product and s.product.storable and
-                            {
-                                si.branch.id: str(si.quantity)
-                                for si in s.product.storable.get_stock_items()
-                            }
-                        )
-                    })
-
-                aux[c.id] = c_dict
-
-            # PaymentMethod data
-            payment_methods = retval.setdefault('payment_methods', [])
-            for pm in PaymentMethod.get_active_methods(store):
-                if not pm.selectable():
-                    continue
-
-                data = {'name': pm.method_name,
-                        'max_installments': pm.max_installments}
-                if pm.method_name == 'card':
-                    data['card_types'] = [CreditCardData.TYPE_CREDIT,
-                                          CreditCardData.TYPE_DEBIT]
-
-                payment_methods.append(data)
+        # Current branch data
+        retval = dict(
+            branch=api.get_current_branch(store).id,
+            branch_station=station.name,
+            user=user and user.username,
+            categories=cls._get_categories(store),
+            payment_methods=cls._get_payment_methods(store),
+            providers=cls._get_card_providers(store),
+        )
 
         return retval
 
-    def get(self):
-        return self.get_data()
+    def get(self, store):
+        return self.get_data(store)
 
 
 class PrinterException(Exception):
@@ -679,15 +695,17 @@ if has_ntk:
             })
 
         def _question_callback(self, questions):
-            self.waiting_reply.set()
-
             # Right now we support asking only one question at a time. This could be imporved
             info = questions[0]
             EventStream.put({
                 'type': 'TEF_ASK_QUESTION',
                 'data': info.get_dict()
             })
+            if info.data_type not in [PwDat.MENU, PwDat.TYPED]:
+                # This is just an information for the user. No need to wait for a reply.
+                return True
 
+            self.waiting_reply.set()
             reply = self.reply.get()
             self.waiting_reply.clear()
             if not reply:
@@ -773,9 +791,10 @@ class SaleResource(_BaseResource):
         return device
 
     def _get_provider(self, store, name):
-        provider = store.find(CreditProvider, short_name=name.strip()).one()
+        name = name.strip()
+        provider = store.find(CreditProvider, provider_id=name).one()
         if not provider:
-            provider = CreditProvider(store=store, short_name=name.strip())
+            provider = CreditProvider(store=store, short_name=name, provider_id=name)
         return provider
 
     def post(self, store):
