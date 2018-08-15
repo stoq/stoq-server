@@ -1,4 +1,5 @@
 recursive-include stoqserver *.py
+recursive-include po *.po *.pot POTFILES.list
 include data/sudoers.d/stoqserver
 include data/supervisor/stoqserver.conf
 include data/webrtc/package.json

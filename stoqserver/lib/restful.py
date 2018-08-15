@@ -67,12 +67,11 @@ from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
-from stoqlib.lib.translation import stoqlib_gettext
+from stoqlib.lib.translation import dgettext
 from stoqlib.lib.threadutils import threadit
 from storm.expr import Desc, LeftJoin
 
-
-_ = stoqlib_gettext
+_ = lambda s: dgettext('stoqserver', s)
 
 try:
     from stoqntk.ntkapi import Ntk, NtkException, PwInfo
@@ -918,6 +917,10 @@ def bootstrap_app():
 
 
 def run_flaskserver(port, debug=False):
+    from stoqlib.lib.environment import configure_locale
+    # Force pt_BR for now.
+    configure_locale('pt_BR')
+
     # Check drawer in a separated thread
     for function in WORKERS:
         threadit(function)

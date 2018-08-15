@@ -12,3 +12,4 @@ build
 stoqserver.egg-info
 stoqserver/data/eggs
 venv
+locale

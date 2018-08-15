@@ -29,4 +29,5 @@ __version__ = (0, 18)
 __all__ = ["library"]
 
 library = Library("stoqserver", root="..")
+library.enable_translation(domain='stoqserver', enable_global=True)
 version_str = '.'.join(str(i) for i in __version__)
