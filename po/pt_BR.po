@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-08-15 01:10-0300\n"
+"POT-Creation-Date: 2018-08-19 21:43-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -36,19 +36,20 @@ msgstr ""
 msgid "Stoq Server"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:466
+#: ../stoqserver/lib/restful.py:454
+msgid "Blind till closing"
+msgstr "Fechamento cego de caixa"
+
+#: ../stoqserver/lib/restful.py:464
 #, python-format
 msgid "The user %s removed cash from till"
 msgstr "Quantia removida do caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:469
+#: ../stoqserver/lib/restful.py:467
 #, python-format
 msgid "The user %s supplied cash to the till"
 msgstr "Quantia adicionada no caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:607
+#: ../stoqserver/lib/restful.py:605
 msgid "User does not have permission"
 msgstr "O usuário não tem permissão"
-
-#~ msgid "Blind till closing"
-#~ msgstr "Fechamento cego de caixa"
