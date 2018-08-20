@@ -432,36 +432,34 @@ class TillResource(_BaseResource):
         # Here till object must exist
         till = Till.get_last(store)
 
-        try:
-            # Create TillSummaries
-            till.get_day_summary()
+        # Create TillSummaries
+        till.get_day_summary()
 
-            # Find TillSummary and store the user_value
-            for till_summary in till_summaries:
-                method = PaymentMethod.get_by_name(store, till_summary['method'])
+        # Find TillSummary and store the user_value
+        for till_summary in till_summaries:
+            method = PaymentMethod.get_by_name(store, till_summary['method'])
 
-                if till_summary['provider']:
-                    provider = store.find(CreditProvider, short_name=till_summary['provider']).one()
-                    summary = TillSummary.get_or_create(store, till=till, method=method.id,
-                                                        provider=provider.id,
-                                                        card_type=till_summary['card_type'])
-                # Money method has no card_data or provider
-                else:
-                    summary = TillSummary.get_or_create(store, till=till, method=method.id)
+            if till_summary['provider']:
+                provider = store.find(CreditProvider, short_name=till_summary['provider']).one()
+                summary = TillSummary.get_or_create(store, till=till, method=method.id,
+                                                    provider=provider.id,
+                                                    card_type=till_summary['card_type'])
+            # Money method has no card_data or provider
+            else:
+                summary = TillSummary.get_or_create(store, till=till, method=method.id)
 
-                summary.user_value = decimal.Decimal(till_summary['user_value'])
+            summary.user_value = decimal.Decimal(till_summary['user_value'])
 
-            till.close_till()
-        except Exception as e:
-            # Log something ?
-            log.info('Error closing till', str(e))
-            store.rollback(close=False)
+        balance = till.get_balance()
+        till.add_debit_entry(balance, _('Blind till closing'))
+        till.close_till()
 
     def _add_credit_or_debit_entry(self, store, data):
         # Here till object must exist
         till = Till.get_last(store)
         user = store.get(LoginUser, session['user_id'])
 
+        # FIXME: Check balance when removing to prevent negative till.
         if data['operation'] == 'debit_entry':
             reason = _('The user %s removed cash from till') % user.username
             till.add_debit_entry(decimal.Decimal(data['entry_value']), reason)
