@@ -678,9 +678,10 @@ if has_ntk:
                 return
 
             if (holder or short) and merchant:
-                self.printer.print_line(merchant)
-                self.printer.cut_paper()
+                #self.printer.print_line(merchant)
+                #self.printer.cut_paper()
                 self.printer.print_line(short or holder)
+                self.printer.cut_paper()
             elif full:
                 self.printer.print_line(full)
                 self.printer.cut_paper()
@@ -876,6 +877,9 @@ class SaleResource(_BaseResource):
                     card_data = method.operation.get_card_data_by_payment(payment)
 
                     card_type = p['mode']
+                    # Stoq does not have the voucher comcept, so register it as a debit card.
+                    if card_type == 'voucher':
+                        card_type = 'debit'
                     device = self._get_card_device(store, 'TEF')
                     provider = self._get_provider(store, p['provider'])
 
