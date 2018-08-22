@@ -255,7 +255,7 @@ class DataResource(_BaseResource):
 
             tables = [Sellable, LeftJoin(Product, Product.id == Sellable.id)]
             sellables = store.using(*tables).find(
-                Sellable, category=c).order_by('height', 'description')
+                Sellable, category=c, status='available').order_by('height', 'description')
             for s in sellables:
                 ccp = store.find(ClientCategoryPrice, sellable_id=s.id)
                 ccp_dict = {}
@@ -781,6 +781,15 @@ class SaleResource(_BaseResource):
     routes = ['/sale']
     method_decorators = [_login_required, _store_provider]
 
+    PROVIDER_MAP = {
+        'ELO CREDITO': 'ELO',
+        'TICKET RESTA': 'TICKET REFEICAO',
+        'VISA ELECTRO': 'VISA',
+        'MAESTROCP': 'MASTER',
+        'MASTERCARD D': 'MASTER',
+        'MASTERCARD': 'MASTER',
+    }
+
     def _get_card_device(self, store, name):
         device = store.find(CardPaymentDevice, description=name).any()
         if not device:
@@ -789,6 +798,7 @@ class SaleResource(_BaseResource):
 
     def _get_provider(self, store, name):
         name = name.strip()
+        name = self.PROVIDER_MAP.get(name, name)
         provider = store.find(CreditProvider, provider_id=name).one()
         if not provider:
             provider = CreditProvider(store=store, short_name=name, provider_id=name)
@@ -835,6 +845,7 @@ class SaleResource(_BaseResource):
             item.base_price = item.price
 
         # Add payments
+        sale_total = sale.get_total_sale_amount()
         for p in payments:
             method_name = p['method']
             tef_data = p.get('tef_data', {})
@@ -850,9 +861,15 @@ class SaleResource(_BaseResource):
                 interval=1,
                 start_date=localnow(),
                 count=installments))
+
+            # FIXME FIXME FIXME
+            payment_value = currency(p['value'])
+            if payment_value > sale_total:
+                payment_value = sale_total
+
             p_list = method.create_payments(
                 Payment.TYPE_IN, group, branch,
-                currency(p['value']), due_dates)
+                payment_value, due_dates)
 
             if method.method_name == 'card':
                 for payment in p_list:
