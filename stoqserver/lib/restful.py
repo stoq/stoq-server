@@ -54,7 +54,7 @@ from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
 from stoqlib.domain.payment.payment import Payment
-from stoqlib.domain.person import LoginUser, Person
+from stoqlib.domain.person import LoginUser, Person, Client, ClientCategory
 from stoqlib.domain.product import Product
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
@@ -69,7 +69,7 @@ from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.threadutils import threadit
 from stoqlib.lib.pluginmanager import get_plugin_manager
-from storm.expr import Desc, LeftJoin
+from storm.expr import Desc, LeftJoin, Join
 
 _ = lambda s: dgettext('stoqserver', s)
 
@@ -563,32 +563,49 @@ class ClientResource(_BaseResource):
     """Client RESTful resource."""
     routes = ['/client']
 
+    def _get_by_doc(self, store, data, doc):
+        # Extra precaution in case we ever send the cpf already formatted
+        document = format_cpf(raw_document(doc))
+
+        person = Person.get_by_document(store, document)
+        if not person and not person.client:
+            return data
+
+        birthdate = person.individual.birth_date if person.individual else None
+
+        saleviews = person.client.get_client_sales().order_by(Desc('confirm_date'))
+        last_items = {}
+        for saleview in saleviews:
+            for item in saleview.sale.get_items():
+                last_items[item.sellable_id] = item.sellable.description
+                # Just the last 3 products the client bought
+                if len(last_items) == 3:
+                    break
+
+        data['category'] = person.client.category_id
+        data['last_items'] = last_items
+        data['name'] = person.name
+        data['birthdate'] = birthdate
+        return data
+
+    def _get_by_category(self, store, category_name):
+        tables = [Client,
+                  Join(ClientCategory, Client.category_id == ClientCategory.id)]
+        clients = store.using(*tables).find(Client, ClientCategory.name == category_name)
+        retval = []
+        for client in clients:
+            retval.append(dict(name=client.person.name,
+                               id=client.id, doc=client.person.individual.cpf))
+        return retval
+
     def post(self):
         data = request.get_json()
 
         with api.new_store() as store:
-            # Extra precaution in case we ever send the cpf already formatted
-            document = format_document(raw_document(data['doc'] or ''))
-
-            person = Person.get_by_document(store, document)
-            if not (person and person.client):
-                return data
-
-            birthdate = person.individual.birth_date if person.individual else None
-
-            saleviews = person.client.get_client_sales().order_by(Desc('confirm_date'))
-            last_items = {}
-            for saleview in saleviews:
-                for item in saleview.sale.get_items():
-                    last_items[item.sellable_id] = item.sellable.description
-                    # Just the last 3 products the client bought
-                    if len(last_items) == 3:
-                        break
-
-            data['category'] = person.client.category_id
-            data['last_items'] = last_items
-            data['name'] = person.name
-            data['birthdate'] = birthdate
+            if 'doc' in data:
+                return self._get_by_doc(store, data, data['doc'])
+            elif 'category_name' in data:
+                return self._get_by_category(store, data['category_name'])
         return data
 
 
