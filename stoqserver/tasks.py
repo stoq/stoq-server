@@ -29,7 +29,6 @@ import os
 import platform
 import random
 import re
-import shutil
 import signal
 import sys
 import tempfile
@@ -127,6 +126,7 @@ def restore_database(user_hash, time=None):
     tmp_path = tempfile.mkdtemp()
     try:
         restore_path = os.path.join(tmp_path, 'stoq')
+        logger.info("restoring database to %s", restore_path)
         backup.restore(restore_path, user_hash, time=time)
 
         # None will make the default store be closed, which we need
@@ -140,7 +140,9 @@ def restore_database(user_hash, time=None):
     finally:
         # get_default_store will recreate it (since we closed it above)
         get_default_store()
-        shutil.rmtree(tmp_path, ignore_errors=True)
+        # Dont remove the directory. Since the restauration could have failed, we could use the
+        # files to inspect what happend
+        #shutil.rmtree(tmp_path, ignore_errors=True)
 
 
 def backup_status(user_hash=None):

@@ -30,8 +30,8 @@ import mock
 from kiwi.currency import currency
 from stoqlib.api import api
 from stoqlib.domain.sale import Sale
-# from stoqlib.domain.station import BranchStation
 from stoqlib.domain.test.domaintest import DomainTest
+from stoqlib.lib.configparser import register_config, StoqConfig
 from storm.expr import Desc
 
 from stoqserver.lib.restful import (bootstrap_app,
@@ -49,6 +49,9 @@ class _TestFlask(DomainTest):
     def setUp(self):
         super().setUp()
 
+        from stoqntk.ntkui import NtkUI
+        register_config(StoqConfig())
+        self.plugin = NtkUI()
         app = bootstrap_app()
         app.testing = True
         self.client = app.test_client()

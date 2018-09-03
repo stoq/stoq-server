@@ -512,7 +512,7 @@ class TillResource(_BaseResource):
                 'initial_cash_amount': str(till.initial_cash_amount),
                 'final_cash_amount': str(till.final_cash_amount),
                 # Get payments data that will be used on 'close_till' action.
-                'entry_types': self._get_till_summary(store, till),
+                'entry_types': till.status == 'open' and self._get_till_summary(store, till) or [],
             }
 
         return till_data
@@ -929,7 +929,7 @@ def bootstrap_app():
             import stoqntk
             tef_dir = os.path.dirname(os.path.dirname(stoqntk.__file__))
 
-        ntk = Ntk(os.path.join(tef_dir, 'PGWebLib.so'))
+        ntk = Ntk()
         ntk.init(tef_dir)
 
     return app
