@@ -411,6 +411,18 @@ def format_cpf(document):
                             document[9:11])
 
 
+def format_cnpj(document):
+    return '%s.%s.%s/%s-%s' % (document[0:2], document[2:5], document[5:8],
+                               document[8:12], document[12:])
+
+
+def format_document(document):
+    if len(document) == 11:
+        return format_cpf(document)
+    else:
+        return format_cnpj(document)
+
+
 class TillResource(_BaseResource):
     """Till RESTful resource."""
     routes = ['/till']
@@ -527,7 +539,7 @@ class ClientResource(_BaseResource):
 
         with api.new_store() as store:
             # Extra precaution in case we ever send the cpf already formatted
-            document = format_cpf(raw_document(data['doc']))
+            document = format_document(raw_document(data['doc'] or ''))
 
             person = Person.get_by_document(store, document)
             if not (person and person.client):
@@ -808,14 +820,14 @@ class SaleResource(_BaseResource):
     def post(self, store):
         data = request.get_json()
 
-        document = data.get('client_document', '')
+        document = raw_document(data.get('client_document', '') or '')
         products = data['products']
         payments = data['payments']
 
         user = store.get(LoginUser, session['user_id'])
 
         if document:
-            document = format_cpf(raw_document(document))
+            document = format_document(document)
             person = Person.get_by_document(store, document)
             client = person and person.client
         else:
