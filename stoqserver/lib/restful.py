@@ -431,7 +431,7 @@ class TillResource(_BaseResource):
     def _open_till(self, store, initial_cash_amount=0):
         station = get_current_station(store)
         last_till = Till.get_last(store)
-        if not last_till or last_till.status == Till.STATUS_CLOSED:
+        if not last_till or last_till.status != Till.STATUS_OPEN:
             # Create till and open
             till = Till(store=store, station=station)
             till.open_till()
