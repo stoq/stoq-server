@@ -480,13 +480,13 @@ class TillResource(_BaseResource):
             till.add_credit_entry(decimal.Decimal(data['entry_value']), reason)
 
     def _get_till_summary(self, store, till):
-
         payment_data = []
         for summary in till.get_day_summary():
             payment_data.append({
                 'method': summary.method.method_name,
                 'provider': summary.provider.short_name if summary.provider else None,
                 'card_type': summary.card_type,
+                'system_value': str(summary.system_value),
             })
 
         # XXX: We shouldn't create TIllSummaries since we are not closing the Till,
