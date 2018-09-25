@@ -48,7 +48,6 @@ from flask_restful import Api, Resource
 from stoqlib.api import api
 from stoqlib.database.runtime import get_current_station
 from stoqlib.database.interfaces import ICurrentUser
-from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
 from stoqlib.domain.payment.group import PaymentGroup
@@ -69,6 +68,7 @@ from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.threadutils import threadit
+from stoqlib.lib.pluginmanager import get_plugin_manager
 from storm.expr import Desc, LeftJoin
 
 _ = lambda s: dgettext('stoqserver', s)
@@ -192,6 +192,34 @@ class _BaseResource(Resource):
             return request.get_json().get(attr, None)
 
         return request.form.get(attr, request.args.get(attr, default))
+
+    def test_printer(self):
+        # Test the printer to see if its working properly.
+        printer = None
+        try:
+            printer = api.device_manager.printer
+            printer and printer.is_drawer_open()
+        except Exception:
+            if printer:
+                printer._port.close()
+            api.device_manager._printer = None
+            for i in range(20):
+                log.info('Printer check failed. Reopening')
+                try:
+                    printer = api.device_manager.printer
+                    printer.is_drawer_open()
+                    break
+                except Exception:
+                    time.sleep(1)
+            else:
+                raise
+
+            manager = get_plugin_manager()
+            # Invalidate the printer in the sat plugin so that it re-opens it
+            manager.get_plugin('sat').ui.printer = None
+            nonfiscal = manager.get_plugin('nonfiscal')
+            if nonfiscal and nonfiscal.ui:
+                nonfiscal.ui.printer = printer
 
 
 class DataResource(_BaseResource):
@@ -441,6 +469,7 @@ class TillResource(_BaseResource):
             assert False
 
     def _close_till(self, store, till_summaries):
+        self.test_printer()
         # Here till object must exist
         till = Till.get_last(store)
 
@@ -664,25 +693,9 @@ if has_ntk:
             'voucher': Ntk.TYPE_VOUCHER,
         }
 
-        def _setup_printer(self, store):
-            if getattr(self, 'printer', None):
-                return self.printer
-
-            self.printer = None
-            station = api.get_current_station(store)
-            device = DeviceSettings.get_by_station_and_type(
-                store, station, DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
-
-            if not device:
-                return
-
-            self.printer = device.get_interface()
-
         def _print_callback(self, full, holder, merchant, short):
-            with api.new_store() as store:
-                self._setup_printer(store)
-
-            if not self.printer:
+            printer = api.device_manager.printer
+            if not printer:
                 print(full)
                 print(holder)
                 print(merchant)
@@ -690,13 +703,13 @@ if has_ntk:
                 return
 
             if (holder or short) and merchant:
-                #self.printer.print_line(merchant)
-                #self.printer.cut_paper()
-                self.printer.print_line(short or holder)
-                self.printer.cut_paper()
+                #printer.print_line(merchant)
+                #printer.cut_paper()
+                printer.print_line(short or holder)
+                printer.cut_paper()
             elif full:
-                self.printer.print_line(full)
-                self.printer.cut_paper()
+                printer.print_line(full)
+                printer.cut_paper()
 
         def _message_callback(self, message):
             EventStream.put({
@@ -730,6 +743,15 @@ if has_ntk:
 
         def post(self):
             if not ntk:
+                return
+            try:
+                self.test_printer()
+            except Exception:
+                EventStream.put({
+                    'type': 'TEF_OPERATION_FINISHED',
+                    'success': False,
+                    'message': 'Erro comunicando com a impressora',
+                })
                 return
 
             data = request.get_json()
@@ -818,6 +840,8 @@ class SaleResource(_BaseResource):
         return provider
 
     def post(self, store):
+        self.test_printer()
+
         data = request.get_json()
 
         document = raw_document(data.get('client_document', '') or '')
