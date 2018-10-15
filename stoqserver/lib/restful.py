@@ -29,6 +29,7 @@ import decimal
 import functools
 import json
 import logging
+from logging.handlers import SysLogHandler
 import os
 import pickle
 import psycopg2
@@ -1000,6 +1001,11 @@ def run_flaskserver(port, debug=False):
     app = bootstrap_app()
     app.debug = debug
 
+    handler = SysLogHandler(address='/dev/log')
+    handler.setLevel(logging.DEBUG)
+    root = logging.getLogger()
+    root.addHandler(handler)
+
     @app.after_request
     def after_request(response):
         # Add all the CORS headers the POS needs to have its ajax requests
@@ -1012,5 +1018,10 @@ def run_flaskserver(port, debug=False):
         response.headers['Access-Control-Allow-Headers'] = 'stoq-session, Content-Type'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
+
+    @app.errorhandler(Exception)
+    def unhandled_exception(e):
+        log.exception('Unhandled Exception: %s', (e))
+        return 'bad request!', 500
 
     app.run('0.0.0.0', port=port, debug=debug, threaded=True)
