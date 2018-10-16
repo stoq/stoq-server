@@ -568,7 +568,7 @@ class ClientResource(_BaseResource):
         document = format_cpf(raw_document(doc))
 
         person = Person.get_by_document(store, document)
-        if not person and not person.client:
+        if not person or not person.client:
             return data
 
         birthdate = person.individual.birth_date if person.individual else None

@@ -160,7 +160,7 @@ def setup_logging(app_name='stoq-server'):
     handler = SysLogHandler(address='/dev/log')
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(
-        logging.Formatter(app_name + '[%(process)d]: %(message)s'))
+        logging.Formatter(app_name + '[%(process)d]: %(processName)s - %(message)s'))
     root.addHandler(handler)
 
     if platform.system() == 'Windows':
