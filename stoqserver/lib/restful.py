@@ -29,7 +29,6 @@ import decimal
 import functools
 import json
 import logging
-from logging.handlers import SysLogHandler
 import os
 import pickle
 import psycopg2
@@ -1000,11 +999,6 @@ def run_flaskserver(port, debug=False):
 
     app = bootstrap_app()
     app.debug = debug
-
-    handler = SysLogHandler(address='/dev/log')
-    handler.setLevel(logging.DEBUG)
-    root = logging.getLogger()
-    root.addHandler(handler)
 
     @app.after_request
     def after_request(response):

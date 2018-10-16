@@ -24,6 +24,7 @@
 
 import atexit
 import logging
+from logging.handlers import SysLogHandler
 import multiprocessing
 import optparse
 import os
@@ -145,7 +146,7 @@ def setup_stoq(register_station=False, name='stoqserver'):
     provide_utility(ICurrentBranch, main_company, replace=True)
 
 
-def setup_logging():
+def setup_logging(app_name='stoq-server'):
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     formatter = logging.Formatter(
@@ -155,6 +156,12 @@ def setup_logging():
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.addHandler(ch)
+
+    handler = SysLogHandler(address='/dev/log')
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter(app_name + '[%(process)d]: %(message)s'))
+    root.addHandler(handler)
 
     if platform.system() == 'Windows':
         # FIXME: We need some kind of log rotation here
@@ -280,7 +287,7 @@ class StoqServerCmdHandler(object):
     def cmd_flask(self, options, *args):
         """Run the server daemon"""
         setup_stoq(register_station=True, name='stoqflask')
-        setup_logging()
+        setup_logging('stoq-flask')
 
         def _exit(*args):
             sys.exit(0)
