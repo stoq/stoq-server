@@ -350,6 +350,7 @@ class DataResource(_BaseResource):
         """
         station = get_current_station(store)
         user = api.get_current_user(store)
+        staff_category = store.find(ClientCategory, ClientCategory.name == 'Staff').one()
 
         # Current branch data
         retval = dict(
@@ -359,6 +360,7 @@ class DataResource(_BaseResource):
             categories=cls._get_categories(store),
             payment_methods=cls._get_payment_methods(store),
             providers=cls._get_card_providers(store),
+            staff_id=staff_category.id if staff_category else None,
         )
 
         return retval
@@ -563,14 +565,8 @@ class ClientResource(_BaseResource):
     """Client RESTful resource."""
     routes = ['/client']
 
-    def _get_by_doc(self, store, data, doc):
-        # Extra precaution in case we ever send the cpf already formatted
-        document = format_cpf(raw_document(doc))
-
-        person = Person.get_by_document(store, document)
-        if not person or not person.client:
-            return data
-
+    def _dump_client(self, client):
+        person = client.person
         birthdate = person.individual.birth_date if person.individual else None
 
         saleviews = person.client.get_client_sales().order_by(Desc('confirm_date'))
@@ -582,11 +578,33 @@ class ClientResource(_BaseResource):
                 if len(last_items) == 3:
                     break
 
-        data['category'] = person.client.category_id
-        data['last_items'] = last_items
-        data['name'] = person.name
-        data['birthdate'] = birthdate
+        if person.company:
+            doc = person.company.cnpj
+        else:
+            doc = person.individual.cpf
+
+        category_name = client.category.name if client.category else ""
+
+        data = dict(
+            id=client.id,
+            category=client.category_id,
+            doc=doc,
+            last_items=last_items,
+            name=person.name,
+            birthdate=birthdate,
+            category_name=category_name,
+        )
         return data
+
+    def _get_by_doc(self, store, data, doc):
+        # Extra precaution in case we ever send the cpf already formatted
+        document = format_cpf(raw_document(doc))
+
+        person = Person.get_by_document(store, document)
+        if not person or not person.client:
+            return data
+
+        return self._dump_client(person.client)
 
     def _get_by_category(self, store, category_name):
         tables = [Client,
@@ -594,17 +612,16 @@ class ClientResource(_BaseResource):
         clients = store.using(*tables).find(Client, ClientCategory.name == category_name)
         retval = []
         for client in clients:
-            retval.append(dict(name=client.person.name,
-                               id=client.id, doc=client.person.individual.cpf))
+            retval.append(self._dump_client(client))
         return retval
 
     def post(self):
         data = request.get_json()
 
         with api.new_store() as store:
-            if 'doc' in data:
+            if data.get('doc'):
                 return self._get_by_doc(store, data, data['doc'])
-            elif 'category_name' in data:
+            elif data.get('category_name'):
                 return self._get_by_category(store, data['category_name'])
         return data
 
@@ -860,34 +877,37 @@ class SaleResource(_BaseResource):
         self.test_printer()
 
         data = request.get_json()
-
-        document = raw_document(data.get('client_document', '') or '')
+        client_id = data.get('client_id')
         products = data['products']
         payments = data['payments']
+        client_category_id = data.get('price_table')
 
-        user = store.get(LoginUser, session['user_id'])
-
+        document = raw_document(data.get('client_document', '') or '')
         if document:
             document = format_document(document)
+
+        if client_id:
+            client = store.get(Client, client_id)
+        elif document:
             person = Person.get_by_document(store, document)
             client = person and person.client
         else:
-            # XXX: How to inform the document in this case
             client = None
 
         # Create the sale
         branch = api.get_current_branch(store)
         group = PaymentGroup(store=store)
+        user = store.get(LoginUser, session['user_id'])
         sale = Sale(
             store=store,
             branch=branch,
             salesperson=user.person.sales_person,
             client=client,
+            client_category_id=client_category_id,
             group=group,
             open_date=localnow(),
             coupon_id=None,
         )
-
         # Add products
         for p in products:
             sellable = store.get(Sellable, p['id'])
