@@ -87,15 +87,6 @@ from stoqserver import main
 _ = lambda s: dgettext('stoqserver', s)
 
 try:
-    from stoqntk.ntkapi import Ntk, NtkException, PwInfo
-    from stoqntk.ntkenums import PwDat
-    # The ntk lib instance.
-    has_ntk = True
-except ImportError:
-    has_ntk = False
-    ntk = None
-
-try:
     from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess
     from stoqnfe.exceptions import PrinterException as NfePrinterException
     has_nfe = True
@@ -876,120 +867,110 @@ class EventStream(_BaseResource):
         return Response(self._loop(stream), mimetype="text/event-stream")
 
 
-if has_ntk:
-    class TefResource(_BaseResource):
-        routes = ['/tef']
-        method_decorators = [_login_required]
+class TefResource(_BaseResource):
+    routes = ['/tef/<signal_name>']
+    method_decorators = [_login_required]
 
-        waiting_reply = Event()
-        reply = Queue()
+    waiting_reply = Event()
+    reply = Queue()
 
-        NTK_MODES = {
-            'credit': Ntk.TYPE_CREDIT,
-            'debit': Ntk.TYPE_DEBIT,
-            'voucher': Ntk.TYPE_VOUCHER,
-        }
+    @lock_printer
+    def _print_callback(self, lib, holder, merchant):
+        printer = api.device_manager.printer
+        if not printer:
+            return
 
-        @lock_printer
-        def _print_callback(self, full, holder, merchant, short):
-            printer = api.device_manager.printer
-            if not printer:
-                print(full)
-                print(holder)
-                print(merchant)
-                print(short)
-                return
+        # TODO: Add paramter to control if this will be printed or not
+        if merchant:
+            printer.print_line(merchant)
+            printer.cut_paper()
+        if holder:
+            printer.print_line(holder)
+            printer.cut_paper()
 
-            if (holder or short) and merchant:
-                #printer.print_line(merchant)
-                #printer.cut_paper()
-                printer.print_line(short or holder)
-                printer.cut_paper()
-            elif full:
-                printer.print_line(full)
-                printer.cut_paper()
+    def _message_callback(self, lib, message):
+        EventStream.put({
+            'type': 'TEF_DISPLAY_MESSAGE',
+            'message': message
+        })
 
-        def _message_callback(self, message):
-            EventStream.put({
-                'type': 'TEF_DISPLAY_MESSAGE',
-                'message': message
-            })
+        # tef library (ntk/sitef) has some blocking calls (specially pinpad comunication).
+        # Before returning, we need to briefly hint gevent to let the EventStream co-rotine run,
+        # so that the message above can be sent to the frontend.
+        gevent.sleep(0.001)
 
-        def _question_callback(self, questions):
-            # Right now we support asking only one question at a time. This could be imporved
-            info = questions[0]
-            EventStream.put({
-                'type': 'TEF_ASK_QUESTION',
-                'data': info.get_dict()
-            })
+    def _question_callback(self, lib, question):
+        EventStream.put({
+            'type': 'TEF_ASK_QUESTION',
+            'data': question,
+        })
 
-            # Ntk library has some blocking calls (specially pinpad comunication).
-            # Before returning, we need to briefly hint gevent to let the EventStream co-rotine run,
-            # so that the message above can be sent to the frontend.
-            gevent.sleep(0.001)
-            if info.data_type not in [PwDat.MENU, PwDat.TYPED]:
-                # This is just an information for the user. No need to wait for a reply.
-                return True
+        log.info('Waiting tef reply')
+        self.waiting_reply.set()
+        reply = self.reply.get()
+        log.info('Got tef reply: %s', reply)
+        self.waiting_reply.clear()
+        if not reply:
+            # Returning false will make the transaction be canceled
+            return False
 
-            self.waiting_reply.set()
-            reply = self.reply.get()
-            self.waiting_reply.clear()
-            if not reply:
-                print('cancelled')
-                return False
+        return reply
 
-            kwargs = {
-                info.identificador.name: reply
-            }
-            ntk.add_params(**kwargs)
-            return True
-
-        def post(self):
-            try:
-                with _printer_lock:
-                    self.ensure_printer()
-            except Exception:
-                EventStream.put({
-                    'type': 'TEF_OPERATION_FINISHED',
-                    'success': False,
-                    'message': 'Erro comunicando com a impressora',
-                })
-                return
-
-            data = self.get_json()
-            if self.waiting_reply.is_set() and data['operation'] == 'reply':
-                # There is already an operation happening, but its waiting for a user reply.
-                # This is the reply
-                self.reply.put(json.loads(data['value']))
-                return
-
-            ntk.set_message_callback(self._message_callback)
-            ntk.set_question_callback(self._question_callback)
-            ntk.set_print_callback(self._print_callback)
-
-            try:
-                # This operation will be blocked here until its complete, but since we are running
-                # each request using threads, the server will still be available to handle other
-                # requests (specially when handling comunication with the user through the callbacks
-                # above)
-                if data['operation'] == 'sale':
-                    retval = ntk.sale(value=data['value'],
-                                      card_type=self.NTK_MODES[data['mode']])
-                elif data['operation'] == 'admin':
-                    # Admin operation does not leave pending transaction
-                    retval = ntk.admin()
-                elif data['operation'] == 'sale_void':
-                    # Admin operation does not leave pending transaction
-                    retval = ntk.sale_void()
-            except NtkException:
-                retval = False
-
-            message = ntk.get_info(PwInfo.RESULTMSG)
+    def post(self, signal_name):
+        try:
+            with _printer_lock:
+                self.ensure_printer()
+        except Exception:
             EventStream.put({
                 'type': 'TEF_OPERATION_FINISHED',
-                'success': retval,
-                'message': message,
+                'success': False,
+                'message': 'Erro comunicando com a impressora',
             })
+            return
+
+        signal('TefMessageEvent').connect(self._message_callback)
+        signal('TefQuestionEvent').connect(self._question_callback)
+        signal('TefPrintEvent').connect(self._print_callback)
+
+        operation_signal = signal(signal_name)
+        # There should be just one plugin connected to this event.
+        assert len(operation_signal.receivers) == 1, operation_signal
+
+        data = self.get_json()
+        # Remove origin from data, if present
+        data.pop('origin', None)
+        try:
+            # This operation will be blocked here until its complete, but since we are running
+            # each request using threads, the server will still be available to handle other
+            # requests (specially when handling comunication with the user through the callbacks
+            # above)
+            log.info('send tef signal %s (%s)', signal_name, data)
+            retval = operation_signal.send(**data)[0][1]
+            message = retval['message']
+        except Exception as e:
+            retval = False
+            log.exception('Tef failed')
+            if len(e.args) == 2:
+                message = e.args[1]
+            else:
+                message = 'Falha na operação'
+
+        EventStream.put({
+            'type': 'TEF_OPERATION_FINISHED',
+            'success': retval,
+            'message': message,
+        })
+
+
+class TefReplyResource(_BaseResource):
+    routes = ['/tef/reply']
+    method_decorators = [_login_required]
+
+    def post(self):
+        assert TefResource.waiting_reply.is_set()
+
+        data = self.get_json()
+        TefResource.reply.put(json.loads(data['value']))
 
 
 class ImageResource(_BaseResource):
@@ -1139,8 +1120,8 @@ class SaleResource(_BaseResource):
                     provider = self._get_provider(store, p['provider'])
 
                     if tef_data:
-                        card_data.nsu = tef_data['aut_loc_ref']
-                        card_data.auth = tef_data['aut_ext_ref']
+                        card_data.nsu = tef_data['nsu']
+                        card_data.auth = tef_data['auth']
                     card_data.update_card_data(device, provider, card_type, installments)
                     card_data.te.metadata = tef_data
 
@@ -1230,20 +1211,7 @@ def bootstrap_app():
     for cls in _BaseResource.__subclasses__():
         flask_api.add_resource(cls, *cls.routes)
 
-    if has_ntk:
-        global ntk
-        config = get_config()
-        if config:
-            config_dir = config.get_config_directory()
-            tef_dir = os.path.join(config_dir, 'ntk')
-        else:
-            # Tests don't have a config set. Use the plugin path as tef_dir, since it also has the
-            # library
-            import stoqntk
-            tef_dir = os.path.dirname(os.path.dirname(stoqntk.__file__))
-
-        ntk = Ntk()
-        ntk.init(tef_dir)
+    signal('StoqTouchStartupEvent').send()
 
     @app.errorhandler(Exception)
     def unhandled_exception(e):
@@ -1298,7 +1266,7 @@ def run_flaskserver(port, debug=False):
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
-    log.info('Starting wsgi server (has_sat=%s, has_nfe=%s, has_ntk=%s)', has_sat, has_nfe, has_ntk)
+    log.info('Starting wsgi server (has_sat=%s, has_nfe=%s)', has_sat, has_nfe)
     http_server = WSGIServer(('127.0.0.1', port), app, spawn=gevent.spawn_raw, log=log,
                              error_log=log)
     http_server.serve_forever()
