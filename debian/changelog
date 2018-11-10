@@ -1,3 +1,9 @@
+stoq-server (0.20.1) xenial; urgency=medium
+
+  * Release 0.20.1
+
+ -- Ronaldo Maia <romaia@async.com.br>  Sat, 10 Nov 2018 11:24:48 -0200
+
 stoq-server (0.19.1) xenial; urgency=medium
 
   * Release 0.19.1

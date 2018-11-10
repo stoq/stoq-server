@@ -68,7 +68,7 @@ from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.threadutils import threadit
-from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join
 
 _ = lambda s: dgettext('stoqserver', s)
@@ -180,6 +180,13 @@ def worker(f):
     return f
 
 
+def get_plugin(manager, name):
+    try:
+        return manager.get_plugin(name)
+    except PluginError:
+        return None
+
+
 class _BaseResource(Resource):
 
     routes = []
@@ -214,10 +221,18 @@ class _BaseResource(Resource):
             else:
                 raise
 
+            # Invalidate the printer in the plugins so that it re-opens it
             manager = get_plugin_manager()
-            # Invalidate the printer in the sat plugin so that it re-opens it
-            manager.get_plugin('sat').ui.printer = None
-            nonfiscal = manager.get_plugin('nonfiscal')
+
+            sat = get_plugin(manager, 'sat')
+            if sat and sat.ui:
+                sat.ui.printer = None
+
+            nfce = get_plugin(manager, 'nfce')
+            if nfce and nfce.ui:
+                nfce.ui._emitter.printer._driver = printer
+
+            nonfiscal = get_plugin(manager, 'nonfiscal')
             if nonfiscal and nonfiscal.ui:
                 nonfiscal.ui.printer = printer
 
