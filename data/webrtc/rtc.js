@@ -82,7 +82,7 @@ var connect = function() {
   // server is off, retry the connection in 5 seconds (try until the server
   // stays online)
   socket.on('error', function(error) {
-    if (error.match(/ECONNREFUSED/)) {
+    if (!error.match || error.match(/ECONNREFUSED/)) {
       console.error('connection failed: trying again in 5 seconds');
       setTimeout(connect, 5000);
     }
