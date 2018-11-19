@@ -33,8 +33,7 @@ import os
 import pickle
 import psycopg2
 from queue import Queue
-from threading import Event
-import uuid
+from threading import Event, Lock
 import io
 import select
 import time
@@ -85,6 +84,7 @@ except ImportError:
 _last_gc = None
 _expire_time = datetime.timedelta(days=1)
 _session = None
+_lock = Lock()
 log = logging.getLogger(__name__)
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
@@ -134,8 +134,16 @@ def _login_required(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         session_id = request.headers.get('stoq-session', None)
+        # FIXME: Remove this once all frontends are updated.
         if session_id is None:
             abort(401, 'No session id provided in header')
+
+        user_id = request.headers.get('stoq-user', None)
+        with api.new_store() as store:
+            user = store.get(LoginUser, user_id or session_id)
+            if user:
+                provide_utility(ICurrentUser, user, replace=True)
+                return f(*args, **kwargs)
 
         with _get_session() as s:
             session_data = s.get(session_id, None)
@@ -180,6 +188,18 @@ def worker(f):
     return f
 
 
+def lock_printer(func):
+    """Decorator to handle printer access locking.
+
+    This will make sure that only one callsite is using the printer at a time.
+    """
+    def new_func(*args, **kwargs):
+        with _lock:
+            return func(*args, **kwargs)
+
+    return new_func
+
+
 def get_plugin(manager, name):
     try:
         return manager.get_plugin(name)
@@ -201,6 +221,8 @@ class _BaseResource(Resource):
         return request.form.get(attr, request.args.get(attr, default))
 
     def test_printer(self):
+        # There is no need to lock the printer here, since it should already be locked by the
+        # calling site of this method.
         # Test the printer to see if its working properly.
         printer = None
         try:
@@ -278,6 +300,7 @@ class DataResource(_BaseResource):
         categories_root = []
         aux = {}
         # SellableCategory and Sellable/Product data
+        # FIXME: Remove categories that have no products inside them
         for c in store.find(SellableCategory):
             if c.category_id is None:
                 parent_list = categories_root
@@ -371,6 +394,7 @@ class DataResource(_BaseResource):
         retval = dict(
             branch=api.get_current_branch(store).id,
             branch_station=station.name,
+            user_id=user and user.id,
             user=user and user.username,
             categories=cls._get_categories(store),
             payment_methods=cls._get_payment_methods(store),
@@ -395,18 +419,21 @@ class DrawerResource(_BaseResource):
     method_decorators = [_login_required]
 
     @classmethod
+    @lock_printer
     def _open_drawer(cls):
         if not api.device_manager.printer:
             raise PrinterException('Printer not configured in this station')
         api.device_manager.printer.open_drawer()
 
     @classmethod
+    @lock_printer
     def _is_open(cls):
         try:
             if not api.device_manager.printer:
                 return False
             return api.device_manager.printer.is_drawer_open()
-        except Exception:
+        except Exception as e:
+            log.exception('Unhandled Exception: %s', (e))
             return False
 
     @classmethod
@@ -515,7 +542,7 @@ class TillResource(_BaseResource):
     def _add_credit_or_debit_entry(self, store, data):
         # Here till object must exist
         till = Till.get_last(store)
-        user = store.get(LoginUser, session['user_id'])
+        user = api.get_current_user(store)
 
         # FIXME: Check balance when removing to prevent negative till.
         if data['operation'] == 'debit_entry':
@@ -541,6 +568,7 @@ class TillResource(_BaseResource):
 
         return payment_data
 
+    @lock_printer
     def post(self):
         data = request.get_json()
         with api.new_store() as store:
@@ -654,20 +682,11 @@ class LoginResource(_BaseResource):
             try:
                 # FIXME: Respect the branch the user is in.
                 user = LoginUser.authenticate(store, username, pw_hash, current_branch=None)
-                # StoqTransactionHistory will use the current user to set the
-                # responsible for the stock change
                 provide_utility(ICurrentUser, user, replace=True)
             except LoginError as e:
                 abort(403, str(e))
 
-        with _get_session() as s:
-            session_id = str(uuid.uuid1()).replace('-', '')
-            s[session_id] = {
-                'date': localnow(),
-                'user_id': user.id
-            }
-
-        return session_id
+        return user.id
 
 
 class AuthResource(_BaseResource):
@@ -742,6 +761,7 @@ if has_ntk:
             'voucher': Ntk.TYPE_VOUCHER,
         }
 
+        @lock_printer
         def _print_callback(self, full, holder, merchant, short):
             printer = api.device_manager.printer
             if not printer:
@@ -888,7 +908,9 @@ class SaleResource(_BaseResource):
             provider = CreditProvider(store=store, short_name=name, provider_id=name)
         return provider
 
+    @lock_printer
     def post(self, store):
+        # FIXME: Check branch state and force fail if no override for that product is present.
         self.test_printer()
 
         data = request.get_json()
@@ -912,7 +934,7 @@ class SaleResource(_BaseResource):
         # Create the sale
         branch = api.get_current_branch(store)
         group = PaymentGroup(store=store)
-        user = store.get(LoginUser, session['user_id'])
+        user = api.get_current_user(store)
         sale = Sale(
             store=store,
             branch=branch,
@@ -1044,7 +1066,7 @@ def run_flaskserver(port, debug=False):
             origin = request.args.get('origin', request.form.get('origin', '*'))
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'stoq-session, Content-Type'
+        response.headers['Access-Control-Allow-Headers'] = 'stoq-session, stoq-user, Content-Type'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 

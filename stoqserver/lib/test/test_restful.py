@@ -107,11 +107,7 @@ class TestLoginResource(_TestFlask):
     resource_class = LoginResource
 
     def test_post(self):
-        with self.fake_store(mock_rollback=True) as es:
-            uuid1 = es.enter_context(
-                mock.patch('stoqserver.lib.restful.uuid.uuid1'))
-            uuid1.return_value = 'foobarbin'
-
+        with self.fake_store(mock_rollback=True):
             # foo user doesn't exist
             rv = self.client.post('/login',
                                   data={'user': 'foo', 'pw_hash': 'bar'})
@@ -141,7 +137,7 @@ class TestLoginResource(_TestFlask):
             rv = self.client.post('/login',
                                   data={'user': 'foo', 'pw_hash': u.hash('bar')})
             self.assertEqual(rv.status_code, 200)
-            self.assertEqual(json.loads(rv.data.decode()), 'foobarbin')
+            self.assertEqual(json.loads(rv.data.decode()), u.id)
 
 
 class TestDataResource(_TestFlask):
