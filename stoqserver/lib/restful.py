@@ -49,6 +49,7 @@ from stoqlib.database.runtime import get_current_station
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
+from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
@@ -68,7 +69,7 @@ from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.threadutils import threadit
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
-from storm.expr import Desc, LeftJoin, Join
+from storm.expr import Desc, LeftJoin, Join, And, Ne
 
 _ = lambda s: dgettext('stoqserver', s)
 
@@ -299,6 +300,8 @@ class DataResource(_BaseResource):
     def _get_categories(cls, store):
         categories_root = []
         aux = {}
+        branch = api.get_current_branch(store)
+
         # SellableCategory and Sellable/Product data
         # FIXME: Remove categories that have no products inside them
         for c in store.find(SellableCategory):
@@ -320,6 +323,16 @@ class DataResource(_BaseResource):
             products_list = c_dict.setdefault('products', [])
 
             tables = [Sellable, LeftJoin(Product, Product.id == Sellable.id)]
+
+            if branch.person.company.cnpj.startswith('11.950.487'):
+                # For now, only display products that have a fiscal configuration for the
+                # current branch. We should find a better way to ensure this in the future
+                tables.append(
+                    Join(ProductBranchOverride,
+                         And(ProductBranchOverride.product_id == Product.id,
+                             ProductBranchOverride.branch_id == branch.id,
+                             Ne(ProductBranchOverride.icms_template_id, None))))
+
             sellables = store.using(*tables).find(
                 Sellable, category=c, status='available').order_by('height', 'description')
             for s in sellables:
