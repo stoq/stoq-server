@@ -43,11 +43,13 @@ from kiwi.component import provide_utility
 from kiwi.currency import currency
 from flask import Flask, request, session, abort, send_file, make_response, Response
 from flask_restful import Api, Resource
+from serial.serialutil import SerialException
 
 from stoqlib.api import api
 from stoqlib.database.runtime import get_current_station
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
+from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.image import Image
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.payment.group import PaymentGroup
@@ -85,7 +87,7 @@ except ImportError:
 _last_gc = None
 _expire_time = datetime.timedelta(days=1)
 _session = None
-_lock = Lock()
+_printer_lock = Lock()
 log = logging.getLogger(__name__)
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
@@ -195,7 +197,7 @@ def lock_printer(func):
     This will make sure that only one callsite is using the printer at a time.
     """
     def new_func(*args, **kwargs):
-        with _lock:
+        with _printer_lock:
             return func(*args, **kwargs)
 
     return new_func
@@ -221,27 +223,38 @@ class _BaseResource(Resource):
 
         return request.form.get(attr, request.args.get(attr, default))
 
-    def test_printer(self):
+    @classmethod
+    def ensure_printer(cls, retries=20):
+        assert _printer_lock.locked()
+
+        store = api.get_default_store()
+        device = DeviceSettings.get_by_station_and_type(store, get_current_station(store),
+                                                        DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
+        if not device:
+            # If we have no printer configured, there's nothing to ensure
+            return
+
         # There is no need to lock the printer here, since it should already be locked by the
         # calling site of this method.
         # Test the printer to see if its working properly.
         printer = None
         try:
             printer = api.device_manager.printer
-            printer and printer.is_drawer_open()
-        except Exception:
+            return printer.is_drawer_open()
+        except SerialException:
             if printer:
                 printer._port.close()
             api.device_manager._printer = None
-            for i in range(20):
+            for i in range(retries):
                 log.info('Printer check failed. Reopening')
                 try:
                     printer = api.device_manager.printer
                     printer.is_drawer_open()
                     break
-                except Exception:
+                except SerialException:
                     time.sleep(1)
             else:
+                # Reopening printer failed. re-raise the original exception
                 raise
 
             # Invalidate the printer in the plugins so that it re-opens it
@@ -258,6 +271,8 @@ class _BaseResource(Resource):
             nonfiscal = get_plugin(manager, 'nonfiscal')
             if nonfiscal and nonfiscal.ui:
                 nonfiscal.ui.printer = printer
+
+            return printer.is_drawer_open()
 
 
 class DataResource(_BaseResource):
@@ -432,51 +447,45 @@ class DrawerResource(_BaseResource):
     method_decorators = [_login_required]
 
     @classmethod
-    @lock_printer
-    def _open_drawer(cls):
-        if not api.device_manager.printer:
-            raise PrinterException('Printer not configured in this station')
-        api.device_manager.printer.open_drawer()
-
-    @classmethod
-    @lock_printer
-    def _is_open(cls):
-        try:
-            if not api.device_manager.printer:
-                return False
-            return api.device_manager.printer.is_drawer_open()
-        except Exception as e:
-            log.exception('Unhandled Exception: %s', (e))
-            return False
-
-    @classmethod
     @worker
     def check_drawer_loop():
-        is_open = DrawerResource._is_open()
+        is_open = False
 
         # Check every second if it is opened.
         # Alert only if changes.
         while True:
-            if not is_open and DrawerResource._is_open():
+            try:
+                with _printer_lock:
+                    new_is_open = DrawerResource.ensure_printer(retries=1)
+            except SerialException:
+                time.sleep(10)
+                continue
+
+            if not is_open and new_is_open:
                 is_open = True
                 EventStream.put({
                     'type': 'DRAWER_ALERT_OPEN',
                 })
-            elif is_open and not DrawerResource._is_open():
+            elif is_open and not new_is_open:
                 is_open = False
                 EventStream.put({
                     'type': 'DRAWER_ALERT_CLOSE',
                 })
             time.sleep(1)
 
+    @lock_printer
     def get(self):
         """Get the current status of the drawer"""
-        return self._is_open()
+        return self.ensure_printer()
 
+    @lock_printer
     def post(self):
         """Send a signal to open the drawer"""
+        if not api.device_manager.printer:
+            raise PrinterException('Printer not configured in this station')
+
         try:
-            self._open_drawer()
+            api.device_manager.printer.open_drawer()
         except Exception as e:
             raise PrinterException('Could not proceed with the operation. Reason: ' + str(e))
         return 'success', 200
@@ -526,7 +535,7 @@ class TillResource(_BaseResource):
             assert False
 
     def _close_till(self, store, till_summaries):
-        self.test_printer()
+        self.ensure_printer()
         # Here till object must exist
         till = Till.get_last(store)
 
@@ -827,7 +836,8 @@ if has_ntk:
             if not ntk:
                 return
             try:
-                self.test_printer()
+                with _printer_lock:
+                    self.ensure_printer()
             except Exception:
                 EventStream.put({
                     'type': 'TEF_OPERATION_FINISHED',
@@ -924,7 +934,7 @@ class SaleResource(_BaseResource):
     @lock_printer
     def post(self, store):
         # FIXME: Check branch state and force fail if no override for that product is present.
-        self.test_printer()
+        self.ensure_printer()
 
         data = request.get_json()
         client_id = data.get('client_id')
