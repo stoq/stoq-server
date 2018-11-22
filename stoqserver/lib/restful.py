@@ -51,7 +51,7 @@ from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.image import Image
-from stoqlib.domain.overrides import ProductBranchOverride
+from stoqlib.domain.overrides import ProductBranchOverride, SellableBranchOverride
 from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
@@ -93,6 +93,42 @@ log = logging.getLogger(__name__)
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
 
 WORKERS = []
+
+
+def override(column):
+    from storm.references import Reference
+
+    # Column is already a property. No need to override it.
+    if isinstance(column, property):
+        return column
+
+    # Save a reference to the original column
+    if isinstance(column, Reference):
+        name = column._relation.local_key[0].name[:-3]
+        klass = column._cls
+        setattr(klass, '__' + name, column)
+    else:
+        assert False, type(column)
+
+    def _get(self):
+        branch = api.get_current_branch(self.store)
+
+        if klass == Sellable:
+            override = self.store.find(SellableBranchOverride, sellable=self, branch=branch).one()
+        elif klass == Product:
+            override = self.store.find(ProductBranchOverride, product=self, branch=branch).one()
+
+        original = getattr(self, '__' + name)
+        return getattr(override, name, original) or original
+
+    def _set(self, value):
+        assert False
+
+    return property(_get, _set)
+
+
+# Monkey patch sellable overrides until we release a new version of stoq
+Sellable.default_sale_cfop = override(Sellable.default_sale_cfop)
 
 
 def _get_user_hash():
