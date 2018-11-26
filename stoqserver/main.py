@@ -64,7 +64,7 @@ _SENTRY_URL = ('http://d971a2c535ab444ab18fa14b4b6495ea:'
 _LOGGING_FORMAT = '%(asctime)-15s %(name)-35s %(levelname)-8s %(message)s'
 _LOGGING_DATE_FORMAT = '%y-%m-%d %H:%M:%S'
 
-_raven_client = raven.Client(_SENTRY_URL, release=stoqserver.version_str)
+_raven_client = None
 
 
 class _Tee(object):
@@ -380,6 +380,7 @@ class StoqServerCmdHandler(object):
 
 
 def main(args):
+    global _raven_client
     # Do this as soon as possible so we can log any early traceback
     setup_excepthook()
 
@@ -408,4 +409,6 @@ def main(args):
     config.get_settings()
     register_config(config)
 
+    sentry_url = config.get('Sentry', 'url') or _SENTRY_URL
+    _raven_client = raven.Client(sentry_url, release=stoqserver.version_str)
     return handler.run_cmd(cmd, options, *args)

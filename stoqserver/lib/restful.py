@@ -1016,6 +1016,8 @@ class SaleResource(_BaseResource):
 
         # Add payments
         sale_total = sale.get_total_sale_amount()
+        money_payment = None
+        payments_total = 0
         for p in payments:
             method_name = p['method']
             tef_data = p.get('tef_data', {})
@@ -1032,16 +1034,19 @@ class SaleResource(_BaseResource):
                 start_date=localnow(),
                 count=installments))
 
-            # FIXME FIXME FIXME
             payment_value = currency(p['value'])
-            if payment_value > sale_total:
-                payment_value = sale_total
+            payments_total += payment_value
 
             p_list = method.create_payments(
                 Payment.TYPE_IN, group, branch,
                 payment_value, due_dates)
 
-            if method.method_name == 'card':
+            if method.method_name == 'money':
+                # FIXME Frontend should not allow more than one money payment. this can be changed
+                # once https://gitlab.com/stoqtech/private/bdil/issues/75 is fixed?
+                if not money_payment or payment_value > money_payment.value:
+                    money_payment = p_list[0]
+            elif method.method_name == 'card':
                 for payment in p_list:
                     card_data = method.operation.get_card_data_by_payment(payment)
 
@@ -1057,6 +1062,12 @@ class SaleResource(_BaseResource):
                         card_data.auth = tef_data['aut_ext_ref']
                     card_data.update_card_data(device, provider, card_type, installments)
                     card_data.te.metadata = tef_data
+
+        # If payments total exceed sale total, we must adjust money payment so that the change is
+        # correctly calculated..
+        if payments_total > sale_total and money_payment:
+            money_payment.value -= (payments_total - sale_total)
+            assert money_payment.value >= 0
 
         # Confirm the sale
         group.confirm()
