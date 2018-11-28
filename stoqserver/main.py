@@ -59,12 +59,12 @@ from stoqserver.tasks import backup_database, restore_database, backup_status, s
 
 logger = logging.getLogger(__name__)
 
-_SENTRY_URL = ('http://d971a2c535ab444ab18fa14b4b6495ea:'
-               'dc3a89e2701e4336ab0c6df781d1855d@sentry.stoq.com.br/11')
+SENTRY_URL = ('http://d971a2c535ab444ab18fa14b4b6495ea:'
+              'dc3a89e2701e4336ab0c6df781d1855d@sentry.stoq.com.br/11')
 _LOGGING_FORMAT = '%(asctime)-15s %(name)-35s %(levelname)-8s %(message)s'
 _LOGGING_DATE_FORMAT = '%y-%m-%d %H:%M:%S'
 
-_raven_client = None
+raven_client = None
 
 
 class _Tee(object):
@@ -92,37 +92,40 @@ def _windows_fixes():
     requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(root, 'cacert.pem')
 
 
-def setup_excepthook():
+def sentry_report(exctype, value, tb, **tags):
+    tags.update({
+        'version': stoqserver.version_str,
+        'stoq_version': stoq.version,
+        'architecture': platform.architecture(),
+        'distribution': platform.dist(),
+        'python_version': tuple(sys.version_info),
+        'system': platform.system(),
+        'uname': platform.uname(),
+    })
+    # Those are inside a try/except because thy require database access.
+    # If the database access is not working, we won't be able to get them
+    try:
+        default_store = api.get_default_store()
+        tags['user_hash'] = api.sysparam.get_string('USER_HASH')
+        tags['demo'] = api.sysparam.get_bool('DEMO_MODE')
+        tags['postgresql_version'] = get_database_version(default_store)
+        tags['plugins'] = InstalledPlugin.get_plugin_names(default_store)
+        tags['cnpj'] = get_main_cnpj(default_store)
+    except Exception:
+        pass
+
+    # Disable send sentry log if we are on developer mode.
+    developer_mode = stoqserver.library.uninstalled
+    if raven_client is not None and not developer_mode:
+        if hasattr(raven_client, 'user_context'):
+            raven_client.user_context({'id': tags.get('hash', None),
+                                       'username': tags.get('cnpj', None)})
+        raven_client.captureException((exctype, value, tb), tags=tags)
+
+
+def setup_excepthook(sentry_url):
     def _excepthook(exctype, value, tb):
-        tags = {
-            'version': stoqserver.version_str,
-            'stoq_version': stoq.version,
-            'architecture': platform.architecture(),
-            'distribution': platform.dist(),
-            'python_version': tuple(sys.version_info),
-            'system': platform.system(),
-            'uname': platform.uname(),
-        }
-        # Those are inside a try/except because thy require database access.
-        # If the database access is not working, we won't be able to get them
-        try:
-            default_store = api.get_default_store()
-            tags['user_hash'] = api.sysparam.get_string('USER_HASH')
-            tags['demo'] = api.sysparam.get_bool('DEMO_MODE')
-            tags['postgresql_version'] = get_database_version(default_store)
-            tags['plugins'] = InstalledPlugin.get_plugin_names(default_store)
-            tags['cnpj'] = get_main_cnpj(default_store)
-        except Exception:
-            pass
-
-        # Disable send sentry log if we are on developer mode.
-        developer_mode = stoqserver.library.uninstalled
-        if _raven_client is not None and not developer_mode:
-            if hasattr(_raven_client, 'user_context'):
-                _raven_client.user_context({'id': tags.get('hash', None),
-                                            'username': tags.get('cnpj', None)})
-            _raven_client.captureException((exctype, value, tb), tags=tags)
-
+        sentry_report(exctype, value, tb)
         traceback.print_exception(exctype, value, tb)
 
     sys.excepthook = _excepthook
@@ -380,10 +383,6 @@ class StoqServerCmdHandler(object):
 
 
 def main(args):
-    global _raven_client
-    # Do this as soon as possible so we can log any early traceback
-    setup_excepthook()
-
     if platform.system() == 'Windows':
         _windows_fixes()
 
@@ -409,6 +408,9 @@ def main(args):
     config.get_settings()
     register_config(config)
 
-    sentry_url = config.get('Sentry', 'url') or _SENTRY_URL
-    _raven_client = raven.Client(sentry_url, release=stoqserver.version_str)
+    global SENTRY_URL, raven_client
+    SENTRY_URL = config.get('Sentry', 'url') or SENTRY_URL
+    raven_client = raven.Client(SENTRY_URL, release=stoqserver.version_str)
+    setup_excepthook(SENTRY_URL)
+
     return handler.run_cmd(cmd, options, *args)

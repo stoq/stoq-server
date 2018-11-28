@@ -37,12 +37,15 @@ from threading import Event, Lock
 import io
 import select
 import time
+import traceback
+import hashlib
 from hashlib import md5
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
 from flask import Flask, request, session, abort, send_file, make_response, Response
 from flask_restful import Api, Resource
+from raven.contrib.flask import Sentry
 from serial.serialutil import SerialException
 
 from stoqlib.api import api
@@ -72,6 +75,8 @@ from stoqlib.lib.translation import dgettext
 from stoqlib.lib.threadutils import threadit
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join, And, Ne
+
+from stoqserver import main
 
 _ = lambda s: dgettext('stoqserver', s)
 
@@ -212,7 +217,7 @@ def _store_provider(f):
                 return f(store, *args, **kwargs)
             except Exception as e:
                 store.retval = False
-                abort(500, str(e))
+                raise e
 
     return wrapper
 
@@ -453,13 +458,29 @@ class DataResource(_BaseResource):
         station = get_current_station(store)
         user = api.get_current_user(store)
         staff_category = store.find(ClientCategory, ClientCategory.name == 'Staff').one()
+        branch = station.branch
 
         # Current branch data
         retval = dict(
-            branch=api.get_current_branch(store).id,
+            branch=branch.id,
             branch_station=station.name,
+            branch_object=dict(
+                id=branch.id,
+                name=branch.name,
+                acronym=branch.acronym,
+            ),
+            station=dict(
+                id=station.id,
+                code=station.code,
+                name=station.name,
+            ),
             user_id=user and user.id,
             user=user and user.username,
+            user_object=user and dict(
+                id=user.id,
+                name=user.username,
+                profile_id=user.profile_id,
+            ),
             categories=cls._get_categories(store),
             payment_methods=cls._get_payment_methods(store),
             providers=cls._get_card_providers(store),
@@ -1086,6 +1107,7 @@ class SaleResource(_BaseResource):
 
 def bootstrap_app():
     app = Flask(__name__)
+
     # Indexing some session data by the USER_HASH will help to avoid maintaining
     # sessions between two different databases. This could lead to some errors in
     # the POS in which the user making the sale does not exist.
@@ -1110,6 +1132,23 @@ def bootstrap_app():
         ntk = Ntk()
         ntk.init(tef_dir)
 
+    @app.errorhandler(Exception)
+    def unhandled_exception(e):
+        traceback_info = "\n".join(traceback.format_tb(e.__traceback__))
+        traceback_hash = hashlib.sha1(traceback_info.encode('utf-8')).hexdigest()[:8]
+        traceback_exception = traceback.format_exception_only(type(e), e)[-1]
+        timestamp = localnow().strftime('%Y%m%d-%H%M%S')
+
+        log.exception('Unhandled Exception: {timestamp} {error} {traceback_hash}'.format(
+            timestamp=timestamp, error=e, traceback_hash=traceback_hash))
+
+        main.sentry_report(type(e), e, e.__traceback__, traceback_hash=traceback_hash)
+
+        return Response(json.dumps({'error': _('bad request!'), 'timestamp': timestamp,
+                                    'exception': traceback_exception,
+                                    'traceback_hash': traceback_hash}),
+                        500, mimetype='application/json')
+
     return app
 
 
@@ -1130,6 +1169,7 @@ def run_flaskserver(port, debug=False):
 
     app = bootstrap_app()
     app.debug = debug
+    main.raven_client = Sentry(app, dsn=main.SENTRY_URL)
 
     @app.after_request
     def after_request(response):
@@ -1143,10 +1183,5 @@ def run_flaskserver(port, debug=False):
         response.headers['Access-Control-Allow-Headers'] = 'stoq-session, stoq-user, Content-Type'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
-
-    @app.errorhandler(Exception)
-    def unhandled_exception(e):
-        log.exception('Unhandled Exception: %s', (e))
-        return 'bad request!', 500
 
     app.run('0.0.0.0', port=port, debug=debug, threaded=True)

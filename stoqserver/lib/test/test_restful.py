@@ -24,6 +24,7 @@
 
 import datetime
 import contextlib
+import hashlib
 import json
 
 import mock
@@ -243,12 +244,15 @@ class TestSaleResource(_TestFlask):
 
     resource_class = SaleResource
 
-    def test_post(self):
+    @mock.patch('stoqserver.lib.restful.hashlib')
+    def test_post(self, hl):
+        hl.sha1.return_value = hashlib.sha1(b'foo')
+
         with self.sysparam(DEMO_MODE=True):
             with self.fake_store() as es:
                 e = es.enter_context(
                     mock.patch('stoqserver.lib.restful.SaleConfirmedRemoteEvent.emit'))
-                d = datetime.datetime(2018, 3, 6)
+                d = datetime.datetime(2018, 3, 6, 4, 20, 53)
                 now = es.enter_context(
                     mock.patch('stoqserver.lib.restful.localnow'))
                 now.return_value = d
@@ -314,7 +318,7 @@ class TestSaleResource(_TestFlask):
                     {(p.method.method_name, p.due_date, p.value)
                      for p in sale.group.get_items()},
                     {('card', d, currency('15')),
-                     ('card', datetime.datetime(2018, 4, 6), currency('15')),
+                     ('card', datetime.datetime(2018, 4, 6, 4, 20, 53), currency('15')),
                      ('money', d, currency('10.5'))}
                 )
 
@@ -353,7 +357,10 @@ class TestSaleResource(_TestFlask):
                 )
                 self.assertEqual(rv.status_code, 500)
                 self.assertEqual(json.loads(rv.data.decode()),
-                                 {'message': 'foobar exception'})
+                                 {'error': 'bad request!',
+                                  'exception': 'Exception: foobar exception\n',
+                                  'timestamp': '20180306-042053',
+                                  'traceback_hash': '0beec7b5'})
 
 
 class TestImageResource(_TestFlask):
