@@ -1124,6 +1124,12 @@ def run_flaskserver(port, debug=False):
     for function in WORKERS:
         threadit(function)
 
+    try:
+        from stoqserver.lib import stacktracer
+        stacktracer.start_trace("/tmp/trace-stoqserver-flask.txt", interval=5, auto=True)
+    except ImportError:
+        pass
+
     app = bootstrap_app()
     app.debug = debug
 
