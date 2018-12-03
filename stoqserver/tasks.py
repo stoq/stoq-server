@@ -182,6 +182,11 @@ def start_server():
 
 
 def start_htsql(port):
+    config = get_config()
+    if config.get('General', 'disable_htsql'):
+        logger.info("Not starting htsql as requested in config file.")
+        return
+
     logger.info("Starting htsql server")
 
     if db_settings.password:
@@ -213,12 +218,16 @@ def start_rtc():
         logger.info("ONLINE_SERVICES not enabled. Not starting rtc...")
         return
 
+    config = get_config()
+    if config.get('General', 'disable_rtc'):
+        logger.info("Not starting rtc as requested in config file.")
+        return
+
     logger.info("Starting webRTC")
 
     cwd = library.get_resource_filename('stoqserver', 'webrtc')
     retry = True
 
-    config = get_config()
     extra_args = []
     camera_urls = config.get('Camera', 'url') or None
     if camera_urls:
