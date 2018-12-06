@@ -869,8 +869,6 @@ if has_ntk:
             return True
 
         def post(self):
-            if not ntk:
-                return
             try:
                 with _printer_lock:
                     self.ensure_printer()
