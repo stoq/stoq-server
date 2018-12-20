@@ -15,7 +15,7 @@ Architecture: all
 Depends: ${misc:Depends}, ${python:Depends},
  stoq (>= 3.1~rc1), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
  python3-requests (>= 2.2), python3-netifaces, python3-flask, python3-flask-restful, python-htsql, python-htsql-pgsql, python-requests,
- python3-raven, tmate
+ python3-raven, tmate, python3-gevent
 Recommends: python3-pygments
 Suggests: python3-avahi
 Homepage: http://www.stoq.com.br/

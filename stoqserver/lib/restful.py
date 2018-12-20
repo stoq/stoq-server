@@ -32,14 +32,17 @@ import logging
 import os
 import pickle
 import psycopg2
-from queue import Queue
-from threading import Event, Lock
+from gevent.queue import Queue
+from gevent.event import Event
+from gevent.lock import Semaphore
 import io
 import select
-import time
 import traceback
 import hashlib
 from hashlib import md5
+
+from gevent.pywsgi import WSGIServer
+import gevent
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
@@ -72,7 +75,7 @@ from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
-from stoqlib.lib.threadutils import threadit
+#from stoqlib.lib.threadutils import threadit
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join, And, Ne
 
@@ -89,10 +92,16 @@ except ImportError:
     has_ntk = False
     ntk = None
 
+try:
+    from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess, NfeYesNoQuestion
+    has_nfe = True
+except ImportError:
+    has_nfe = False
+
 _last_gc = None
 _expire_time = datetime.timedelta(days=1)
 _session = None
-_printer_lock = Lock()
+_printer_lock = Semaphore()
 log = logging.getLogger(__name__)
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
@@ -251,6 +260,22 @@ def get_plugin(manager, name):
         return None
 
 
+def _nfe_progress_event(message):
+    EventStream.put({'type': 'NFE_PROGRESS', 'message': message})
+
+
+def _nfe_warning_event(message, details):
+    EventStream.put({'type': 'NFE_WARNING', 'message': message, 'details': details})
+
+
+def _nfe_success_event(message):
+    EventStream.put({'type': 'NFE_SUCCESS', 'message': message})
+
+
+def _nfe_yes_no_question_event(**kwargs):
+    EventStream.put({'type': 'NFE_YES_NO_QUESTION', 'data': kwargs})
+
+
 class _BaseResource(Resource):
 
     routes = []
@@ -293,7 +318,7 @@ class _BaseResource(Resource):
                     printer.is_drawer_open()
                     break
                 except SerialException:
-                    time.sleep(1)
+                    gevent.sleep(1)
             else:
                 # Reopening printer failed. re-raise the original exception
                 raise
@@ -327,7 +352,8 @@ class DataResource(_BaseResource):
                     'branch', 'login_user', 'sellable_category', 'client_category_price',
                     'payment_method', 'credit_provider']
 
-    @worker
+    # Disabled for now while testing gevent instead of threads
+    #@worker
     def _postgres_listen():
         store = api.new_store()
         conn = store._connection._raw_connection
@@ -514,8 +540,10 @@ class DrawerResource(_BaseResource):
             try:
                 with _printer_lock:
                     new_is_open = DrawerResource.ensure_printer(retries=1)
-            except SerialException:
-                time.sleep(10)
+            except (SerialException, IndexError):
+                # XXX: Make stoqdrivers raise a proper exception instead of IndexError:
+                # https://gitlab.com/stoqtech/stoqdrivers/issues/3
+                gevent.sleep(10)
                 continue
 
             if not is_open and new_is_open:
@@ -528,7 +556,7 @@ class DrawerResource(_BaseResource):
                 EventStream.put({
                     'type': 'DRAWER_ALERT_CLOSE',
                 })
-            time.sleep(1)
+            gevent.sleep(1)
 
     @lock_printer
     def get(self):
@@ -615,7 +643,8 @@ class TillResource(_BaseResource):
             summary.user_value = decimal.Decimal(till_summary['user_value'])
 
         balance = till.get_balance()
-        till.add_debit_entry(balance, _('Blind till closing'))
+        if balance:
+            till.add_debit_entry(balance, _('Blind till closing'))
         till.close_till()
 
     def _add_credit_or_debit_entry(self, store, data):
@@ -1098,6 +1127,8 @@ class SaleResource(_BaseResource):
         # Fiscal plugins will connect to this event and "do their job"
         # It's their responsibility to raise an exception in case of
         # any error, which will then trigger the abort bellow
+
+        # FIXME: Catch printing errors here and send message to the user.
         SaleConfirmedRemoteEvent.emit(sale, document)
 
         # This will make sure we update any stock or price changes products may
@@ -1132,6 +1163,12 @@ def bootstrap_app():
         ntk = Ntk()
         ntk.init(tef_dir)
 
+    if has_nfe:
+        NfeProgressEvent.connect(_nfe_progress_event)
+        NfeWarning.connect(_nfe_warning_event)
+        NfeSuccess.connect(_nfe_success_event)
+        NfeYesNoQuestion.connect(_nfe_yes_no_question_event)
+
     @app.errorhandler(Exception)
     def unhandled_exception(e):
         traceback_info = "\n".join(traceback.format_tb(e.__traceback__))
@@ -1159,7 +1196,7 @@ def run_flaskserver(port, debug=False):
 
     # Check drawer in a separated thread
     for function in WORKERS:
-        threadit(function)
+        gevent.spawn(function)
 
     try:
         from stoqserver.lib import stacktracer
@@ -1184,4 +1221,6 @@ def run_flaskserver(port, debug=False):
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
-    app.run('0.0.0.0', port=port, debug=debug, threaded=True)
+    http_server = WSGIServer(('127.0.0.1', port), app, spawn=gevent.spawn_raw, log=log,
+                             error_log=log)
+    http_server.serve_forever()

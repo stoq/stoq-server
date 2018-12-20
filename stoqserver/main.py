@@ -153,7 +153,7 @@ def setup_logging(app_name='stoq-server'):
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     formatter = logging.Formatter(
-        '%(asctime)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s')
+        '%(asctime)s %(name)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
 
     root = logging.getLogger()
