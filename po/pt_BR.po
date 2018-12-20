@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-08-19 21:43-0300\n"
+"POT-Creation-Date: 2019-01-08 00:48-0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,38 +18,46 @@ msgstr ""
 
 #: ../stoqserver/client.py:98
 msgid "Server"
-msgstr ""
+msgstr "Servidor"
 
 #: ../stoqserver/client.py:110
 msgid "Username:"
-msgstr ""
+msgstr "Usuário:"
 
 #: ../stoqserver/client.py:119
 msgid "Password:"
-msgstr ""
+msgstr "Senha:"
 
 #: ../stoqserver/client.py:124
 msgid "Start"
-msgstr ""
+msgstr "Começar"
 
 #: ../stoqserver/common.py:40
 msgid "Stoq Server"
-msgstr ""
+msgstr "Stoq Server"
 
-#: ../stoqserver/lib/restful.py:454
+#: ../stoqserver/lib/restful.py:650
 msgid "Blind till closing"
 msgstr "Fechamento cego de caixa"
 
-#: ../stoqserver/lib/restful.py:464
+#: ../stoqserver/lib/restful.py:660
 #, python-format
 msgid "The user %s removed cash from till"
 msgstr "Quantia removida do caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:467
+#: ../stoqserver/lib/restful.py:663
 #, python-format
 msgid "The user %s supplied cash to the till"
 msgstr "Quantia adicionada no caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:605
+#: ../stoqserver/lib/restful.py:825
 msgid "User does not have permission"
 msgstr "O usuário não tem permissão"
+
+#: ../stoqserver/lib/restful.py:1140
+msgid "Sale confirmed but printing coupon failed"
+msgstr "Venda confirmada mas falha ao imprimir cupom"
+
+#: ../stoqserver/lib/restful.py:1190
+msgid "bad request!"
+msgstr ""

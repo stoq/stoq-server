@@ -93,10 +93,24 @@ except ImportError:
     ntk = None
 
 try:
-    from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess, NfeYesNoQuestion
+    from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess
+    from stoqnfe.exceptions import PrinterException as NfePrinterException
     has_nfe = True
 except ImportError:
     has_nfe = False
+
+    class NfePrinterException(Exception):
+        pass
+
+
+try:
+    from stoqsat.exceptions import PrinterException as SatPrinterException
+    has_sat = True
+except ImportError:
+    has_sat = False
+
+    class SatPrinterException(Exception):
+        pass
 
 _last_gc = None
 _expire_time = datetime.timedelta(days=1)
@@ -193,7 +207,7 @@ def _login_required(f):
 
         user_id = request.headers.get('stoq-user', None)
         with api.new_store() as store:
-            user = store.get(LoginUser, user_id or session_id)
+            user = (user_id or session_id) and store.get(LoginUser, user_id or session_id)
             if user:
                 provide_utility(ICurrentUser, user, replace=True)
                 return f(*args, **kwargs)
@@ -268,12 +282,12 @@ def _nfe_warning_event(message, details):
     EventStream.put({'type': 'NFE_WARNING', 'message': message, 'details': details})
 
 
-def _nfe_success_event(message):
-    EventStream.put({'type': 'NFE_SUCCESS', 'message': message})
+def _nfe_success_event(message, details=None):
+    EventStream.put({'type': 'NFE_SUCCESS', 'message': message, 'details': details})
 
 
-def _nfe_yes_no_question_event(**kwargs):
-    EventStream.put({'type': 'NFE_YES_NO_QUESTION', 'data': kwargs})
+class UnhandledMisconfiguration(Exception):
+    pass
 
 
 class _BaseResource(Resource):
@@ -326,13 +340,10 @@ class _BaseResource(Resource):
             # Invalidate the printer in the plugins so that it re-opens it
             manager = get_plugin_manager()
 
+            # nfce does not need to reset the printer since it does not cache it.
             sat = get_plugin(manager, 'sat')
             if sat and sat.ui:
                 sat.ui.printer = None
-
-            nfce = get_plugin(manager, 'nfce')
-            if nfce and nfce.ui:
-                nfce.ui._emitter.printer._driver = printer
 
             nonfiscal = get_plugin(manager, 'nonfiscal')
             if nonfiscal and nonfiscal.ui:
@@ -519,10 +530,6 @@ class DataResource(_BaseResource):
         return self.get_data(store)
 
 
-class PrinterException(Exception):
-    pass
-
-
 class DrawerResource(_BaseResource):
     """Drawer RESTful resource."""
 
@@ -567,12 +574,9 @@ class DrawerResource(_BaseResource):
     def post(self):
         """Send a signal to open the drawer"""
         if not api.device_manager.printer:
-            raise PrinterException('Printer not configured in this station')
+            raise UnhandledMisconfiguration('Printer not configured in this station')
 
-        try:
-            api.device_manager.printer.open_drawer()
-        except Exception as e:
-            raise PrinterException('Could not proceed with the operation. Reason: ' + str(e))
+        api.device_manager.printer.open_drawer()
         return 'success', 200
 
 
@@ -1038,12 +1042,17 @@ class SaleResource(_BaseResource):
         else:
             client = None
 
+        sale_id = data.get('sale_id')
+        if sale_id and store.get(Sale, sale_id):
+            raise AssertionError(_('Sale already saved'))
+
         # Create the sale
         branch = api.get_current_branch(store)
         group = PaymentGroup(store=store)
         user = api.get_current_user(store)
         sale = Sale(
             store=store,
+            id=sale_id,
             branch=branch,
             salesperson=user.person.sales_person,
             client=client,
@@ -1052,6 +1061,7 @@ class SaleResource(_BaseResource):
             open_date=localnow(),
             coupon_id=None,
         )
+
         # Add products
         for p in products:
             sellable = store.get(Sellable, p['id'])
@@ -1125,14 +1135,18 @@ class SaleResource(_BaseResource):
         sale.confirm(till)
 
         # Fiscal plugins will connect to this event and "do their job"
-        # It's their responsibility to raise an exception in case of
-        # any error, which will then trigger the abort bellow
+        # It's their responsibility to raise an exception in case of any error
+        try:
+            SaleConfirmedRemoteEvent.emit(sale, document)
+        except (NfePrinterException, SatPrinterException):
+            return {
+                # XXX: This is not really an error, more of a partial success were the coupon
+                # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
+                # present to the user the option to try again or send the coupom via sms/email
+                'error_type': 'printing',
+                'message': _("Sale confirmed but printing coupon failed")
+            }
 
-        # FIXME: Catch printing errors here and send message to the user.
-        SaleConfirmedRemoteEvent.emit(sale, document)
-
-        # This will make sure we update any stock or price changes products may
-        # have between sales
         return True
 
 
@@ -1167,7 +1181,6 @@ def bootstrap_app():
         NfeProgressEvent.connect(_nfe_progress_event)
         NfeWarning.connect(_nfe_warning_event)
         NfeSuccess.connect(_nfe_success_event)
-        NfeYesNoQuestion.connect(_nfe_yes_no_question_event)
 
     @app.errorhandler(Exception)
     def unhandled_exception(e):
@@ -1221,6 +1234,7 @@ def run_flaskserver(port, debug=False):
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
+    log.info('Starting wsgi server (has_sat=%s, has_nfe=%s, has_ntk=%s)', has_sat, has_nfe, has_ntk)
     http_server = WSGIServer(('127.0.0.1', port), app, spawn=gevent.spawn_raw, log=log,
                              error_log=log)
     http_server.serve_forever()

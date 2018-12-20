@@ -150,6 +150,8 @@ def setup_stoq(register_station=False, name='stoqserver'):
 
 
 def setup_logging(app_name='stoq-server'):
+    # Note that kiwi creates another StreamHandler. If there is any indirect import from kiwi.log,
+    # some lines will be duplicated.
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     formatter = logging.Formatter(
