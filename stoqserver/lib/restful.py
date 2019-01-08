@@ -286,6 +286,12 @@ def _nfe_success_event(message, details=None):
     EventStream.put({'type': 'NFE_SUCCESS', 'message': message, 'details': details})
 
 
+if has_nfe:
+    NfeProgressEvent.connect(_nfe_progress_event)
+    NfeWarning.connect(_nfe_warning_event)
+    NfeSuccess.connect(_nfe_success_event)
+
+
 class UnhandledMisconfiguration(Exception):
     pass
 
@@ -1176,11 +1182,6 @@ def bootstrap_app():
 
         ntk = Ntk()
         ntk.init(tef_dir)
-
-    if has_nfe:
-        NfeProgressEvent.connect(_nfe_progress_event)
-        NfeWarning.connect(_nfe_warning_event)
-        NfeSuccess.connect(_nfe_success_event)
 
     @app.errorhandler(Exception)
     def unhandled_exception(e):
