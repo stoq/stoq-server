@@ -911,6 +911,11 @@ if has_ntk:
                 'type': 'TEF_ASK_QUESTION',
                 'data': info.get_dict()
             })
+
+            # Ntk library has some blocking calls (specially pinpad comunication).
+            # Before returning, we need to briefly hint gevent to let the EventStream co-rotine run,
+            # so that the message above can be sent to the frontend.
+            gevent.sleep(0.001)
             if info.data_type not in [PwDat.MENU, PwDat.TYPED]:
                 # This is just an information for the user. No need to wait for a reply.
                 return True
@@ -1145,13 +1150,14 @@ class SaleResource(_BaseResource):
         try:
             SaleConfirmedRemoteEvent.emit(sale, document)
         except (NfePrinterException, SatPrinterException):
+            log.info('Error printing coupon')
             return {
                 # XXX: This is not really an error, more of a partial success were the coupon
                 # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
                 # present to the user the option to try again or send the coupom via sms/email
                 'error_type': 'printing',
                 'message': _("Sale confirmed but printing coupon failed")
-            }
+            }, 201
 
         return True
 
@@ -1163,6 +1169,7 @@ def bootstrap_app():
     # sessions between two different databases. This could lead to some errors in
     # the POS in which the user making the sale does not exist.
     app.config['SECRET_KEY'] = _get_user_hash()
+    app.config['PROPAGATE_EXCEPTIONS'] = True
     flask_api = Api(app)
 
     for cls in _BaseResource.__subclasses__():
