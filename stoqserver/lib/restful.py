@@ -95,6 +95,7 @@ except ImportError:
 try:
     from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess
     from stoqnfe.exceptions import PrinterException as NfePrinterException
+    from stoqnfe.danfe import print_danfe as print_nfce_danfe
     has_nfe = True
 except ImportError:
     has_nfe = False
@@ -105,6 +106,7 @@ except ImportError:
 
 try:
     from stoqsat.exceptions import PrinterException as SatPrinterException
+    from stoqsat.printing.cfecoupon import print_danfe as print_sat_danfe
     has_sat = True
 except ImportError:
     has_sat = False
@@ -1158,10 +1160,33 @@ class SaleResource(_BaseResource):
                 # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
                 # present to the user the option to try again or send the coupom via sms/email
                 'error_type': 'printing',
-                'message': message.format(sale_identifier=sale.identifier)
+                'message': message.format(sale_identifier=sale.identifier),
+                'sale_id': sale.id
             }, 201
 
         return True
+
+
+class PrintCouponResource(_BaseResource):
+    """Image RESTful resource."""
+
+    routes = ['/sale/<sale_id>/print_coupon']
+    method_decorators = [_login_required, _store_provider]
+
+    @lock_printer
+    def get(self, store, sale_id):
+        self.ensure_printer()
+
+        sale = store.get(Sale, sale_id)
+        manager = get_plugin_manager()
+
+        # This should be as easy as PrintCouponCopyEvent.emit(sale)
+        sat = get_plugin(manager, 'sat')
+        nfce = get_plugin(manager, 'nfce')
+        if sat and sat.ui:
+            print_sat_danfe(sale)
+        elif nfce and nfce.ui:
+            print_nfce_danfe(sale)
 
 
 def bootstrap_app():
