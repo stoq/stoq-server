@@ -1150,13 +1150,14 @@ class SaleResource(_BaseResource):
         try:
             SaleConfirmedRemoteEvent.emit(sale, document)
         except (NfePrinterException, SatPrinterException):
-            log.info('Error printing coupon')
+            log.exception('Error printing coupon')
+            message = _("Sale {sale_identifier} confirmed but printing coupon failed")
             return {
                 # XXX: This is not really an error, more of a partial success were the coupon
                 # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
                 # present to the user the option to try again or send the coupom via sms/email
                 'error_type': 'printing',
-                'message': _("Sale confirmed but printing coupon failed")
+                'message': message.format(sale_identifier=sale.identifier)
             }, 201
 
         return True
@@ -1227,7 +1228,7 @@ def run_flaskserver(port, debug=False):
 
     app = bootstrap_app()
     app.debug = debug
-    main.raven_client = Sentry(app, dsn=main.SENTRY_URL)
+    main.raven_client = Sentry(app, dsn=main.SENTRY_URL, client=main.raven_client)
 
     @app.after_request
     def after_request(response):
