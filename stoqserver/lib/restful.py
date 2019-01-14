@@ -962,7 +962,8 @@ if has_ntk:
                 # requests (specially when handling comunication with the user through the callbacks
                 # above)
                 if data['operation'] == 'sale':
-                    retval = ntk.sale(value=data['value'], card_type=self.NTK_MODES[data['mode']])
+                    retval = ntk.sale(value=decimal.Decimal(data['value']),
+                                      card_type=self.NTK_MODES[data['mode']])
                 elif data['operation'] == 'admin':
                     # Admin operation does not leave pending transaction
                     retval = ntk.admin()
