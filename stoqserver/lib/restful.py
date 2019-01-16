@@ -302,12 +302,17 @@ class _BaseResource(Resource):
 
     routes = []
 
+    def get_json(self):
+        if not request.data:
+            return None
+        return json.loads(request.data.decode(), parse_float=decimal.Decimal)
+
     def get_arg(self, attr, default=None):
         """Get the attr from querystring, form data or json"""
         # This is not working on all versions.
         #if request.is_json:
-        if request.get_json():
-            return request.get_json().get(attr, None)
+        if self.get_json():
+            return self.get_json().get(attr, None)
 
         return request.form.get(attr, request.args.get(attr, default))
 
@@ -690,7 +695,7 @@ class TillResource(_BaseResource):
 
     @lock_printer
     def post(self):
-        data = request.get_json()
+        data = self.get_json()
         with api.new_store() as store:
             # Provide responsible
             if data['operation'] == 'open_till':
@@ -779,7 +784,7 @@ class ClientResource(_BaseResource):
         return retval
 
     def post(self):
-        data = request.get_json()
+        data = self.get_json()
 
         with api.new_store() as store:
             if data.get('doc'):
@@ -947,7 +952,7 @@ if has_ntk:
                 })
                 return
 
-            data = request.get_json()
+            data = self.get_json()
             if self.waiting_reply.is_set() and data['operation'] == 'reply':
                 # There is already an operation happening, but its waiting for a user reply.
                 # This is the reply
@@ -964,7 +969,7 @@ if has_ntk:
                 # requests (specially when handling comunication with the user through the callbacks
                 # above)
                 if data['operation'] == 'sale':
-                    retval = ntk.sale(value=decimal.Decimal(data['value']),
+                    retval = ntk.sale(value=data['value'],
                                       card_type=self.NTK_MODES[data['mode']])
                 elif data['operation'] == 'admin':
                     # Admin operation does not leave pending transaction
@@ -1038,7 +1043,7 @@ class SaleResource(_BaseResource):
         # FIXME: Check branch state and force fail if no override for that product is present.
         self.ensure_printer()
 
-        data = request.get_json()
+        data = self.get_json()
         client_id = data.get('client_id')
         products = data['products']
         payments = data['payments']
