@@ -39,6 +39,7 @@ import io
 import select
 import traceback
 import hashlib
+import requests
 from hashlib import md5
 
 from gevent.pywsgi import WSGIServer
@@ -509,6 +510,8 @@ class DataResource(_BaseResource):
         user = api.get_current_user(store)
         staff_category = store.find(ClientCategory, ClientCategory.name == 'Staff').one()
         branch = station.branch
+        config = get_config()
+        can_send_sms = config.get("Twilio", "sid") is not None
 
         # Current branch data
         retval = dict(
@@ -535,6 +538,7 @@ class DataResource(_BaseResource):
             payment_methods=cls._get_payment_methods(store),
             providers=cls._get_card_providers(store),
             staff_id=staff_category.id if staff_category else None,
+            can_send_sms=can_send_sms,
         )
 
         return retval
@@ -1192,6 +1196,46 @@ class PrintCouponResource(_BaseResource):
             print_sat_danfe(sale)
         elif nfce and nfce.ui:
             print_nfce_danfe(sale)
+
+
+class SmsResource(_BaseResource):
+    """SMS RESTful resource."""
+    routes = ['/sale/<sale_id>/send_coupon_sms']
+    method_decorators = [_login_required, _store_provider]
+
+    def post(self, store, sale_id):
+        data = self.get_json()
+
+        sale = store.get(Sale, sale_id)
+        manager = get_plugin_manager()
+
+        sat = get_plugin(manager, 'sat')
+        nfce = get_plugin(manager, 'nfce')
+        if sat and sat.ui:
+            from stoqsat.satdomain import SATSale
+            sat_sale = SATSale.get_by_sale(store, sale)
+            sale_key = sat_sale.key[3:]
+            body = (_("Consult your fiscal coupon at the SAT website" +
+                      " by entering the access key:\n") + sale_key)
+        elif nfce and nfce.ui:
+            from stoqnfe.domain.nfe import NfeData
+            url = NfeData.get_by_invoice_id(store, sale.invoice_id).invoice_url
+            body = _("Consult your fiscal coupon at the website below:\n") + url
+        else:
+            raise PluginError(_("No NFE or SAT plugin enabled"))
+
+        config = get_config()
+        sid = config.get('Twilio', 'sid')
+        secret = config.get('Twilio', 'secret')
+        from_phone_number = config.get('Twilio', 'from')
+        to_phone_number = "+55" + data.get("phone_number")
+
+        sms_data = {"From": from_phone_number, "To": to_phone_number,
+                    "Body": body}
+
+        r = requests.post('https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json' % sid,
+                          data=sms_data, auth=(sid, secret))
+        return r.text
 
 
 def bootstrap_app():
