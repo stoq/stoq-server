@@ -1067,6 +1067,7 @@ class SaleResource(_BaseResource):
 
         sale_id = data.get('sale_id')
         if sale_id and store.get(Sale, sale_id):
+            log.info('Sale already saved: %s' % sale_id)
             raise AssertionError(_('Sale already saved'))
 
         # Create the sale
