@@ -44,6 +44,7 @@ from hashlib import md5
 
 from gevent.pywsgi import WSGIServer
 import gevent
+from blinker import signal
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
@@ -73,6 +74,7 @@ from stoqlib.exceptions import LoginError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
+from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
@@ -96,7 +98,6 @@ except ImportError:
 try:
     from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess
     from stoqnfe.exceptions import PrinterException as NfePrinterException
-    from stoqnfe.danfe import print_danfe as print_nfce_danfe
     has_nfe = True
 except ImportError:
     has_nfe = False
@@ -107,7 +108,6 @@ except ImportError:
 
 try:
     from stoqsat.exceptions import PrinterException as SatPrinterException
-    from stoqsat.printing.cfecoupon import print_danfe as print_sat_danfe
     has_sat = True
 except ImportError:
     has_sat = False
@@ -1067,7 +1067,6 @@ class SaleResource(_BaseResource):
 
         sale_id = data.get('sale_id')
         if sale_id and store.get(Sale, sale_id):
-            log.info('Sale already saved: %s' % sale_id)
             raise AssertionError(_('Sale already saved'))
 
         # Create the sale
@@ -1188,15 +1187,7 @@ class PrintCouponResource(_BaseResource):
         self.ensure_printer()
 
         sale = store.get(Sale, sale_id)
-        manager = get_plugin_manager()
-
-        # This should be as easy as PrintCouponCopyEvent.emit(sale)
-        sat = get_plugin(manager, 'sat')
-        nfce = get_plugin(manager, 'nfce')
-        if sat and sat.ui:
-            print_sat_danfe(sale)
-        elif nfce and nfce.ui:
-            print_nfce_danfe(sale)
+        signal('PrintCouponCopyEvent').send(sale)
 
 
 class SmsResource(_BaseResource):
@@ -1204,39 +1195,26 @@ class SmsResource(_BaseResource):
     routes = ['/sale/<sale_id>/send_coupon_sms']
     method_decorators = [_login_required, _store_provider]
 
-    def post(self, store, sale_id):
-        data = self.get_json()
-
-        sale = store.get(Sale, sale_id)
-        manager = get_plugin_manager()
-
-        sat = get_plugin(manager, 'sat')
-        nfce = get_plugin(manager, 'nfce')
-        if sat and sat.ui:
-            from stoqsat.satdomain import SATSale
-            sat_sale = SATSale.get_by_sale(store, sale)
-            sale_key = sat_sale.key[3:]
-            body = (_("Consult your fiscal coupon at the SAT website" +
-                      " by entering the access key:\n") + sale_key)
-        elif nfce and nfce.ui:
-            from stoqnfe.domain.nfe import NfeData
-            url = NfeData.get_by_invoice_id(store, sale.invoice_id).invoice_url
-            body = _("Consult your fiscal coupon at the website below:\n") + url
-        else:
-            raise PluginError(_("No NFE or SAT plugin enabled"))
-
+    def _send_sms(self, to, message):
         config = get_config()
         sid = config.get('Twilio', 'sid')
         secret = config.get('Twilio', 'secret')
         from_phone_number = config.get('Twilio', 'from')
-        to_phone_number = "+55" + data.get("phone_number")
 
-        sms_data = {"From": from_phone_number, "To": to_phone_number,
-                    "Body": body}
+        sms_data = {"From": from_phone_number, "To": to, "Body": message}
 
         r = requests.post('https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json' % sid,
                           data=sms_data, auth=(sid, secret))
         return r.text
+
+    def post(self, store, sale_id):
+        GetCouponSmsTextEvent = signal('GetCouponSmsTextEvent')
+        assert len(GetCouponSmsTextEvent.receivers) == 1
+
+        sale = store.get(Sale, sale_id)
+        message = GetCouponSmsTextEvent.send(sale)[0][1]
+        to = '+55' + self.get_json()['phone_number']
+        return self._send_sms(to, message)
 
 
 def bootstrap_app():
@@ -1304,7 +1282,8 @@ def run_flaskserver(port, debug=False):
 
     app = bootstrap_app()
     app.debug = debug
-    main.raven_client = Sentry(app, dsn=main.SENTRY_URL, client=main.raven_client)
+    if not is_developer_mode():
+        main.raven_client = Sentry(app, dsn=main.SENTRY_URL, client=main.raven_client)
 
     @app.after_request
     def after_request(response):
