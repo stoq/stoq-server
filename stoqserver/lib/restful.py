@@ -949,7 +949,7 @@ class TefResource(_BaseResource):
             message = retval['message']
         except Exception as e:
             retval = False
-            log.exception('Tef failed')
+            log.info('Tef failed: %s', str(e))
             if len(e.args) == 2:
                 message = e.args[1]
             else:
@@ -1112,7 +1112,7 @@ class SaleResource(_BaseResource):
                 for payment in p_list:
                     card_data = method.operation.get_card_data_by_payment(payment)
 
-                    card_type = p['mode']
+                    card_type = p['card_type']
                     # Stoq does not have the voucher comcept, so register it as a debit card.
                     if card_type == 'voucher':
                         card_type = 'debit'
