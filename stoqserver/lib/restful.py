@@ -1023,6 +1023,18 @@ class SaleResource(_BaseResource):
             provider = CreditProvider(store=store, short_name=name, provider_id=name)
         return provider
 
+    def _handle_coupon_printing_fail(self, sale):
+        log.exception('Error printing coupon')
+        message = _("Sale {sale_identifier} confirmed but printing coupon failed")
+        return {
+            # XXX: This is not really an error, more of a partial success were the coupon
+            # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
+            # present to the user the option to try again or send the coupom via sms/email
+            'error_type': 'printing',
+            'message': message.format(sale_identifier=sale.identifier),
+            'sale_id': sale.id
+        }, 201
+
     @lock_printer
     def post(self, store):
         # FIXME: Check branch state and force fail if no override for that product is present.
@@ -1047,7 +1059,13 @@ class SaleResource(_BaseResource):
             client = None
 
         sale_id = data.get('sale_id')
-        if sale_id and store.get(Sale, sale_id):
+        existing_sale = store.get(Sale, sale_id)
+        if existing_sale:
+            log.info('Sale already saved: %s' % sale_id)
+            log.info('send CheckCouponTransmittedEvent signal')
+            is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(existing_sale)[0][1]
+            if is_coupon_transmitted:
+                return self._handle_coupon_printing_fail(existing_sale)
             raise AssertionError(_('Sale already saved'))
 
         # Create the sale
@@ -1143,16 +1161,7 @@ class SaleResource(_BaseResource):
         try:
             SaleConfirmedRemoteEvent.emit(sale, document)
         except (NfePrinterException, SatPrinterException):
-            log.exception('Error printing coupon')
-            message = _("Sale {sale_identifier} confirmed but printing coupon failed")
-            return {
-                # XXX: This is not really an error, more of a partial success were the coupon
-                # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
-                # present to the user the option to try again or send the coupom via sms/email
-                'error_type': 'printing',
-                'message': message.format(sale_identifier=sale.identifier),
-                'sale_id': sale.id
-            }, 201
+            return self._handle_coupon_printing_fail(sale)
 
         return True
 
