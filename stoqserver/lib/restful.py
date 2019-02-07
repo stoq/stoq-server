@@ -110,11 +110,16 @@ _last_gc = None
 _expire_time = datetime.timedelta(days=1)
 _session = None
 _printer_lock = Semaphore()
+_sat_lock = Semaphore()
+_pinpad_lock = Semaphore()
 log = logging.getLogger(__name__)
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
 
 WORKERS = []
+
+CheckSatStatusEvent = signal('CheckSatStatusEvent')
+CheckPinpadStatusEvent = signal('CheckPinpadStatusEvent')
 
 
 def override(column):
@@ -256,6 +261,30 @@ def lock_printer(func):
     """
     def new_func(*args, **kwargs):
         with _printer_lock:
+            return func(*args, **kwargs)
+
+    return new_func
+
+
+def lock_sat(func):
+    """Decorator to handle sat access locking.
+
+    This will make sure that only one callsite is using the sat at a time.
+    """
+    def new_func(*args, **kwargs):
+        with _sat_lock:
+            return func(*args, **kwargs)
+
+    return new_func
+
+
+def lock_pinpad(func):
+    """Decorator to handle pinpad access locking.
+
+    This will make sure that only one callsite is using the sat at a time.
+    """
+    def new_func(*args, **kwargs):
+        with _pinpad_lock:
             return func(*args, **kwargs)
 
     return new_func
@@ -530,6 +559,10 @@ class DataResource(_BaseResource):
             providers=cls._get_card_providers(store),
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
+            # Device statuses
+            sat_status=check_sat(),
+            pinpad_status=check_pinpad(),
+            printer_status=None if DrawerResource.check_drawer() is None else True,
         )
 
         return retval
@@ -544,33 +577,41 @@ class DrawerResource(_BaseResource):
     routes = ['/drawer']
     method_decorators = [_login_required]
 
+    @lock_printer
+    def check_drawer():
+        try:
+            return DrawerResource.ensure_printer(retries=1)
+        except (SerialException, IndexError):
+            return None
+
     @classmethod
     @worker
     def check_drawer_loop():
-        is_open = False
+        # default value of is_open
+        is_open = ''
 
         # Check every second if it is opened.
         # Alert only if changes.
         while True:
-            try:
-                with _printer_lock:
-                    new_is_open = DrawerResource.ensure_printer(retries=1)
-            except (SerialException, IndexError):
-                # XXX: Make stoqdrivers raise a proper exception instead of IndexError:
-                # https://gitlab.com/stoqtech/stoqdrivers/issues/3
-                gevent.sleep(10)
-                continue
+            new_is_open = DrawerResource.check_drawer()
 
-            if not is_open and new_is_open:
-                is_open = True
+            if is_open != new_is_open:
+                message = {
+                    True: 'DRAWER_ALERT_OPEN',
+                    False: 'DRAWER_ALERT_CLOSE',
+                    None: 'DRAWER_ALERT_ERROR',
+                }
                 EventStream.put({
-                    'type': 'DRAWER_ALERT_OPEN',
+                    'type': message[new_is_open],
                 })
-            elif is_open and not new_is_open:
-                is_open = False
+                status_printer = None if new_is_open is None else True
                 EventStream.put({
-                    'type': 'DRAWER_ALERT_CLOSE',
+                    'type': 'DEVICE_STATUS_CHANGED',
+                    'device': 'printer',
+                    'status': status_printer,
                 })
+                is_open = new_is_open
+
             gevent.sleep(1)
 
     @lock_printer
@@ -844,11 +885,15 @@ class EventStream(_BaseResource):
     all of them will receive all events
     """
     _streams = []
+    has_stream = Event()
 
     routes = ['/stream']
 
     @classmethod
     def put(cls, data):
+        # Wait until we have at least one stream
+        cls.has_stream.wait()
+
         # Put event in all streams
         for stream in cls._streams:
             stream.put(data)
@@ -861,6 +906,7 @@ class EventStream(_BaseResource):
     def get(self):
         stream = Queue()
         self._streams.append(stream)
+        self.has_stream.set()
 
         # If we dont put one event, the event stream does not seem to get stabilished in the browser
         stream.put(json.dumps({}))
@@ -1036,6 +1082,7 @@ class SaleResource(_BaseResource):
         }, 201
 
     @lock_printer
+    @lock_sat
     def post(self, store):
         # FIXME: Check branch state and force fail if no override for that product is present.
 
@@ -1278,3 +1325,65 @@ def run_flaskserver(port, debug=False):
     http_server = WSGIServer(('127.0.0.1', port), app, spawn=gevent.spawn_raw, log=log,
                              error_log=log)
     http_server.serve_forever()
+
+
+@lock_sat
+def check_sat():
+    event_reply = CheckSatStatusEvent.send()
+
+    if not event_reply or not event_reply[0][1]:
+        return None
+
+    last_sefaz_communication = event_reply[0][1].DH_ULTIMA
+    year = int(last_sefaz_communication[:4])
+    month = int(last_sefaz_communication[4:6])
+    day = int(last_sefaz_communication[6:8])
+    last_date = datetime.date(year, month, day)
+    # Consider that the status is ok only if the last communication with sefaz is less than one
+    # week ago.
+    return last_date > datetime.date.today() - datetime.timedelta(days=7)
+
+
+@worker
+def check_sat_loop():
+    if len(CheckSatStatusEvent.receivers) == 0:
+        return
+
+    sat_ok = -1
+
+    while True:
+        new_sat_ok = check_sat()
+        if sat_ok != new_sat_ok:
+            EventStream.put({
+                'type': 'DEVICE_STATUS_CHANGED',
+                'device': 'sat',
+                'status': new_sat_ok,
+            })
+            sat_ok = new_sat_ok
+
+        gevent.sleep(60 * 5)
+
+
+@lock_pinpad
+def check_pinpad():
+    event_reply = CheckPinpadStatusEvent.send()
+    if not event_reply:
+        return None
+    return event_reply[0][1]
+
+
+@worker
+def check_pinpad_loop():
+    pinpad_ok = -1
+
+    while True:
+        new_pinpad_ok = check_pinpad()
+        if pinpad_ok != new_pinpad_ok:
+            EventStream.put({
+                'type': 'DEVICE_STATUS_CHANGED',
+                'device': 'pinpad',
+                'status': new_pinpad_ok,
+            })
+            pinpad_ok = new_pinpad_ok
+
+        gevent.sleep(60)
