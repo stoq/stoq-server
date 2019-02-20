@@ -326,7 +326,7 @@ class _BaseResource(Resource):
         try:
             printer = api.device_manager.printer
             return printer.is_drawer_open()
-        except SerialException:
+        except (SerialException, IndexError):
             if printer:
                 printer._port.close()
             api.device_manager._printer = None
@@ -1038,7 +1038,6 @@ class SaleResource(_BaseResource):
     @lock_printer
     def post(self, store):
         # FIXME: Check branch state and force fail if no override for that product is present.
-        self.ensure_printer()
 
         data = self.get_json()
         client_id = data.get('client_id')
