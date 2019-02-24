@@ -2,7 +2,7 @@
 
 # check if the build was triggered by a release commit merge
 if [ $GERRIT_EVENT_TYPE = "change-merged" ]; then
-  VERSION_LINE=$(git show debian/changelog|grep "^+stoq-server (")
+  VERSION_LINE=$(git show debian/changelog|grep "^+stoq-server (") || true
   if [ -n "$VERSION_LINE" ]; then
     VERSION=$(echo $VERSION_LINE|sed "s/.*(\(.*\)).*/\1/g")
     VERSION_CHANGED=true
