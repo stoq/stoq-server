@@ -7,13 +7,17 @@ if [ $GERRIT_EVENT_TYPE = "change-merged" ]; then
     VERSION=$(echo $VERSION_LINE|sed "s/.*(\(.*\)).*/\1/g")
     VERSION_CHANGED=true
     echo "Plugin version changed to $VERSION"
+  else
+    echo "This merge dont change the version."
+    exit 0
   fi
 fi
 
 
 # create new git tag
 if [[ ($VERSION_CHANGED = true) ]]; then
-  if `git tag -a "$VERSION" -m "New release"`;then
+  TAG_NAME=$(echo $VERSION|sed "s/~/-/g")
+  if `git tag -a "$TAG_NAME" -m "New release"`;then
     echo 'new tag created'
     git push origin --tags
   else
