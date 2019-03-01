@@ -1329,6 +1329,11 @@ def run_flaskserver(port, debug=False):
 
 @lock_sat
 def check_sat():
+    if len(CheckSatStatusEvent.receivers) == 0:
+        # No SAT was found, what means there is no need to warn front-end there is a missing
+        # or broken SAT
+        return True
+
     event_reply = CheckSatStatusEvent.send()
 
     if not event_reply or not event_reply[0][1]:
