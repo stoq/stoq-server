@@ -52,6 +52,7 @@ from flask import Flask, request, session, abort, send_file, make_response, Resp
 from flask_restful import Api, Resource
 from raven.contrib.flask import Sentry
 from serial.serialutil import SerialException
+from stoqdrivers.exceptions import InvalidReplyException
 
 from stoqlib.api import api
 from stoqlib.database.runtime import get_current_station
@@ -360,7 +361,7 @@ class _BaseResource(Resource):
         try:
             printer = api.device_manager.printer
             return printer.is_drawer_open()
-        except (SerialException, IndexError):
+        except (SerialException, InvalidReplyException):
             if printer:
                 printer._port.close()
             api.device_manager._printer = None
@@ -586,7 +587,7 @@ class DrawerResource(_BaseResource):
     def check_drawer():
         try:
             return DrawerResource.ensure_printer(retries=1)
-        except (SerialException, IndexError):
+        except (SerialException, InvalidReplyException):
             return None
 
     @classmethod
