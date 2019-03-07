@@ -120,6 +120,7 @@ WORKERS = []
 
 CheckSatStatusEvent = signal('CheckSatStatusEvent')
 CheckPinpadStatusEvent = signal('CheckPinpadStatusEvent')
+TefPrintReceiptsEvent = signal('TefPrintReceiptsEvent')
 
 
 def override(column):
@@ -1113,6 +1114,11 @@ class SaleResource(_BaseResource):
             if is_coupon_transmitted:
                 return self._handle_coupon_printing_fail(existing_sale)
             raise AssertionError(_('Sale already saved'))
+
+        # Print the receipts and confirm the transaction before anything else. If the sale fails
+        # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts
+        # will still be printed/confirmed and the user can finish the sale or the client.
+        TefPrintReceiptsEvent.send(sale_id)
 
         # Create the sale
         branch = api.get_current_branch(store)
