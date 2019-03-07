@@ -118,9 +118,13 @@ TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mN
 
 WORKERS = []
 
+# Device status events
 CheckSatStatusEvent = signal('CheckSatStatusEvent')
 CheckPinpadStatusEvent = signal('CheckPinpadStatusEvent')
+
+# Tef events
 TefPrintReceiptsEvent = signal('TefPrintReceiptsEvent')
+TefCheckPendingEvent = signal('TefCheckPendingEvent')
 
 
 def override(column):
@@ -911,6 +915,15 @@ class EventStream(_BaseResource):
 
         # If we dont put one event, the event stream does not seem to get stabilished in the browser
         stream.put(json.dumps({}))
+
+        # This is the best time to check if there are pending transactions, since the frontend just
+        # stabilished a connection with the backend (thats us).
+        has_canceled = TefCheckPendingEvent.send()
+        if has_canceled and has_canceled[0][1]:
+            EventStream.put({'type': 'TEF_WARNING_MESSAGE',
+                             'message': ('Última transação TEF não foi efetuada.'
+                                         ' Favor reter o Cupom.')})
+            EventStream.put({'type': 'CLEAR_SALE'})
         return Response(self._loop(stream), mimetype="text/event-stream")
 
 
@@ -935,10 +948,11 @@ class TefResource(_BaseResource):
             printer.print_line(holder)
             printer.cut_paper()
 
-    def _message_callback(self, lib, message):
+    def _message_callback(self, lib, message, can_abort=False):
         EventStream.put({
             'type': 'TEF_DISPLAY_MESSAGE',
-            'message': message
+            'message': message,
+            'can_abort': can_abort,
         })
 
         # tef library (ntk/sitef) has some blocking calls (specially pinpad comunication).
@@ -1018,6 +1032,14 @@ class TefReplyResource(_BaseResource):
 
         data = self.get_json()
         TefResource.reply.put(json.loads(data['value']))
+
+
+class TefCancelCurrentOperation(_BaseResource):
+    routes = ['/tef/abort']
+    method_decorators = [_login_required]
+
+    def post(self):
+        signal('TefAbortOperationEvent').send()
 
 
 class ImageResource(_BaseResource):
