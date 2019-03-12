@@ -89,7 +89,7 @@ _ = lambda s: dgettext('stoqserver', s)
 
 try:
     from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess
-    from stoqnfe.exceptions import PrinterException as NfePrinterException
+    from stoqnfe.exceptions import PrinterException as NfePrinterException, NfeRejectedException
     has_nfe = True
 except ImportError:
     has_nfe = False
@@ -97,6 +97,8 @@ except ImportError:
     class NfePrinterException(Exception):
         pass
 
+    class NfeRejectedException(Exception):
+        pass
 
 try:
     from stoqsat.exceptions import PrinterException as SatPrinterException
@@ -1105,6 +1107,16 @@ class SaleResource(_BaseResource):
             'sale_id': sale.id
         }, 201
 
+    def _handle_nfe_coupon_rejected(self, sale, reason):
+        log.exception('NFC-e sale rejected')
+        message = _("NFC-e of sale {sale_identifier} was rejected")
+        return {
+            'error_type': 'rejection',
+            'message': message.format(sale_identifier=sale.identifier),
+            'sale_id': sale.id,
+            'reason': reason
+        }, 201
+
     @lock_printer
     @lock_sat
     def post(self, store):
@@ -1241,6 +1253,8 @@ class SaleResource(_BaseResource):
             SaleConfirmedRemoteEvent.emit(sale, document)
         except (NfePrinterException, SatPrinterException):
             return self._handle_coupon_printing_fail(sale)
+        except NfeRejectedException as e:
+            return self._handle_nfe_coupon_rejected(sale, e.reason)
 
         return True
 

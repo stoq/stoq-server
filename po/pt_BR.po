@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-01-11 09:17-0200\n"
+"POT-Creation-Date: 2019-03-18 16:53-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -36,33 +36,38 @@ msgstr "Começar"
 msgid "Stoq Server"
 msgstr "Stoq Server"
 
-#: ../stoqserver/lib/restful.py:657
+#: ../stoqserver/lib/restful.py:704
 msgid "Blind till closing"
 msgstr "Fechamento cego de caixa"
 
-#: ../stoqserver/lib/restful.py:667
+#: ../stoqserver/lib/restful.py:714
 #, python-format
 msgid "The user %s removed cash from till"
 msgstr "Quantia removida do caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:670
+#: ../stoqserver/lib/restful.py:717
 #, python-format
 msgid "The user %s supplied cash to the till"
 msgstr "Quantia adicionada no caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:832
+#: ../stoqserver/lib/restful.py:879
 msgid "User does not have permission"
 msgstr "O usuário não tem permissão"
 
-#: ../stoqserver/lib/restful.py:1058
-msgid "Sale already saved"
-msgstr "Venda já salva"
-
-#: ../stoqserver/lib/restful.py:1154
+#: ../stoqserver/lib/restful.py:1078
 #, python-brace-format
 msgid "Sale {sale_identifier} confirmed but printing coupon failed"
 msgstr "Venda {sale_identifier} confirmada mas falha ao imprimir cupom"
 
-#: ../stoqserver/lib/restful.py:1206
+#: ../stoqserver/lib/restful.py:1090
+#, python-brace-format
+msgid "NFC-e of sale {sale_identifier} was rejected"
+msgstr "A NFC-e da venda {sale_identifier} foi rejeitada"
+
+#: ../stoqserver/lib/restful.py:1129
+msgid "Sale already saved"
+msgstr "Venda já salva"
+
+#: ../stoqserver/lib/restful.py:1299
 msgid "bad request!"
-msgstr ""
+msgstr "requisição inválida!"
