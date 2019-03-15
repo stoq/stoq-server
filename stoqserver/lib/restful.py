@@ -1209,12 +1209,16 @@ class SaleResource(_BaseResource):
                     # Stoq does not have the voucher comcept, so register it as a debit card.
                     if card_type == 'voucher':
                         card_type = 'debit'
-                    device = self._get_card_device(store, 'TEF')
                     provider = self._get_provider(store, p['provider'])
 
                     if tef_data:
                         card_data.nsu = tef_data['nsu']
                         card_data.auth = tef_data['auth']
+                        authorizer = tef_data.get('authorizer', 'TEF')
+                        device = self._get_card_device(store, authorizer)
+                    else:
+                        device = self._get_card_device(store, 'POS')
+
                     card_data.update_card_data(device, provider, card_type, installments)
                     card_data.te.metadata = tef_data
 
@@ -1222,7 +1226,7 @@ class SaleResource(_BaseResource):
         # correctly calculated..
         if payments_total > sale_total and money_payment:
             money_payment.value -= (payments_total - sale_total)
-            assert money_payment.value >= 0
+            assert money_payment.value >= 0, money_payment.value
 
         # Confirm the sale
         group.confirm()
