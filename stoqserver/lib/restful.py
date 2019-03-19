@@ -268,6 +268,9 @@ def lock_printer(func):
     This will make sure that only one callsite is using the printer at a time.
     """
     def new_func(*args, **kwargs):
+        if _printer_lock.locked():
+            log.info('Waiting printer lock release in func %s' % func)
+
         with _printer_lock:
             return func(*args, **kwargs)
 
@@ -280,6 +283,9 @@ def lock_sat(func):
     This will make sure that only one callsite is using the sat at a time.
     """
     def new_func(*args, **kwargs):
+        if _sat_lock.locked():
+            log.info('Waiting sat lock release in func %s' % func)
+
         with _sat_lock:
             return func(*args, **kwargs)
 
@@ -292,6 +298,9 @@ def lock_pinpad(func):
     This will make sure that only one callsite is using the sat at a time.
     """
     def new_func(*args, **kwargs):
+        if _pinpad_lock.locked():
+            log.info('Waiting pinpad lock release in func %s' % func)
+
         with _pinpad_lock:
             return func(*args, **kwargs)
 
@@ -980,6 +989,7 @@ class TefResource(_BaseResource):
 
         return reply
 
+    @lock_pinpad
     def post(self, signal_name):
         try:
             with _printer_lock:
