@@ -11,11 +11,14 @@ stacktracer.start_trace("trace.html",interval=5,auto=True) # Set auto flag to al
 stacktracer.stop_trace()
 """
 
+import gc
 import os
-import time
-import threading
 import sys
+import threading
+import time
 import traceback
+
+from greenlet import greenlet
 from pygments import highlight
 from pygments.lexers import PythonLexer
 from pygments.formatters import TerminalFormatter
@@ -33,6 +36,22 @@ def stacktraces():
             if line:
                 code.append("  %s" % (line.strip()))
 
+    return highlight("\n".join(code), PythonLexer(), TerminalFormatter())
+
+
+def stacktraces_gevent():
+    code = []
+    for obj in gc.get_objects():
+        if not isinstance(obj, greenlet):
+            continue
+        if not obj:
+            continue
+
+        code.append("\n# Greenlet: %r" % obj)
+        for filename, lineno, name, line in traceback.extract_stack(obj.gr_frame):
+            code.append('File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                code.append("  %s" % (line.strip()))
     return highlight("\n".join(code), PythonLexer(), TerminalFormatter())
 
 
@@ -74,6 +93,8 @@ class TraceDumper(threading.Thread):
         fout = open(self.fpath, "w+")
         try:
             fout.write(stacktraces())
+            fout.write('\n\n' + '=' * 80 + '\n\n')
+            fout.write(stacktraces_gevent())
         finally:
             fout.close()
 
