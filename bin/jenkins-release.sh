@@ -2,7 +2,10 @@
 
 # check if the build was triggered by a release commit merge
 if [ $GERRIT_EVENT_TYPE = "change-merged" ]; then
-  git checkout "$GERRIT_BRANCH"
+  git checkout "$GERRIT_PATCHSET_REVISION"
+  git show --oneline -s
+  git pull
+  git show --oneline -s
   VERSION_LINE=$(git show debian/changelog|grep "^+stoq-server (") || true
   if [ -n "$VERSION_LINE" ]; then
     VERSION=$(echo $VERSION_LINE|sed "s/.*(\(.*\)).*/\1/g")
