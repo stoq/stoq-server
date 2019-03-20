@@ -1079,7 +1079,7 @@ class ImageResource(_BaseResource):
 class SaleResource(_BaseResource):
     """Sellable category RESTful resource."""
 
-    routes = ['/sale']
+    routes = ['/sale', '/sale/<string:sale_id>']
     method_decorators = [_login_required, _store_provider]
 
     PROVIDER_MAP = {
@@ -1126,6 +1126,15 @@ class SaleResource(_BaseResource):
             'sale_id': sale.id,
             'reason': reason
         }, 201
+
+    def _encode_payments(self, payments):
+        return [{'method': p.method.method_name,
+                 'value': str(p.value)} for p in payments]
+
+    def _encode_items(self, items):
+        return [{'quantity': str(i.quantity),
+                 'price': str(i.price),
+                 'description': i.get_description()} for i in items]
 
     @lock_printer
     @lock_sat
@@ -1267,6 +1276,23 @@ class SaleResource(_BaseResource):
             return self._handle_nfe_coupon_rejected(sale, e.reason)
 
         return True
+
+    def get(self, store, sale_id):
+        sale = store.get(Sale, sale_id)
+        if not sale:
+            abort(404)
+        transmitted = signal('CheckCouponTransmittedEvent').send(sale)
+        is_coupon_transmitted = transmitted[0][1] if transmitted else False
+        return {
+            'id': sale.id,
+            'confirm_date': str(sale.confirm_date),
+            'items': self._encode_items(sale.get_items()),
+            'total': str(sale.total_amount),
+            'payments': self._encode_payments(sale.payments),
+            'client': sale.get_client_name(),
+            'status': sale.status_str,
+            'transmitted': is_coupon_transmitted,
+        }, 200
 
 
 class PrintCouponResource(_BaseResource):

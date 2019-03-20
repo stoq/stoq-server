@@ -362,6 +362,19 @@ class TestSaleResource(_TestFlask):
                                   'timestamp': '20180306-042053',
                                   'traceback_hash': '0beec7b5'})
 
+    def test_get(self):
+        with self.sysparam(DEMO_MODE=True):
+            with self.fake_store():
+                s = self.login()
+                sale = self.create_sale()
+                sale_id = sale.id
+                rv = self.client.get(
+                    '/sale/{}'.format(sale_id),
+                    headers={'stoq-session': s})
+                recv_sale = json.loads(rv.data.decode())
+                self.assertEqual(rv.status_code, 200)
+                self.assertEqual(recv_sale['id'], sale_id)
+
 
 class TestImageResource(_TestFlask):
 
