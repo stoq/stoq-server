@@ -84,6 +84,7 @@ from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join, And, Ne
 
 from stoqserver import main
+from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
 
 _ = lambda s: dgettext('stoqserver', s)
 
@@ -113,8 +114,6 @@ _last_gc = None
 _expire_time = datetime.timedelta(days=1)
 _session = None
 _printer_lock = Semaphore()
-_sat_lock = Semaphore()
-_pinpad_lock = Semaphore()
 log = logging.getLogger(__name__)
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
@@ -272,36 +271,6 @@ def lock_printer(func):
             log.info('Waiting printer lock release in func %s' % func)
 
         with _printer_lock:
-            return func(*args, **kwargs)
-
-    return new_func
-
-
-def lock_sat(func):
-    """Decorator to handle sat access locking.
-
-    This will make sure that only one callsite is using the sat at a time.
-    """
-    def new_func(*args, **kwargs):
-        if _sat_lock.locked():
-            log.info('Waiting sat lock release in func %s' % func)
-
-        with _sat_lock:
-            return func(*args, **kwargs)
-
-    return new_func
-
-
-def lock_pinpad(func):
-    """Decorator to handle pinpad access locking.
-
-    This will make sure that only one callsite is using the sat at a time.
-    """
-    def new_func(*args, **kwargs):
-        if _pinpad_lock.locked():
-            log.info('Waiting pinpad lock release in func %s' % func)
-
-        with _pinpad_lock:
             return func(*args, **kwargs)
 
     return new_func
@@ -550,6 +519,16 @@ class DataResource(_BaseResource):
         config = get_config()
         can_send_sms = config.get("Twilio", "sid") is not None
 
+        try:
+            sat_status = check_sat()
+        except LockFailedException:
+            sat_status = True
+
+        try:
+            pinpad_status = check_pinpad()
+        except LockFailedException:
+            pinpad_status = True
+
         # Current branch data
         retval = dict(
             branch=branch.id,
@@ -577,8 +556,8 @@ class DataResource(_BaseResource):
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
             # Device statuses
-            sat_status=check_sat(),
-            pinpad_status=check_pinpad(),
+            sat_status=sat_status,
+            pinpad_status=pinpad_status,
             printer_status=None if DrawerResource.check_drawer() is None else True,
         )
 
@@ -989,7 +968,7 @@ class TefResource(_BaseResource):
 
         return reply
 
-    @lock_pinpad
+    @lock_pinpad(block=True)
     def post(self, signal_name):
         try:
             with _printer_lock:
@@ -1137,7 +1116,7 @@ class SaleResource(_BaseResource):
                  'description': i.get_description()} for i in items]
 
     @lock_printer
-    @lock_sat
+    @lock_sat(block=True)
     def post(self, store):
         # FIXME: Check branch state and force fail if no override for that product is present.
 
@@ -1410,7 +1389,7 @@ def run_flaskserver(port, debug=False):
     http_server.serve_forever()
 
 
-@lock_sat
+@lock_sat(block=False)
 def check_sat():
     if len(CheckSatStatusEvent.receivers) == 0:
         # No SAT was found, what means there is no need to warn front-end there is a missing
@@ -1418,18 +1397,7 @@ def check_sat():
         return True
 
     event_reply = CheckSatStatusEvent.send()
-
-    if not event_reply or not event_reply[0][1]:
-        return None
-
-    last_sefaz_communication = event_reply[0][1].DH_ULTIMA
-    year = int(last_sefaz_communication[:4])
-    month = int(last_sefaz_communication[4:6])
-    day = int(last_sefaz_communication[6:8])
-    last_date = datetime.date(year, month, day)
-    # Consider that the status is ok only if the last communication with sefaz is less than one
-    # week ago.
-    return last_date > datetime.date.today() - datetime.timedelta(days=7)
+    return event_reply and event_reply[0][1]
 
 
 @worker
@@ -1440,7 +1408,12 @@ def check_sat_loop():
     sat_ok = -1
 
     while True:
-        new_sat_ok = check_sat()
+        try:
+            new_sat_ok = check_sat()
+        except LockFailedException:
+            # Keep previous state.
+            new_sat_ok = sat_ok
+
         if sat_ok != new_sat_ok:
             EventStream.put({
                 'type': 'DEVICE_STATUS_CHANGED',
@@ -1452,12 +1425,10 @@ def check_sat_loop():
         gevent.sleep(60 * 5)
 
 
-@lock_pinpad
+@lock_pinpad(block=False)
 def check_pinpad():
     event_reply = CheckPinpadStatusEvent.send()
-    if not event_reply:
-        return None
-    return event_reply[0][1]
+    return event_reply and event_reply[0][1]
 
 
 @worker
@@ -1465,7 +1436,12 @@ def check_pinpad_loop():
     pinpad_ok = -1
 
     while True:
-        new_pinpad_ok = check_pinpad()
+        try:
+            new_pinpad_ok = check_pinpad()
+        except LockFailedException:
+            # Keep previous state.
+            new_pinpad_ok = pinpad_ok
+
         if pinpad_ok != new_pinpad_ok:
             EventStream.put({
                 'type': 'DEVICE_STATUS_CHANGED',
