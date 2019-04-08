@@ -794,6 +794,13 @@ class ClientResource(_BaseResource):
             birthdate=birthdate,
             category_name=category_name,
         )
+
+        # Plugins that listen to this signal will return extra fields
+        # to be added to the response
+        responses = signal('CheckRewardsPermissionsEvent').send(doc)
+        for response in responses:
+            data.update(response[1])
+
         return data
 
     def _get_by_doc(self, store, data, doc):
@@ -801,10 +808,10 @@ class ClientResource(_BaseResource):
         document = format_cpf(raw_document(doc))
 
         person = Person.get_by_document(store, document)
-        if not person or not person.client:
-            return data
+        if person and person.client:
+            data = self._dump_client(person.client)
 
-        return self._dump_client(person.client)
+        return data
 
     def _get_by_category(self, store, category_name):
         tables = [Client,
@@ -823,6 +830,21 @@ class ClientResource(_BaseResource):
                 return self._get_by_doc(store, data, data['doc'])
             elif data.get('category_name'):
                 return self._get_by_category(store, data['category_name'])
+        return data
+
+
+class ExternalClientResource(_BaseResource):
+    """Information about a client from external services, such as Passbook"""
+    routes = ['/extra_client_info/<doc>']
+
+    def get(self, doc):
+        # Extra precaution in case we ever send the cpf already formatted
+        doc = format_cpf(raw_document(doc))
+        responses = signal('GetClientInfoEvent').send(doc)
+
+        data = dict()
+        for response in responses:
+            data.update(response[1])
         return data
 
 
