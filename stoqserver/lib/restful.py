@@ -1055,11 +1055,15 @@ class ImageResource(_BaseResource):
                 return response
 
 
-class SaleResource(_BaseResource):
-    """Sellable category RESTful resource."""
+class SaleResourceMixin:
+    """Mixin class that provides common methods for sale/advance_payment
 
-    routes = ['/sale', '/sale/<string:sale_id>']
-    method_decorators = [_login_required, _store_provider]
+    This includes:
+
+        - Payment creation
+        - Client verification
+        - Sale/Advance already saved checking
+    """
 
     PROVIDER_MAP = {
         'ELO CREDITO': 'ELO',
@@ -1069,6 +1073,46 @@ class SaleResource(_BaseResource):
         'MASTERCARD D': 'MASTER',
         'MASTERCARD': 'MASTER',
     }
+
+    def _check_already_saved(self, store, klass, obj_id):
+        existing_sale = store.get(klass, obj_id)
+        if existing_sale:
+            log.info('Sale already saved: %s' % obj_id)
+            log.info('send CheckCouponTransmittedEvent signal')
+            is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(existing_sale)[0][1]
+            if is_coupon_transmitted:
+                return self._handle_coupon_printing_fail(existing_sale)
+            raise AssertionError(_('Sale already saved'))
+
+    def _get_client_and_document(self, store, data):
+        client_id = data.get('client_id')
+        document = raw_document(data.get('client_document', '') or '')
+
+        if document:
+            document = format_document(document)
+
+        if client_id:
+            client = store.get(Client, client_id)
+        elif document:
+            person = Person.get_by_document(store, document)
+            client = person and person.client
+        else:
+            client = None
+
+        return client, document
+
+    def _handle_coupon_printing_fail(self, obj):
+        log.exception('Error printing coupon')
+        # XXX: Rever string
+        message = _("Sale {sale_identifier} confirmed but printing coupon failed")
+        return {
+            # XXX: This is not really an error, more of a partial success were the coupon
+            # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
+            # present to the user the option to try again or send the coupom via sms/email
+            'error_type': 'printing',
+            'message': message.format(sale_identifier=obj.identifier),
+            'sale_id': obj.id
+        }, 201
 
     def _get_card_device(self, store, name):
         device = store.find(CardPaymentDevice, description=name).any()
@@ -1084,106 +1128,10 @@ class SaleResource(_BaseResource):
             provider = CreditProvider(store=store, short_name=name, provider_id=name)
         return provider
 
-    def _handle_coupon_printing_fail(self, sale):
-        log.exception('Error printing coupon')
-        message = _("Sale {sale_identifier} confirmed but printing coupon failed")
-        return {
-            # XXX: This is not really an error, more of a partial success were the coupon
-            # (sat/nfce) was emitted, but the printing of the coupon failed. The frontend should
-            # present to the user the option to try again or send the coupom via sms/email
-            'error_type': 'printing',
-            'message': message.format(sale_identifier=sale.identifier),
-            'sale_id': sale.id
-        }, 201
-
-    def _handle_nfe_coupon_rejected(self, sale, reason):
-        log.exception('NFC-e sale rejected')
-        message = _("NFC-e of sale {sale_identifier} was rejected")
-        return {
-            'error_type': 'rejection',
-            'message': message.format(sale_identifier=sale.identifier),
-            'sale_id': sale.id,
-            'reason': reason
-        }, 201
-
-    def _encode_payments(self, payments):
-        return [{'method': p.method.method_name,
-                 'value': str(p.value)} for p in payments]
-
-    def _encode_items(self, items):
-        return [{'quantity': str(i.quantity),
-                 'price': str(i.price),
-                 'description': i.get_description()} for i in items]
-
-    @lock_printer
-    @lock_sat(block=True)
-    def post(self, store):
-        # FIXME: Check branch state and force fail if no override for that product is present.
-
-        data = self.get_json()
-        client_id = data.get('client_id')
-        products = data['products']
-        payments = data['payments']
-        client_category_id = data.get('price_table')
-
-        document = raw_document(data.get('client_document', '') or '')
-        if document:
-            document = format_document(document)
-
-        if client_id:
-            client = store.get(Client, client_id)
-        elif document:
-            person = Person.get_by_document(store, document)
-            client = person and person.client
-        else:
-            client = None
-
-        sale_id = data.get('sale_id')
-        existing_sale = store.get(Sale, sale_id)
-        if existing_sale:
-            log.info('Sale already saved: %s' % sale_id)
-            log.info('send CheckCouponTransmittedEvent signal')
-            is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(existing_sale)[0][1]
-            if is_coupon_transmitted:
-                return self._handle_coupon_printing_fail(existing_sale)
-            raise AssertionError(_('Sale already saved'))
-
-        # Print the receipts and confirm the transaction before anything else. If the sale fails
-        # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts
-        # will still be printed/confirmed and the user can finish the sale or the client.
-        TefPrintReceiptsEvent.send(sale_id)
-
-        # Create the sale
-        branch = api.get_current_branch(store)
-        group = PaymentGroup(store=store)
-        user = api.get_current_user(store)
-        sale = Sale(
-            store=store,
-            id=sale_id,
-            branch=branch,
-            salesperson=user.person.sales_person,
-            client=client,
-            client_category_id=client_category_id,
-            group=group,
-            open_date=localnow(),
-            coupon_id=None,
-        )
-
-        # Add products
-        for p in products:
-            sellable = store.get(Sellable, p['id'])
-            item = sale.add_sellable(sellable, price=currency(p['price']),
-                                     quantity=decimal.Decimal(p['quantity']))
-            # XXX: bdil has requested that when there is a special discount, the discount does
-            # not appear on the coupon. Instead, the item wil be sold using the discount price
-            # as the base price. Maybe this should be a parameter somewhere
-            item.base_price = item.price
-
-        # Add payments
-        sale_total = sale.get_total_sale_amount()
+    def _create_payments(self, store, group, branch, sale_total, payment_data):
         money_payment = None
         payments_total = 0
-        for p in payments:
+        for p in payment_data:
             method_name = p['method']
             tef_data = p.get('tef_data', {})
             if method_name == 'tef':
@@ -1238,6 +1186,79 @@ class SaleResource(_BaseResource):
             money_payment.value -= (payments_total - sale_total)
             assert money_payment.value >= 0, money_payment.value
 
+
+class SaleResource(_BaseResource, SaleResourceMixin):
+    """Sellable category RESTful resource."""
+
+    routes = ['/sale', '/sale/<string:sale_id>']
+    method_decorators = [_login_required, _store_provider]
+
+    def _handle_nfe_coupon_rejected(self, sale, reason):
+        log.exception('NFC-e sale rejected')
+        message = _("NFC-e of sale {sale_identifier} was rejected")
+        return {
+            'error_type': 'rejection',
+            'message': message.format(sale_identifier=sale.identifier),
+            'sale_id': sale.id,
+            'reason': reason
+        }, 201
+
+    def _encode_payments(self, payments):
+        return [{'method': p.method.method_name,
+                 'value': str(p.value)} for p in payments]
+
+    def _encode_items(self, items):
+        return [{'quantity': str(i.quantity),
+                 'price': str(i.price),
+                 'description': i.get_description()} for i in items]
+
+    @lock_printer
+    @lock_sat(block=True)
+    def post(self, store):
+        # FIXME: Check branch state and force fail if no override for that product is present.
+        data = self.get_json()
+        products = data['products']
+        client_category_id = data.get('price_table')
+
+        client, document = self._get_client_and_document(store, data)
+
+        sale_id = data.get('sale_id')
+        self._check_already_saved(store, Sale, sale_id)
+
+        # Print the receipts and confirm the transaction before anything else. If the sale fails
+        # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts
+        # will still be printed/confirmed and the user can finish the sale or the client.
+        TefPrintReceiptsEvent.send(sale_id)
+
+        # Create the sale
+        branch = api.get_current_branch(store)
+        group = PaymentGroup(store=store)
+        user = api.get_current_user(store)
+        sale = Sale(
+            store=store,
+            id=sale_id,
+            branch=branch,
+            salesperson=user.person.sales_person,
+            client=client,
+            client_category_id=client_category_id,
+            group=group,
+            open_date=localnow(),
+            coupon_id=None,
+        )
+
+        # Add products
+        for p in products:
+            sellable = store.get(Sellable, p['id'])
+            item = sale.add_sellable(sellable, price=currency(p['price']),
+                                     quantity=decimal.Decimal(p['quantity']))
+            # XXX: bdil has requested that when there is a special discount, the discount does
+            # not appear on the coupon. Instead, the item wil be sold using the discount price
+            # as the base price. Maybe this should be a parameter somewhere
+            item.base_price = item.price
+
+        # Add payments
+        self._create_payments(store, group, branch, sale.get_total_sale_amount(), data['payments'])
+
         # Confirm the sale
         group.confirm()
         sale.order()
@@ -1272,6 +1293,50 @@ class SaleResource(_BaseResource):
             'status': sale.status_str,
             'transmitted': is_coupon_transmitted,
         }, 200
+
+
+class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
+
+    routes = ['/advance_payment']
+    method_decorators = [_login_required, _store_provider]
+
+    @lock_printer
+    def post(self, store):
+        # We need to delay this import since the plugin will only be in the path after stoqlib
+        # initialization
+        from stoqpassbook.domain import AdvancePayment
+        data = self.get_json()
+        client, document = self._get_client_and_document(store, data)
+
+        advance_id = data.get('sale_id')
+        self._check_already_saved(store, AdvancePayment, advance_id)
+
+        # Print the receipts and confirm the transaction before anything else. If the sale fails
+        # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts
+        # will still be printed/confirmed and the user can finish the sale or the client.
+        TefPrintReceiptsEvent.send(advance_id)
+
+        branch = api.get_current_branch(store)
+        group = PaymentGroup(store=store)
+        user = api.get_current_user(store)
+        advance = AdvancePayment(
+            id=advance_id,
+            store=store,
+            branch=branch,
+            group=group,
+            user=user)
+
+        # Add payments
+        self._create_payments(store, group, branch, advance.total, data['payments'])
+        till = Till.get_last(store)
+        advance.confirm(till)
+
+        #try:
+        #    PrintAdvancePaymentReceipt.send(advance)
+        #except (XXX):
+        #    return self._handle_coupon_printing_fail(sale)
+
+        return True
 
 
 class PrintCouponResource(_BaseResource):
