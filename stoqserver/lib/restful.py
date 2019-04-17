@@ -1164,9 +1164,8 @@ class SaleResourceMixin:
                     card_data = method.operation.get_card_data_by_payment(payment)
 
                     card_type = p['card_type']
-                    # Stoq does not have the voucher comcept, so register it as a debit card.
-                    if card_type == 'voucher':
-                        card_type = 'debit'
+                    if card_type == 'passbook':
+                        card_type = 'credit'
                     provider = self._get_provider(store, p['provider'])
 
                     if tef_data:
