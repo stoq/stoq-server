@@ -1109,7 +1109,6 @@ class SaleResourceMixin:
     def _get_client_and_document(self, store, data):
         client_id = data.get('client_id')
         document = raw_document(data.get('client_document', '') or '')
-
         if document:
             document = format_document(document)
 
@@ -1332,6 +1331,10 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         advance_id = data.get('sale_id')
         self._check_already_saved(store, AdvancePayment, advance_id)
 
+        total = 0
+        for p in data['products']:
+            total += currency(p['price']) * decimal.Decimal(p['quantity'])
+
         # Print the receipts and confirm the transaction before anything else. If the sale fails
         # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts
         # will still be printed/confirmed and the user can finish the sale or the client.
@@ -1343,12 +1346,14 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         advance = AdvancePayment(
             id=advance_id,
             store=store,
+            client=client,
+            total_value=total,
             branch=branch,
             group=group,
-            user=user)
+            responsible=user)
 
         # Add payments
-        self._create_payments(store, group, branch, advance.total, data['payments'])
+        self._create_payments(store, group, branch, advance.total_value, data['payments'])
         till = Till.get_last(store)
         advance.confirm(till)
 
