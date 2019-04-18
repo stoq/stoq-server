@@ -798,12 +798,6 @@ class ClientResource(_BaseResource):
             category_name=category_name,
         )
 
-        # Plugins that listen to this signal will return extra fields
-        # to be added to the response
-        responses = signal('CheckRewardsPermissionsEvent').send(doc)
-        for response in responses:
-            data.update(response[1])
-
         return data
 
     def _get_by_doc(self, store, data, doc):
@@ -813,6 +807,12 @@ class ClientResource(_BaseResource):
         person = Person.get_by_document(store, document)
         if person and person.client:
             data = self._dump_client(person.client)
+
+        # Plugins that listen to this signal will return extra fields
+        # to be added to the response
+        responses = signal('CheckRewardsPermissionsEvent').send(doc)
+        for response in responses:
+            data.update(response[1])
 
         return data
 
