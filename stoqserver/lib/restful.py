@@ -65,9 +65,11 @@ from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
 from stoqlib.domain.payment.payment import Payment
-from stoqlib.domain.person import LoginUser, Person, Client, ClientCategory
+from stoqlib.domain.person import LoginUser, Person, Client, ClientCategory, Individual
 from stoqlib.domain.product import Product
+from stoqlib.domain.purchase import PurchaseOrder
 from stoqlib.domain.sale import Sale
+from stoqlib.domain.payment.renegotiation import PaymentRenegotiation
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
 from stoqlib.domain.till import Till, TillSummary
@@ -85,6 +87,10 @@ from storm.expr import Desc, LeftJoin, Join, And, Ne
 
 from stoqserver import main
 from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
+
+
+# This needs to be imported to workaround a storm limitation
+PurchaseOrder, PaymentRenegotiation
 
 _ = lambda s: dgettext('stoqserver', s)
 
@@ -1111,6 +1117,13 @@ class SaleResourceMixin:
                 return self._handle_coupon_printing_fail(existing_sale)
             raise AssertionError(_('Sale already saved'))
 
+    def _create_client(self, store, document, data):
+        # TODO: Use data to get name from passbook
+        person = Person(store=store, name=_('Unkown'))
+        Individual(store=store, person=person, cpf=document)
+        client = Client(store=store, person=person)
+        return client
+
     def _get_client_and_document(self, store, data):
         client_id = data.get('client_id')
         document = raw_document(data.get('client_document', '') or '')
@@ -1334,6 +1347,8 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         from stoqpassbook.domain import AdvancePayment
         data = self.get_json()
         client, document = self._get_client_and_document(store, data)
+        if not client:
+            client = self._create_client(store, document, data)
 
         advance_id = data.get('sale_id')
         self._check_already_saved(store, AdvancePayment, advance_id)
