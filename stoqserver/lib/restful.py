@@ -128,6 +128,9 @@ CheckPinpadStatusEvent = signal('CheckPinpadStatusEvent')
 TefPrintReceiptsEvent = signal('TefPrintReceiptsEvent')
 TefCheckPendingEvent = signal('TefCheckPendingEvent')
 
+GrantLoyaltyPointsEvent = signal('GrantLoyaltyPointsEvent')  # XXX: not sure about this names
+PrintAdvancePaymentReceiptEvent = signal('PrintAdvancePaymentReceiptEvent')
+
 
 def override(column):
     from storm.references import Reference
@@ -1101,6 +1104,8 @@ class SaleResourceMixin:
         if existing_sale:
             log.info('Sale already saved: %s' % obj_id)
             log.info('send CheckCouponTransmittedEvent signal')
+            # XXX: This might not really work for AdvancePayment, we need to test this. It might
+            # need specific handling.
             is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(existing_sale)[0][1]
             if is_coupon_transmitted:
                 return self._handle_coupon_printing_fail(existing_sale)
@@ -1286,6 +1291,8 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         till = Till.get_last(store)
         sale.confirm(till)
 
+        GrantLoyaltyPointsEvent.send(sale, document=document)
+
         # Fiscal plugins will connect to this event and "do their job"
         # It's their responsibility to raise an exception in case of any error
         try:
@@ -1357,10 +1364,13 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         till = Till.get_last(store)
         advance.confirm(till)
 
-        #try:
-        #    PrintAdvancePaymentReceipt.send(advance)
-        #except (XXX):
-        #    return self._handle_coupon_printing_fail(sale)
+        GrantLoyaltyPointsEvent.emit(advance, document=document)
+
+        # FIXME: We still need to implement the receipt in non-fiscal plugin
+        try:
+            PrintAdvancePaymentReceiptEvent.send(advance, document=document)
+        except Exception:
+            return self._handle_coupon_printing_fail(advance)
 
         return True
 
