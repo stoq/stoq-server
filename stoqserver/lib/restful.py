@@ -1364,7 +1364,7 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         till = Till.get_last(store)
         advance.confirm(till)
 
-        GrantLoyaltyPointsEvent.emit(advance, document=document)
+        GrantLoyaltyPointsEvent.send(advance, document=document)
 
         # FIXME: We still need to implement the receipt in non-fiscal plugin
         try:
