@@ -1190,7 +1190,7 @@ class SaleResourceMixin:
                     card_data = method.operation.get_card_data_by_payment(payment)
 
                     card_type = p['card_type']
-                    if card_type == 'passbook':
+                    if card_type in ['passbook', 'passbook_points']:
                         card_type = 'credit'
                     provider = self._get_provider(store, p['provider'])
 
