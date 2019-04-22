@@ -136,6 +136,7 @@ TefCheckPendingEvent = signal('TefCheckPendingEvent')
 
 GrantLoyaltyPointsEvent = signal('GrantLoyaltyPointsEvent')  # XXX: not sure about this names
 PrintAdvancePaymentReceiptEvent = signal('PrintAdvancePaymentReceiptEvent')
+GetAdvancePaymentCategoryEvent = signal('GetAdvancePaymentCategoryEvent')
 
 
 def override(column):
@@ -480,6 +481,10 @@ class DataResource(_BaseResource):
                 })
 
             aux[c.id] = c_dict
+        responses = signal('GetAdvancePaymentCategoryEvent').send()
+        for response in responses:
+            categories_root.append(response[1])
+
         return categories_root
 
     @classmethod
