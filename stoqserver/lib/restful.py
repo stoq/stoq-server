@@ -1139,7 +1139,12 @@ class SaleResourceMixin:
             client = store.get(Client, client_id)
         elif document:
             person = Person.get_by_document(store, document)
-            client = person and person.client
+            if person and person.client:
+                client = person.client
+            elif person and not person.client:
+                client = Client(store=store, person=person)
+            else:
+                client = None
         else:
             client = None
 
