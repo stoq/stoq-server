@@ -131,11 +131,11 @@ def setup_excepthook(sentry_url):
     sys.excepthook = _excepthook
 
 
-def setup_stoq(register_station=False, name='stoqserver'):
+def setup_stoq(register_station=False, name='stoqserver', version=stoqserver.version_str):
     info = AppInfo()
     info.set('name', name)
-    info.set('version', stoqserver.version_str)
-    info.set('ver', stoqserver.version_str)
+    info.set('version', version)
+    info.set('ver', version)
     provide_utility(IAppInfo, info, replace=True)
 
     # FIXME: Maybe we should check_schema and load plugins here?
@@ -291,7 +291,7 @@ class StoqServerCmdHandler(object):
 
     def cmd_flask(self, options, *args):
         """Run the server daemon"""
-        setup_stoq(register_station=True, name='stoqflask')
+        setup_stoq(register_station=True, name='stoqflask', version=stoq.version)
         setup_logging('stoq-flask')
 
         def _exit(*args):
