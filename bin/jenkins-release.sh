@@ -36,12 +36,12 @@ if [ -z "$GERRIT_EVENT_TYPE" ]; then
   MANUAL_BUILD=true
   VERSION=$(head -n1 debian/changelog|sed "s/.*(\(.*\)).*/\1/g")
   GIT_HASH=`git log --pretty=format:'%h' -n 1`
-  DATETIME=`date -Iminutes`
+  DATETIME=`date -Iminutes | sed "s/[:|-]//g"`
   SEMVER_PATTERN="\\([^\\.]*\\)\\.\\([^\\.]*\\)\\.\\([^~]*\\)\\(.*\\)"
   MAJOR_PART=$(echo $VERSION|sed "s/$SEMVER_PATTERN/\1/g")
   MINOR_PART=$(echo $VERSION|sed "s/$SEMVER_PATTERN/\2/g")
   PATCH_PART=$(echo $VERSION|sed "s/$SEMVER_PATTERN/\3/g")
-  ALPHA_VERSION="$MAJOR_PART.$((MINOR_PART + 1)).$PATCH_PART~alpha+$DATETIME-$GIT_HASH"
+  ALPHA_VERSION="$MAJOR_PART.$((MINOR_PART + 1)).$PATCH_PART~alpha+$DATETIME+$GIT_HASH"
   ./create-release.sh $ALPHA_VERSION
 fi
 
@@ -53,4 +53,3 @@ else
   echo "Version didn't change, no need for making a deb."
   exit 0
 fi
-
