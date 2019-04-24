@@ -73,7 +73,7 @@ from stoqlib.domain.payment.renegotiation import PaymentRenegotiation
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
 from stoqlib.domain.till import Till, TillSummary
-from stoqlib.exceptions import LoginError
+from stoqlib.exceptions import LoginError, TillError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
                                    localnow)
@@ -957,7 +957,7 @@ class EventStream(_BaseResource):
 
 class TefResource(_BaseResource):
     routes = ['/tef/<signal_name>']
-    method_decorators = [_login_required]
+    method_decorators = [_login_required, _store_provider]
 
     waiting_reply = Event()
     reply = Queue()
@@ -1006,7 +1006,11 @@ class TefResource(_BaseResource):
         return reply
 
     @lock_pinpad(block=True)
-    def post(self, signal_name):
+    def post(self, store, signal_name):
+        till = Till.get_last(store)
+        if not till or till.status != Till.STATUS_OPEN:
+            raise TillError(_('There is no till open'))
+
         try:
             with _printer_lock:
                 self.ensure_printer()
@@ -1317,6 +1321,9 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         sale.order()
 
         till = Till.get_last(store)
+        if till.status != Till.STATUS_OPEN:
+            raise TillError(_('There is no till open'))
+
         sale.confirm(till)
 
         GrantLoyaltyPointsEvent.send(sale, document=document)
@@ -1392,6 +1399,8 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         # Add payments
         self._create_payments(store, group, branch, advance.total_value, data['payments'])
         till = Till.get_last(store)
+        if not till or till.status != Till.STATUS_OPEN:
+            raise TillError(_('There is no till open'))
         advance.confirm(till)
 
         GrantLoyaltyPointsEvent.send(advance, document=document)

@@ -272,6 +272,10 @@ class TestSaleResource(_TestFlask):
                 c = self.create_client()
                 c.person.individual.cpf = '333.341.828-27'
 
+                # Add a till to Store
+                till = self.create_till()
+                till.open_till()
+
                 rv = self.client.post(
                     '/sale',
                     headers={'stoq-session': s},
@@ -329,9 +333,6 @@ class TestSaleResource(_TestFlask):
                 # Test the same sale again, but this time, lets mimic an exception
                 # happening in SaleConfirmedRemoteEvent
                 e.side_effect = Exception('foobar exception')
-
-                # Add a till to Store
-                self.create_till()
 
                 # NOTE: This will print the original traceback to stdout, that
                 # doesn't mean that the test is failing (unless it really fail)

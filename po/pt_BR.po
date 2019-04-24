@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-05-07 10:33-0300\n"
+"POT-Creation-Date: 2019-05-16 12:07-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -36,44 +36,49 @@ msgstr "Começar"
 msgid "Stoq Server"
 msgstr "Stoq Server"
 
-#: ../stoqserver/lib/restful.py:710
+#: ../stoqserver/lib/restful.py:711
 msgid "Blind till closing"
 msgstr "Fechamento cego de caixa"
 
-#: ../stoqserver/lib/restful.py:720
+#: ../stoqserver/lib/restful.py:721
 #, python-format
 msgid "The user %s removed cash from till"
 msgstr "Quantia removida do caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:723
+#: ../stoqserver/lib/restful.py:724
 #, python-format
 msgid "The user %s supplied cash to the till"
 msgstr "Quantia adicionada no caixa pelo usuário %s"
 
-#: ../stoqserver/lib/restful.py:907
+#: ../stoqserver/lib/restful.py:908
 msgid "User does not have permission"
 msgstr "O usuário não tem permissão"
 
-#: ../stoqserver/lib/restful.py:1123
+#: ../stoqserver/lib/restful.py:1012 ../stoqserver/lib/restful.py:1325
+#: ../stoqserver/lib/restful.py:1403
+msgid "There is no till open"
+msgstr "Não há nenhum caixa aberto"
+
+#: ../stoqserver/lib/restful.py:1128
 msgid "Sale already saved"
 msgstr "Venda já salva"
 
 #. Use data to get name from passbook
-#: ../stoqserver/lib/restful.py:1127
+#: ../stoqserver/lib/restful.py:1132
 msgid "No name"
 msgstr "Sem nome"
 
 #. XXX: Rever string
-#: ../stoqserver/lib/restful.py:1157
+#: ../stoqserver/lib/restful.py:1162
 #, python-brace-format
 msgid "Sale {sale_identifier} confirmed but printing coupon failed"
 msgstr "Venda {sale_identifier} confirmada mas falha ao imprimir cupom"
 
-#: ../stoqserver/lib/restful.py:1250
+#: ../stoqserver/lib/restful.py:1255
 #, python-brace-format
 msgid "NFC-e of sale {sale_identifier} was rejected"
 msgstr "A NFC-e da venda {sale_identifier} foi rejeitada"
 
-#: ../stoqserver/lib/restful.py:1475
+#: ../stoqserver/lib/restful.py:1485
 msgid "bad request!"
 msgstr "requisição inválida!"
