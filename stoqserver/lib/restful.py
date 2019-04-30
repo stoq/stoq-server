@@ -1123,8 +1123,9 @@ class SaleResourceMixin:
             raise AssertionError(_('Sale already saved'))
 
     def _create_client(self, store, document, data):
-        # TODO: Use data to get name from passbook
-        person = Person(store=store, name=_('Unkown'))
+        # Use data to get name from passbook
+        name = data.get('client_name', _('No name'))
+        person = Person(store=store, name=name)
         Individual(store=store, person=person, cpf=document)
         client = Client(store=store, person=person)
         return client
