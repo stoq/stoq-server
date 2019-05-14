@@ -556,6 +556,7 @@ class DataResource(_BaseResource):
                 id=station.id,
                 code=station.code,
                 name=station.name,
+                type=station.type.name if station.type else None,
             ),
             user_id=user and user.id,
             user=user and user.username,
