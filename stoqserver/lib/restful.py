@@ -908,6 +908,14 @@ class AuthResource(_BaseResource):
         return make_response(_('User does not have permission'), 403)
 
 
+class JsonEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        # Let the base class default method raise the TypeError
+        return json.JSONEncoder.default(self, obj)
+
+
 class EventStream(_BaseResource):
     """A stream of events from this server to the application.
 
@@ -934,7 +942,7 @@ class EventStream(_BaseResource):
     def _loop(self, stream):
         while True:
             data = stream.get()
-            yield "data: " + json.dumps(data) + "\n\n"
+            yield "data: " + json.dumps(data, cls=JsonEncoder) + "\n\n"
 
     def get(self):
         stream = Queue()
