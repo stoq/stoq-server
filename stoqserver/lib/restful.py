@@ -1227,9 +1227,12 @@ class SaleResourceMixin:
                     card_data = method.operation.get_card_data_by_payment(payment)
 
                     card_type = p['card_type']
-                    if card_type in ['passbook', 'passbook_points']:
+                    # This card_type does not exist in stoq. Change it to 'credit'.
+                    if card_type not in CreditCardData.types:
+                        log.info('Invalid card type %s. changing to credit', card_type)
                         card_type = 'credit'
-                    # Stoq does not have the voucher comcept, so register it as a debit card.
+                    # FIXME Stoq already have the voucher concept, but we should keep this for a
+                    # little while for backwars compatibility
                     elif card_type == 'voucher':
                         card_type = 'debit'
                     provider = self._get_provider(store, p['provider'])
