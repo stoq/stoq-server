@@ -138,6 +138,8 @@ GrantLoyaltyPointsEvent = signal('GrantLoyaltyPointsEvent')  # XXX: not sure abo
 PrintAdvancePaymentReceiptEvent = signal('PrintAdvancePaymentReceiptEvent')
 GetAdvancePaymentCategoryEvent = signal('GetAdvancePaymentCategoryEvent')
 
+ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
+
 
 def override(column):
     from storm.references import Reference
@@ -1330,6 +1332,10 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         # Confirm the sale
         group.confirm()
         sale.order()
+
+        external_order_id = data.get('external_order_id')
+        if external_order_id:
+            ProcessExternalOrderEvent.send(sale, external_order_id=external_order_id)
 
         till = Till.get_last(store)
         if till.status != Till.STATUS_OPEN:
