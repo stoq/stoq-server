@@ -45,6 +45,7 @@ from hashlib import md5
 from gevent.pywsgi import WSGIServer
 import gevent
 from blinker import signal
+from werkzeug.serving import run_with_reloader
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
@@ -1543,7 +1544,14 @@ def run_flaskserver(port, debug=False):
     log.info('Starting wsgi server (has_sat=%s, has_nfe=%s)', has_sat, has_nfe)
     http_server = WSGIServer(('127.0.0.1', port), app, spawn=gevent.spawn_raw, log=log,
                              error_log=log)
-    http_server.serve_forever()
+
+    if is_developer_mode():
+        @run_with_reloader
+        def run_server():
+            http_server.serve_forever()
+        run_server()
+    else:
+        http_server.serve_forever()
 
 
 @lock_sat(block=False)
