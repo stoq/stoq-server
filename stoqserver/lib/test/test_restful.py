@@ -376,6 +376,9 @@ class TestSaleResource(_TestFlask):
                 self.assertEqual(rv.status_code, 200)
                 self.assertEqual(recv_sale['id'], sale_id)
 
+    def test_delete(self):
+        pass
+
 
 class TestImageResource(_TestFlask):
 

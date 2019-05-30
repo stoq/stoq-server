@@ -573,6 +573,7 @@ class DataResource(_BaseResource):
             providers=cls._get_card_providers(store),
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
+            plugins=get_plugin_manager().active_plugins_names,
             # Device statuses
             sat_status=sat_status,
             pinpad_status=pinpad_status,
@@ -1054,7 +1055,7 @@ class TefResource(_BaseResource):
             message = retval['message']
         except Exception as e:
             retval = False
-            log.info('Tef failed: %s', str(e))
+            log.exception('Tef failed: %s', str(e))
             if len(e.args) == 2:
                 message = e.args[1]
             else:
@@ -1374,6 +1375,12 @@ class SaleResource(_BaseResource, SaleResourceMixin):
             'transmitted': is_coupon_transmitted,
         }, 200
 
+    def delete(self, store, sale_id):
+        # This is not really 'deleting' a sale, but informing us that a sale was never confirmed
+        # this is necessary since we can create payments for a sale before it actually exists, those
+        # paymenst might need to be canceled
+        signal('SaleAbortedEvent').send(sale_id)
+
 
 class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
 
@@ -1536,7 +1543,7 @@ def run_flaskserver(port, debug=False):
         if not origin:
             origin = request.args.get('origin', request.form.get('origin', '*'))
         response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS, DELETE'
         response.headers['Access-Control-Allow-Headers'] = 'stoq-session, stoq-user, Content-Type'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
