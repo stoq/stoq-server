@@ -1515,6 +1515,14 @@ def bootstrap_app():
     return app
 
 
+def _gtk_main_loop():
+    from gi.repository import Gtk
+    while True:
+        while Gtk.events_pending():
+            Gtk.main_iteration()
+        gevent.sleep(0.1)
+
+
 def run_flaskserver(port, debug=False):
     from stoqlib.lib.environment import configure_locale
     # Force pt_BR for now.
@@ -1553,6 +1561,9 @@ def run_flaskserver(port, debug=False):
                              error_log=log)
 
     if is_developer_mode():
+        if debug:
+            gevent.spawn(_gtk_main_loop)
+
         @run_with_reloader
         def run_server():
             http_server.serve_forever()
