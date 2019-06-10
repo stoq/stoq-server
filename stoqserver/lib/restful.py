@@ -1019,9 +1019,10 @@ class TefResource(_BaseResource):
 
     @lock_pinpad(block=True)
     def post(self, store, signal_name):
-        till = Till.get_last(store)
-        if not till or till.status != Till.STATUS_OPEN:
-            raise TillError(_('There is no till open'))
+        if signal_name not in ['StartTefSaleSummaryEvent', 'StartTefAdminEvent']:
+            till = Till.get_last(store)
+            if not till or till.status != Till.STATUS_OPEN:
+                raise TillError(_('There is no till open'))
 
         try:
             with _printer_lock:
