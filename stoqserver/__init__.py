@@ -25,7 +25,7 @@
 from kiwi.environ import Library
 
 
-__version__ = (0, 30, 0)
+__version__ = (0, 31, 0, "beta")
 __all__ = ["library"]
 
 library = Library("stoqserver", root="..")

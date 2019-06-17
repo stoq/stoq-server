@@ -1,3 +1,9 @@
+stoq-server (0.31.0~beta) xenial; urgency=medium
+
+  * Release 0.31.0~beta
+
+ -- Lucas Fonseca <lucasl2f@zazu>  Mon, 17 Jun 2019 13:03:27 -0300
+
 stoq-server (0.30.0) xenial; urgency=medium
 
   * Release 0.30.0
