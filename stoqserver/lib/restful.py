@@ -1156,14 +1156,19 @@ class SaleResourceMixin:
 
     def _get_client_and_document(self, store, data):
         client_id = data.get('client_id')
-        document = raw_document(data.get('client_document', '') or '')
-        if document:
-            document = format_document(document)
+        # We remove the format of the document and then add it just
+        # as a precaution in case it comes not formatted
+        coupon_document = raw_document(data.get('coupon_document', '') or '')
+        if coupon_document:
+            coupon_document = format_document(coupon_document)
+        client_document = raw_document(data.get('client_document', '') or '')
+        if client_document:
+            client_document = format_document(client_document)
 
         if client_id:
             client = store.get(Client, client_id)
-        elif document:
-            person = Person.get_by_document(store, document)
+        elif client_document:
+            person = Person.get_by_document(store, client_document)
             if person and person.client:
                 client = person.client
             elif person and not person.client:
@@ -1173,7 +1178,7 @@ class SaleResourceMixin:
         else:
             client = None
 
-        return client, document
+        return client, client_document, coupon_document
 
     def _handle_coupon_printing_fail(self, obj):
         log.exception('Error printing coupon')
@@ -1299,7 +1304,7 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         products = data['products']
         client_category_id = data.get('price_table')
 
-        client, document = self._get_client_and_document(store, data)
+        client, client_document, coupon_document = self._get_client_and_document(store, data)
 
         sale_id = data.get('sale_id')
         self._check_already_saved(store, Sale, sale_id)
@@ -1352,12 +1357,12 @@ class SaleResource(_BaseResource, SaleResourceMixin):
 
         sale.confirm(till)
 
-        GrantLoyaltyPointsEvent.send(sale, document=document)
+        GrantLoyaltyPointsEvent.send(sale, document=(client_document or coupon_document))
 
         # Fiscal plugins will connect to this event and "do their job"
         # It's their responsibility to raise an exception in case of any error
         try:
-            SaleConfirmedRemoteEvent.emit(sale, document)
+            SaleConfirmedRemoteEvent.emit(sale, coupon_document)
         except (NfePrinterException, SatPrinterException):
             return self._handle_coupon_printing_fail(sale)
         except NfeRejectedException as e:
@@ -1400,9 +1405,9 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         # initialization
         from stoqpassbook.domain import AdvancePayment
         data = self.get_json()
-        client, document = self._get_client_and_document(store, data)
+        client, client_document, coupon_document = self._get_client_and_document(store, data)
         if not client:
-            client = self._create_client(store, document, data)
+            client = self._create_client(store, client_document, data)
 
         advance_id = data.get('sale_id')
         self._check_already_saved(store, AdvancePayment, advance_id)
@@ -1435,11 +1440,11 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
             raise TillError(_('There is no till open'))
         advance.confirm(till)
 
-        GrantLoyaltyPointsEvent.send(advance, document=document)
+        GrantLoyaltyPointsEvent.send(advance, document=(client_document or coupon_document))
 
         # FIXME: We still need to implement the receipt in non-fiscal plugin
         try:
-            PrintAdvancePaymentReceiptEvent.send(advance, document=document)
+            PrintAdvancePaymentReceiptEvent.send(advance, document=coupon_document)
         except Exception:
             return self._handle_coupon_printing_fail(advance)
 

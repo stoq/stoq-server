@@ -281,7 +281,8 @@ class TestSaleResource(_TestFlask):
                     headers={'stoq-session': s},
                     content_type='application/json',
                     data=json.dumps({
-                        'client_document': '333.341.828-27',
+                        'client_document': '999.999.999-99',
+                        'coupon_document': '333.341.828-27',
                         'products': [
                             {'id': s1.id,
                              'price': str(s1.price),
@@ -327,8 +328,9 @@ class TestSaleResource(_TestFlask):
                 )
 
                 self.assertEqual(e.call_count, 1)
-                (sale, doc), _ = e.call_args_list[0]
-                self.assertEqual(doc, '333.341.828-27')
+                retval = e.call_args_list[0]
+                self.assertEqual(len(retval), 2)
+                self.assertEqual(retval[0][1], '333.341.828-27')
 
                 # Test the same sale again, but this time, lets mimic an exception
                 # happening in SaleConfirmedRemoteEvent
