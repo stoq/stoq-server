@@ -138,9 +138,8 @@ def setup_stoq(register_station=False, name='stoqserver', version=stoqserver.ver
     info.set('ver', version)
     provide_utility(IAppInfo, info, replace=True)
 
-    # FIXME: Maybe we should check_schema and load plugins here?
     setup(config=get_config(), options=None, register_station=register_station,
-          check_schema=False, load_plugins=True)
+          check_schema=True, load_plugins=True)
 
     # This is needed for api calls that requires the current branch set,
     # e.g. Sale.confirm
@@ -252,8 +251,8 @@ class StoqServerCmdHandler(object):
             # installed, configured and ready.
             except BaseException as e:
                 logging.warning("Unable to initialize Stoq: %s\n"
-                                "Trying again in 1 minute...", str(e))
-                time.sleep(60)
+                                "Trying again in 10 minutes...", str(e))
+                time.sleep(600)
             else:
                 break
 
