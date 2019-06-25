@@ -1584,7 +1584,7 @@ def run_flaskserver(port, debug=False):
         return response
 
     log.info('Starting wsgi server (has_sat=%s, has_nfe=%s)', has_sat, has_nfe)
-    http_server = WSGIServer(('127.0.0.1', port), app, spawn=gevent.spawn_raw, log=log,
+    http_server = WSGIServer(('0.0.0.0', port), app, spawn=gevent.spawn_raw, log=log,
                              error_log=log)
 
     if is_developer_mode():
