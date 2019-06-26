@@ -36,7 +36,10 @@ from gevent.queue import Queue
 from gevent.event import Event
 from gevent.lock import Semaphore
 import io
+import platform
+import re
 import select
+import subprocess
 import traceback
 import hashlib
 import requests
@@ -46,6 +49,8 @@ from gevent.pywsgi import WSGIServer
 import gevent
 from blinker import signal
 from werkzeug.serving import run_with_reloader
+import psutil
+import tzlocal
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
@@ -58,6 +63,7 @@ from stoqdrivers.exceptions import InvalidReplyException
 from stoqlib.api import api
 from stoqlib.database.runtime import get_current_station
 from stoqlib.database.interfaces import ICurrentUser
+from stoqlib.database.settings import get_database_version
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.image import Image
@@ -1635,3 +1641,71 @@ def check_pinpad_loop():
             pinpad_ok = new_pinpad_ok
 
         gevent.sleep(60)
+
+
+@worker
+def post_ping_request():
+    target = 'https://app.stoq.link:9000/api/ping'
+    time_format = '%d-%m-%Y %H:%M:%S%Z'
+    store = api.get_default_store()
+    plugin_manager = get_plugin_manager()
+    station = get_current_station(store)
+    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time()).strftime(time_format)
+
+    def get_stoq_conf():
+        with open(get_config().get_filename(), 'r') as fh:
+            return fh.read().encode()
+
+    def get_clisitef_ini():
+        try:
+            with open('CliSiTef.ini', 'r') as fh:
+                return fh.read().encode()
+        except FileNotFoundError:
+            return ''
+
+    while True:
+        dpkg_list = subprocess.check_output('dpkg -l \\*stoq\\*', shell=True).decode()
+        stoq_packages = re.findall(r'ii\s*(\S*)\s*(\S*)', dpkg_list)
+        local_time = tzlocal.get_localzone().localize(datetime.datetime.now())
+
+        response = requests.post(
+            target,
+            headers={'Stoq-Backend': '{}-portal'.format(api.sysparam.get_string('USER_HASH'))},
+            data={
+                'station_id': station.id,
+                'data': json.dumps({
+                    'platform': {
+                        'architecture': platform.architecture(),
+                        'distribution': platform.dist(),
+                        'system': platform.system(),
+                        'uname': platform.uname(),
+                        'python_version': platform.python_version_tuple(),
+                        'postgresql_version': get_database_version(store)
+                    },
+                    'system': {
+                        'boot_time': boot_time,
+                        'cpu_times': psutil.cpu_times(),
+                        'load_average': os.getloadavg(),
+                        'disk_usage': psutil.disk_usage('/'),
+                        'virtual_memory': psutil.virtual_memory(),
+                        'swap_memory': psutil.swap_memory()
+                    },
+                    'plugins': {
+                        'available': plugin_manager.available_plugins_names,
+                        'installed': plugin_manager.installed_plugins_names,
+                        'active': plugin_manager.active_plugins_names,
+                        'versions': getattr(plugin_manager, 'available_plugins_versions', None)
+                    },
+                    'stoq_packages': dict(stoq_packages),
+                    'local_time': local_time.strftime(time_format),
+                    'stoq_conf_md5': md5(get_stoq_conf()).hexdigest(),
+                    'clisitef_ini_md5': md5(get_clisitef_ini()).hexdigest()
+                })
+            }
+        )
+
+        log.info("POST {} {} {}".format(
+            target,
+            response.status_code,
+            response.elapsed.total_seconds()))
+        gevent.sleep(3600)
