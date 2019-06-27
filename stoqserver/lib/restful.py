@@ -1056,7 +1056,7 @@ class TefResource(_BaseResource):
             message = retval['message']
         except Exception as e:
             retval = False
-            log.exception('Tef failed: %s', str(e))
+            log.info('Tef failed: %s', str(e))
             if len(e.args) == 2:
                 message = e.args[1]
             else:
