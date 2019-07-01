@@ -1,3 +1,9 @@
+stoq-server (0.31.1~beta) xenial; urgency=medium
+
+  * Release 0.31.1~beta
+
+ -- Fabricio C Zuardi <fcz@laptop39>  Mon, 01 Jul 2019 15:58:42 -0300
+
 stoq-server (0.31.0) xenial; urgency=medium
 
   * Release 0.31.0
