@@ -1,3 +1,9 @@
+stoq-server (0.31.1) xenial; urgency=medium
+
+  * Release 0.31.1
+
+ -- filipe <filipe@fernweh>  Tue, 09 Jul 2019 17:45:40 -0300
+
 stoq-server (0.31.1~beta) xenial; urgency=medium
 
   * Release 0.31.1~beta
