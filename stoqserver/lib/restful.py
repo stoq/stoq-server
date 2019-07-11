@@ -1669,7 +1669,10 @@ def post_ping_request():
             return ''
 
     while True:
-        dpkg_list = subprocess.check_output('dpkg -l \\*stoq\\*', shell=True).decode()
+        try:
+            dpkg_list = subprocess.check_output('dpkg -l \\*stoq\\*', shell=True).decode()
+        except subprocess.CalledProcessError:
+            dpkg_list = ""
         stoq_packages = re.findall(r'ii\s*(\S*)\s*(\S*)', dpkg_list)
         local_time = tzlocal.get_localzone().localize(datetime.datetime.now())
 
