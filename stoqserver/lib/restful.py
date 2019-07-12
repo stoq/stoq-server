@@ -90,7 +90,7 @@ from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
 #from stoqlib.lib.threadutils import threadit
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
-from storm.expr import Desc, LeftJoin, Join, And, Ne
+from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
 from stoqserver import main
 from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
@@ -465,8 +465,15 @@ class DataResource(_BaseResource):
                              ProductBranchOverride.branch_id == branch.id,
                              Ne(ProductBranchOverride.icms_template_id, None))))
 
-            sellables = store.using(*tables).find(
-                Sellable, category=c, status='available').order_by('height', 'description')
+            tables.append(
+                LeftJoin(SellableBranchOverride,
+                         And(SellableBranchOverride.sellable_id == Sellable.id,
+                             SellableBranchOverride.branch_id == branch.id)))
+            query = And(Sellable.category == c,
+                        Eq(Coalesce(SellableBranchOverride.status, Sellable.status), "available"))
+
+            sellables = store.using(*tables).find(Sellable, query).order_by('height', 'description')
+
             for s in sellables:
                 ccp = store.find(ClientCategoryPrice, sellable_id=s.id)
                 ccp_dict = {}
