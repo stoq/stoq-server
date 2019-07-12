@@ -1108,12 +1108,15 @@ class ImageResource(_BaseResource):
 
     def get(self, id):
         is_main = bool(request.args.get('is_main', None))
+        keyword_filter = request.args.get('keyword')
         # FIXME: The images should store tags so they could be requested by that tag and
         # product_id. At the moment, we simply check if the image is main or not and
         # return the first one.
         with api.new_store() as store:
-            image = store.find(Image, sellable_id=id, is_main=is_main).any()
-
+            images = store.find(Image, sellable_id=id, is_main=is_main)
+            if keyword_filter:
+                images = images.find(Image.keywords.like('%{}%'.format(keyword_filter)))
+            image = images.any()
             if image:
                 return send_file(io.BytesIO(image.image), mimetype='image/png')
             else:
