@@ -429,7 +429,7 @@ class DataResource(_BaseResource):
                 message = False
 
     @classmethod
-    def _get_categories(cls, store):
+    def _get_categories(cls, store, station):
         categories_root = []
         aux = {}
         branch = api.get_current_branch(store)
@@ -471,6 +471,10 @@ class DataResource(_BaseResource):
                              SellableBranchOverride.branch_id == branch.id)))
             query = And(Sellable.category == c,
                         Eq(Coalesce(SellableBranchOverride.status, Sellable.status), "available"))
+
+            # XXX: This should be modified for accepting generic keywords
+            if station.type and station.type.name == 'auto':
+                query = And(query, Sellable.keywords.like('%auto%'))
 
             sellables = store.using(*tables).find(Sellable, query).order_by('height', 'description')
 
@@ -581,7 +585,7 @@ class DataResource(_BaseResource):
                 name=user.username,
                 profile_id=user.profile_id,
             ),
-            categories=cls._get_categories(store),
+            categories=cls._get_categories(store, station),
             payment_methods=cls._get_payment_methods(store),
             providers=cls._get_card_providers(store),
             staff_id=staff_category.id if staff_category else None,
