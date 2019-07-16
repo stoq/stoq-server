@@ -1024,9 +1024,6 @@ class TefResource(_BaseResource):
         reply = self.reply.get()
         log.info('Got tef reply: %s', reply)
         self.waiting_reply.clear()
-        if not reply:
-            # Returning false will make the transaction be canceled
-            return False
 
         return reply
 
