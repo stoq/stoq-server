@@ -1318,7 +1318,9 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         client, client_document, coupon_document = self._get_client_and_document(store, data)
 
         sale_id = data.get('sale_id')
-        self._check_already_saved(store, Sale, sale_id)
+        early_response = self._check_already_saved(store, Sale, sale_id)
+        if early_response:
+            return early_response
 
         # Print the receipts and confirm the transaction before anything else. If the sale fails
         # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts
@@ -1421,7 +1423,9 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
             client = self._create_client(store, client_document, data)
 
         advance_id = data.get('sale_id')
-        self._check_already_saved(store, AdvancePayment, advance_id)
+        early_response = self._check_already_saved(store, AdvancePayment, advance_id)
+        if early_response:
+            return early_response
 
         total = 0
         for p in data['products']:
