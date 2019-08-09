@@ -19,7 +19,7 @@ before_script:
   - git clone https://github.com/stoq/stoq.git
   - easy_install3 pip
   - pip install -e stoq --no-deps
-  
+
 test:
   script:
     - ./runtests.py stoqserver/lib/test

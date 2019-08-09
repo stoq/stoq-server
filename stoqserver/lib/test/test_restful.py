@@ -70,10 +70,14 @@ class _TestFlask(DomainTest):
             yield es
 
     def login(self):
-        u = self.create_user()
-        rv = self.client.post('/login',
-                              data={'user': u.username, 'pw_hash': u.pw_hash})
-        return json.loads(rv.data.decode())
+        user = api.get_current_user(self.store) or self.create_user()
+        station = api.get_current_station(self.store) or self.create_station()
+        station.is_active = True
+        rv = self.client.post(
+            '/login',
+            data={'user': user.username, 'pw_hash': user.pw_hash, 'station_name': station.name})
+        ans = json.loads(rv.data.decode())
+        return ans['token'].replace('JWT', 'Bearer')
 
     def test_get(self):
         for route in self.resource_class.routes:
@@ -108,8 +112,10 @@ class TestLoginResource(_TestFlask):
     def test_post(self):
         with self.fake_store(mock_rollback=True):
             # foo user doesn't exist
-            rv = self.client.post('/login',
-                                  data={'user': 'foo', 'pw_hash': 'bar'})
+            station = self.create_station()
+            station.is_active = True
+            rv = self.client.post(
+                '/login', data={'user': 'foo', 'pw_hash': 'bar', 'station_name': station.name})
             self.assertEqual(rv.status_code, 403),
             self.assertEqual(json.loads(rv.data.decode()),
                              {'message': 'Invalid user or password'})
@@ -119,24 +125,25 @@ class TestLoginResource(_TestFlask):
             u.set_password('bar')
 
             # foo with wrong password
-            rv = self.client.post('/login',
-                                  data={'user': 'foo', 'pw_hash': '_wrong_'})
+            rv = self.client.post(
+                '/login', data={'user': 'foo', 'pw_hash': '_wrong_', 'station_name': station.name})
             self.assertEqual(rv.status_code, 403),
             self.assertEqual(json.loads(rv.data.decode()),
                              {'message': 'Invalid user or password'})
 
             # foo with wrong password (unhashed)
-            rv = self.client.post('/login',
-                                  data={'user': 'foo', 'pw_hash': 'bar'})
+            rv = self.client.post(
+                '/login', data={'user': 'foo', 'pw_hash': 'bar', 'station_name': station.name})
             self.assertEqual(rv.status_code, 403),
             self.assertEqual(json.loads(rv.data.decode()),
                              {'message': 'Invalid user or password'})
 
             # foo with right password
-            rv = self.client.post('/login',
-                                  data={'user': 'foo', 'pw_hash': u.hash('bar')})
+            rv = self.client.post(
+                '/login',
+                data={'user': 'foo', 'pw_hash': u.hash('bar'), 'station_name': station.name})
             self.assertEqual(rv.status_code, 200)
-            self.assertEqual(json.loads(rv.data.decode()), u.id)
+            self.assertEqual(json.loads(rv.data.decode())['user']['id'], u.id)
 
 
 class TestDataResource(_TestFlask):
@@ -145,7 +152,7 @@ class TestDataResource(_TestFlask):
 
     def test_get(self):
         with self.fake_store():
-            s = self.login()
+            token = self.login()
             b = api.get_current_branch(self.store)
 
             s1 = self.create_sellable(description='s1')
@@ -186,7 +193,7 @@ class TestDataResource(_TestFlask):
                             adjust_categories(o)
                 return obj
 
-            rv = self.client.get('/data', headers={'stoq-session': s})
+            rv = self.client.get('/data', headers={'Authorization': token})
             self.assertEqual(rv.status_code, 200)
 
             retval = json.loads(rv.data.decode())
@@ -257,7 +264,7 @@ class TestSaleResource(_TestFlask):
                 tt = es.enter_context(
                     mock.patch('stoqlib.domain.sale.TransactionTimestamp'))
                 tt.return_value = d
-                s = self.login()
+                token = self.login()
 
                 p1 = self.create_product(price=10)
                 p1.manage_stock = False
@@ -272,11 +279,12 @@ class TestSaleResource(_TestFlask):
 
                 # Add a till to Store
                 till = self.create_till()
-                till.open_till()
+                user = self.create_user()
+                till.open_till(user)
 
                 rv = self.client.post(
                     '/sale',
-                    headers={'stoq-session': s},
+                    headers={'Authorization': token},
                     content_type='application/json',
                     data=json.dumps({
                         'client_document': '999.999.999-99',
@@ -338,7 +346,7 @@ class TestSaleResource(_TestFlask):
                 # doesn't mean that the test is failing (unless it really fail)
                 rv = self.client.post(
                     '/sale',
-                    headers={'stoq-session': s},
+                    headers={'Authorization': token},
                     content_type='application/json',
                     data=json.dumps({
                         'client_document': '333.341.828-27',
@@ -366,12 +374,12 @@ class TestSaleResource(_TestFlask):
     def test_get(self):
         with self.sysparam(DEMO_MODE=True):
             with self.fake_store():
-                s = self.login()
+                token = self.login()
                 sale = self.create_sale()
                 sale_id = sale.id
                 rv = self.client.get(
                     '/sale/{}'.format(sale_id),
-                    headers={'stoq-session': s})
+                    headers={'Authorization': token})
                 recv_sale = json.loads(rv.data.decode())
                 self.assertEqual(rv.status_code, 200)
                 self.assertEqual(recv_sale['id'], sale_id)
@@ -388,13 +396,12 @@ class TestImageResource(_TestFlask):
         with self.sysparam(DEMO_MODE=True):
             with self.fake_store():
                 api.get_current_branch(self.store)
-                s = self.login()
 
                 sellable = self.create_sellable()
                 img = self.create_image()
                 img.image = b'foobar'
                 img.sellable_id = sellable.id
 
-                rv = self.client.get('/image/' + sellable.id, headers={'stoq-session': s})
+                rv = self.client.get('/image/' + sellable.id)
                 self.assertEqual(rv.status_code, 200)
                 self.assertEqual(rv.data, b'foobar')

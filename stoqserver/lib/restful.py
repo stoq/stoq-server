@@ -54,7 +54,7 @@ import tzlocal
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
-from flask import Flask, request, session, abort, send_file, make_response, Response
+from flask import Flask, request, abort, send_file, make_response, Response, jsonify
 from flask_restful import Api, Resource
 from raven.contrib.flask import Sentry
 from serial.serialutil import SerialException
@@ -76,6 +76,8 @@ from stoqlib.domain.person import LoginUser, Person, Client, ClientCategory, Ind
 from stoqlib.domain.product import Product
 from stoqlib.domain.purchase import PurchaseOrder
 from stoqlib.domain.sale import Sale
+from stoqlib.domain.station import BranchStation
+from stoqlib.domain.token import AccessToken
 from stoqlib.domain.payment.renegotiation import PaymentRenegotiation
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
@@ -225,35 +227,25 @@ def _get_session():
 def _login_required(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        session_id = request.headers.get('stoq-session', None)
-        # FIXME: Remove this once all frontends are updated.
-        if session_id is None:
-            abort(401, 'No session id provided in header')
+        # token should be sent through a header using the format 'Bearer <token>'
+        auth = request.headers.get('Authorization', '').split('Bearer ')
+        if len(auth) != 2:
+            abort(401)
 
-        user_id = request.headers.get('stoq-user', None)
         with api.new_store() as store:
-            user = (user_id or session_id) and store.get(LoginUser, user_id or session_id)
-            if user:
-                provide_utility(ICurrentUser, user, replace=True)
-                return f(*args, **kwargs)
+            access_token = AccessToken.get_by_token(store=store, token=auth[1])
+            if not access_token.is_valid():
+                abort(403, "token {}".format(access_token.status))
 
-        with _get_session() as s:
-            session_data = s.get(session_id, None)
-            if session_data is None:
-                abort(401, 'Session does not exist')
-
-            if localnow() - session_data['date'] > _expire_time:
-                abort(401, 'Session expired')
-
-            # Refresh last date to avoid it expiring while being used
-            session_data['date'] = localnow()
-            session['user_id'] = session_data['user_id']
-            with api.new_store() as store:
-                user = store.get(LoginUser, session['user_id'])
-                provide_utility(ICurrentUser, user, replace=True)
+            # FIXME: the user utility acts as a singleton and since we'd like to have stoqserver API
+            # accepting requests from different stations (users), we cannot use this pattern as it
+            # can lead to racing problems. For now we are willing to put a lock in every request,
+            # but the final solution should be a refactor that makes every endpoint use the user
+            # provided in the token payload instead of this 'global' one.
+            user = store.get(LoginUser, access_token.payload['user_id'])
+            provide_utility(ICurrentUser, user, replace=True)
 
         return f(*args, **kwargs)
-
     return wrapper
 
 
@@ -342,12 +334,26 @@ class _BaseResource(Resource):
 
         return request.form.get(attr, request.args.get(attr, default))
 
+    def get_current_user(self, store):
+        auth = request.headers.get('Authorization', '').split('Bearer ')
+        token = AccessToken.get_by_token(store=store, token=auth[1])
+        return token and token.user
+
+    def get_current_station(self, store):
+        auth = request.headers.get('Authorization', '').split('Bearer ')
+        token = AccessToken.get_by_token(store=store, token=auth[1])
+        return token and token.station
+
+    def get_current_branch(self, store):
+        station = self.get_current_station(store)
+        return station and station.branch
+
     @classmethod
-    def ensure_printer(cls, retries=20):
+    def ensure_printer(cls, station, retries=20):
         assert _printer_lock.locked()
 
         store = api.get_default_store()
-        device = DeviceSettings.get_by_station_and_type(store, get_current_station(store),
+        device = DeviceSettings.get_by_station_and_type(store, station,
                                                         DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
         if not device:
             # If we have no printer configured, there's nothing to ensure
@@ -428,11 +434,10 @@ class DataResource(_BaseResource):
                 })
                 message = False
 
-    @classmethod
-    def _get_categories(cls, store, station):
+    def _get_categories(self, store, station):
         categories_root = []
         aux = {}
-        branch = api.get_current_branch(store)
+        branch = self.get_current_branch(store)
 
         # SellableCategory and Sellable/Product data
         # FIXME: Remove categories that have no products inside them
@@ -507,7 +512,6 @@ class DataResource(_BaseResource):
 
         return categories_root
 
-    @classmethod
     def _get_payment_methods(self, store):
         # PaymentMethod data
         payment_methods = []
@@ -526,7 +530,6 @@ class DataResource(_BaseResource):
 
         return payment_methods
 
-    @classmethod
     def _get_card_providers(self, store):
         providers = []
         for i in CreditProvider.get_card_providers(store):
@@ -534,8 +537,7 @@ class DataResource(_BaseResource):
 
         return providers
 
-    @classmethod
-    def get_data(cls, store):
+    def get_data(self, store):
         """Returns all data the POS needs to run
 
         This includes:
@@ -546,8 +548,8 @@ class DataResource(_BaseResource):
             - What sellables those categories have
                 - The stock amount for each sellable (if it controls stock)
         """
-        station = get_current_station(store)
-        user = api.get_current_user(store)
+        station = self.get_current_station(store)
+        user = self.get_current_user(store)
         staff_category = store.find(ClientCategory, ClientCategory.name == 'Staff').one()
         branch = station.branch
         config = get_config()
@@ -585,16 +587,16 @@ class DataResource(_BaseResource):
                 name=user.username,
                 profile_id=user.profile_id,
             ),
-            categories=cls._get_categories(store, station),
-            payment_methods=cls._get_payment_methods(store),
-            providers=cls._get_card_providers(store),
+            categories=self._get_categories(store, station),
+            payment_methods=self._get_payment_methods(store),
+            providers=self._get_card_providers(store),
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
             plugins=get_plugin_manager().active_plugins_names,
             # Device statuses
             sat_status=sat_status,
             pinpad_status=pinpad_status,
-            printer_status=None if DrawerResource.check_drawer() is None else True,
+            printer_status=None if check_drawer() is None else True,
         )
 
         return retval
@@ -607,49 +609,13 @@ class DrawerResource(_BaseResource):
     """Drawer RESTful resource."""
 
     routes = ['/drawer']
-    method_decorators = [_login_required]
+    method_decorators = [_login_required, _store_provider]
 
     @lock_printer
-    def check_drawer():
-        try:
-            return DrawerResource.ensure_printer(retries=1)
-        except (SerialException, InvalidReplyException):
-            return None
-
-    @classmethod
-    @worker
-    def check_drawer_loop():
-        # default value of is_open
-        is_open = ''
-
-        # Check every second if it is opened.
-        # Alert only if changes.
-        while True:
-            new_is_open = DrawerResource.check_drawer()
-
-            if is_open != new_is_open:
-                message = {
-                    True: 'DRAWER_ALERT_OPEN',
-                    False: 'DRAWER_ALERT_CLOSE',
-                    None: 'DRAWER_ALERT_ERROR',
-                }
-                EventStream.put({
-                    'type': message[new_is_open],
-                })
-                status_printer = None if new_is_open is None else True
-                EventStream.put({
-                    'type': 'DEVICE_STATUS_CHANGED',
-                    'device': 'printer',
-                    'status': status_printer,
-                })
-                is_open = new_is_open
-
-            gevent.sleep(1)
-
-    @lock_printer
-    def get(self):
+    def get(self, store):
         """Get the current status of the drawer"""
-        return self.ensure_printer()
+        station = self.get_current_station(store)
+        return self.ensure_printer(station)
 
     @lock_printer
     def post(self):
@@ -693,21 +659,22 @@ class TillResource(_BaseResource):
     method_decorators = [_login_required]
 
     def _open_till(self, store, initial_cash_amount=0):
-        station = get_current_station(store)
-        last_till = Till.get_last(store)
+        station = self.get_current_station(store)
+        last_till = Till.get_last(store, station)
         if not last_till or last_till.status != Till.STATUS_OPEN:
             # Create till and open
-            till = Till(store=store, station=station)
-            till.open_till()
+            till = Till(store=store, station=station, branch=station.branch)
+            till.open_till(self.get_current_user(store))
             till.initial_cash_amount = decimal.Decimal(initial_cash_amount)
         else:
             # Error, till already opened
             assert False
 
     def _close_till(self, store, till_summaries):
-        self.ensure_printer()
+        station = self.get_current_station(store)
+        self.ensure_printer(station)
         # Here till object must exist
-        till = Till.get_last(store)
+        till = Till.get_last(store, station)
 
         # Create TillSummaries
         till.get_day_summary()
@@ -730,12 +697,12 @@ class TillResource(_BaseResource):
         balance = till.get_balance()
         if balance:
             till.add_debit_entry(balance, _('Blind till closing'))
-        till.close_till()
+        till.close_till(self.get_current_user(store))
 
     def _add_credit_or_debit_entry(self, store, data):
         # Here till object must exist
-        till = Till.get_last(store)
-        user = api.get_current_user(store)
+        till = Till.get_last(store, self.get_current_station(store))
+        user = self.get_current_user(store)
 
         # FIXME: Check balance when removing to prevent negative till.
         if data['operation'] == 'debit_entry':
@@ -778,7 +745,7 @@ class TillResource(_BaseResource):
     def get(self):
         # Retrieve Till data
         with api.new_store() as store:
-            till = Till.get_last(store)
+            till = Till.get_last(store, self.get_current_station(store))
 
             if not till:
                 return None
@@ -888,20 +855,50 @@ class LoginResource(_BaseResource):
     """Login RESTful resource."""
 
     routes = ['/login']
+    method_decorators = [_store_provider]
 
-    def post(self):
+    def post(self, store):
         username = self.get_arg('user')
         pw_hash = self.get_arg('pw_hash')
+        station_name = self.get_arg('station_name')
 
-        with api.new_store() as store:
-            try:
-                # FIXME: Respect the branch the user is in.
-                user = LoginUser.authenticate(store, username, pw_hash, current_branch=None)
-                provide_utility(ICurrentUser, user, replace=True)
-            except LoginError as e:
-                abort(403, str(e))
+        station = store.find(BranchStation, name=station_name, is_active=True).one()
+        if not station:
+            abort(401)
 
-        return user.id
+        try:
+            # FIXME: Respect the branch the user is in.
+            user = LoginUser.authenticate(store, username, pw_hash, current_branch=None)
+            provide_utility(ICurrentUser, user, replace=True)
+        except LoginError as e:
+            abort(403, str(e))
+
+        token = AccessToken.get_or_create(store, user, station).token
+        return jsonify({
+            "token": "JWT {}".format(token),
+            "user": {"id": user.id},
+        })
+
+
+class LogoutResource(_BaseResource):
+
+    routes = ['/logout']
+    method_decorators = [_store_provider]
+
+    def post(self, store):
+        token = self.get_arg('token')
+        token = token and token.split(' ')
+        token = token[1] if len(token) == 2 else None
+
+        if not token:
+            abort(401)
+
+        token = AccessToken.get_by_token(store=store, token=token)
+        if not token:
+            abort(403, "invalid token")
+        token.revoke()
+
+        return jsonify({"message": "successfully revoked token"})
 
 
 class AuthResource(_BaseResource):
@@ -1033,14 +1030,15 @@ class TefResource(_BaseResource):
 
     @lock_pinpad(block=True)
     def post(self, store, signal_name):
+        station = self.get_current_station(store)
         if signal_name not in ['StartTefSaleSummaryEvent', 'StartTefAdminEvent']:
-            till = Till.get_last(store)
+            till = Till.get_last(store, station)
             if not till or till.status != Till.STATUS_OPEN:
                 raise TillError(_('There is no till open'))
 
         try:
             with _printer_lock:
-                self.ensure_printer()
+                self.ensure_printer(station)
         except Exception:
             EventStream.put({
                 'type': 'TEF_OPERATION_FINISHED',
@@ -1218,7 +1216,7 @@ class SaleResourceMixin:
             provider = CreditProvider(store=store, short_name=name, provider_id=name)
         return provider
 
-    def _create_payments(self, store, group, branch, sale_total, payment_data):
+    def _create_payments(self, store, group, branch, station, sale_total, payment_data):
         money_payment = None
         payments_total = 0
         for p in payment_data:
@@ -1241,7 +1239,7 @@ class SaleResourceMixin:
             payments_total += payment_value
 
             p_list = method.create_payments(
-                Payment.TYPE_IN, group, branch,
+                branch, station, Payment.TYPE_IN, group,
                 payment_value, due_dates)
 
             if method.method_name == 'money':
@@ -1329,13 +1327,15 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         TefPrintReceiptsEvent.send(sale_id)
 
         # Create the sale
-        branch = api.get_current_branch(store)
+        branch = self.get_current_branch(store)
+        station = self.get_current_station(store)
+        user = self.get_current_user(store)
         group = PaymentGroup(store=store)
-        user = api.get_current_user(store)
         sale = Sale(
             store=store,
             id=sale_id,
             branch=branch,
+            station=station,
             salesperson=user.person.sales_person,
             client=client,
             client_category_id=client_category_id,
@@ -1355,17 +1355,18 @@ class SaleResource(_BaseResource, SaleResourceMixin):
             item.base_price = item.price
 
         # Add payments
-        self._create_payments(store, group, branch, sale.get_total_sale_amount(), data['payments'])
+        self._create_payments(store, group, branch, station,
+                              sale.get_total_sale_amount(), data['payments'])
 
         # Confirm the sale
         group.confirm()
-        sale.order()
+        sale.order(user)
 
         external_order_id = data.get('external_order_id')
         if external_order_id:
             ProcessExternalOrderEvent.send(sale, external_order_id=external_order_id)
 
-        till = Till.get_last(store)
+        till = Till.get_last(store, station)
         if till.status != Till.STATUS_OPEN:
             raise TillError(_('There is no till open'))
 
@@ -1437,21 +1438,23 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         # will still be printed/confirmed and the user can finish the sale or the client.
         TefPrintReceiptsEvent.send(advance_id)
 
-        branch = api.get_current_branch(store)
+        branch = self.get_current_branch(store)
+        station = self.get_current_station(store)
+        user = self.get_current_user(store)
         group = PaymentGroup(store=store)
-        user = api.get_current_user(store)
         advance = AdvancePayment(
             id=advance_id,
             store=store,
             client=client,
             total_value=total,
             branch=branch,
+            station=station,
             group=group,
             responsible=user)
 
         # Add payments
-        self._create_payments(store, group, branch, advance.total_value, data['payments'])
-        till = Till.get_last(store)
+        self._create_payments(store, group, branch, station, advance.total_value, data['payments'])
+        till = Till.get_last(store, station)
         if not till or till.status != Till.STATUS_OPEN:
             raise TillError(_('There is no till open'))
         advance.confirm(till)
@@ -1475,7 +1478,7 @@ class PrintCouponResource(_BaseResource):
 
     @lock_printer
     def get(self, store, sale_id):
-        self.ensure_printer()
+        self.ensure_printer(self.get_current_station(store))
 
         sale = store.get(Sale, sale_id)
         signal('PrintCouponCopyEvent').send(sale)
@@ -1580,7 +1583,7 @@ def run_flaskserver(port, debug=False):
             origin = request.args.get('origin', request.form.get('origin', '*'))
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS, DELETE'
-        response.headers['Access-Control-Allow-Headers'] = 'stoq-session, stoq-user, Content-Type'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
@@ -1598,6 +1601,44 @@ def run_flaskserver(port, debug=False):
         run_server()
     else:
         http_server.serve_forever()
+
+
+@lock_printer
+def check_drawer():
+    try:
+        return DrawerResource.ensure_printer(get_current_station(), retries=1)
+    except (SerialException, InvalidReplyException):
+        return None
+
+
+@worker
+def check_drawer_loop():
+    # default value of is_open
+    is_open = ''
+
+    # Check every second if it is opened.
+    # Alert only if changes.
+    while True:
+        new_is_open = check_drawer()
+
+        if is_open != new_is_open:
+            message = {
+                True: 'DRAWER_ALERT_OPEN',
+                False: 'DRAWER_ALERT_CLOSE',
+                None: 'DRAWER_ALERT_ERROR',
+            }
+            EventStream.put({
+                'type': message[new_is_open],
+            })
+            status_printer = None if new_is_open is None else True
+            EventStream.put({
+                'type': 'DEVICE_STATUS_CHANGED',
+                'device': 'printer',
+                'status': status_printer,
+            })
+            is_open = new_is_open
+
+        gevent.sleep(1)
 
 
 @lock_sat(block=False)
@@ -1678,7 +1719,7 @@ def inform_till_status():
         with api.new_store() as store:
             EventStream.put({
                 'type': 'CHECK_TILL_FINISHED',
-                'lastTill': {'status': Till.get_last(store).status}
+                'lastTill': {'status': Till.get_last(store, get_current_station(store)).status}
             })
 
 
