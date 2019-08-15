@@ -130,6 +130,7 @@ _expire_time = datetime.timedelta(days=1)
 _session = None
 _printer_lock = Semaphore()
 log = logging.getLogger(__name__)
+is_multiclient = False
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
 
@@ -556,15 +557,19 @@ class DataResource(_BaseResource):
         config = get_config()
         can_send_sms = config.get("Twilio", "sid") is not None
 
-        try:
-            sat_status = check_sat()
-        except LockFailedException:
-            sat_status = True
+        sat_status = pinpad_status = printer_status = True
+        if not is_multiclient:
+            try:
+                sat_status = check_sat()
+            except LockFailedException:
+                sat_status = True
 
-        try:
-            pinpad_status = check_pinpad()
-        except LockFailedException:
-            pinpad_status = True
+            try:
+                pinpad_status = check_pinpad()
+            except LockFailedException:
+                pinpad_status = True
+
+            printer_status = None if check_drawer() is None else True
 
         # Current branch data
         retval = dict(
@@ -597,7 +602,7 @@ class DataResource(_BaseResource):
             # Device statuses
             sat_status=sat_status,
             pinpad_status=pinpad_status,
-            printer_status=None if check_drawer() is None else True,
+            printer_status=printer_status,
         )
 
         return retval
@@ -1572,14 +1577,20 @@ def _gtk_main_loop():
         gevent.sleep(0.1)
 
 
-def run_flaskserver(port, debug=False):
+def run_flaskserver(port, debug=False, multiclient=False):
     from stoqlib.lib.environment import configure_locale
     # Force pt_BR for now.
     configure_locale('pt_BR')
 
-    # Check drawer in a separated thread
-    for function in WORKERS:
-        gevent.spawn(function)
+    global is_multiclient
+    is_multiclient = multiclient
+
+    # For now we're disabling workers when stoqserver is serving multiple clients (multiclient mode)
+    # FIXME: a proper solution would be to modify the workflow so that the clients ask the server
+    # about devices health, the till status, etc. instead of the other way around.
+    if not is_multiclient:
+        for function in WORKERS:
+            gevent.spawn(function)
 
     try:
         from stoqserver.lib import stacktracer

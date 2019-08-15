@@ -159,7 +159,7 @@ def start_xmlrpc_server(pipe_conn):
     run_xmlrpcserver(pipe_conn, port)
 
 
-def start_flask_server(debug=False):
+def start_flask_server(debug=False, multiclient=False):
     # We need to delay importing from restfull so that the plugin infrastructure gets setup correcly
     from stoqserver.lib.restful import run_flaskserver
 
@@ -170,7 +170,7 @@ def start_flask_server(debug=False):
     # XXX: Is flaskport a good name for this?
     port = int(config.get('General', 'flaskport') or SERVER_FLASK_PORT)
 
-    run_flaskserver(port, debug)
+    run_flaskserver(port, debug, multiclient)
 
 
 def start_server():

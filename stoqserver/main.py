@@ -131,14 +131,15 @@ def setup_excepthook(sentry_url):
     sys.excepthook = _excepthook
 
 
-def setup_stoq(register_station=False, name='stoqserver', version=stoqserver.version_str):
+def setup_stoq(register_station=False, name='stoqserver',
+               version=stoqserver.version_str, options=None):
     info = AppInfo()
     info.set('name', name)
     info.set('version', version)
     info.set('ver', version)
     provide_utility(IAppInfo, info, replace=True)
 
-    setup(config=get_config(), options=None, register_station=register_station,
+    setup(config=get_config(), options=options, register_station=register_station,
           check_schema=True, load_plugins=True)
 
     # This is needed for api calls that requires the current branch set,
@@ -290,7 +291,7 @@ class StoqServerCmdHandler(object):
 
     def cmd_flask(self, options, *args):
         """Run the server daemon"""
-        setup_stoq(register_station=True, name='stoqflask', version=stoq.version)
+        setup_stoq(register_station=True, name='stoqflask', version=stoq.version, options=options)
         setup_logging('stoq-flask')
 
         def _exit(*args):
@@ -301,7 +302,14 @@ class StoqServerCmdHandler(object):
         if platform.system() != 'Windows':
             signal.signal(signal.SIGQUIT, _exit)
 
-        start_flask_server(options.debug)
+        start_flask_server(options.debug, options.multiclient)
+
+    def opt_flask(self, parser, group):
+        """Options for command flask"""
+        group.add_option('', '--multiclient',
+                         action='store_true',
+                         dest='multiclient',
+                         help="Make flask API prepared to serve multiple clients")
 
     def cmd_backup_database(self, options, *args):
         """Backup the Stoq database"""
