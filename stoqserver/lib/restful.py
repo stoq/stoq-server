@@ -1665,6 +1665,24 @@ def check_pinpad_loop():
 
 
 @worker
+def inform_till_status():
+    while True:
+        # Wait for the new work day
+        now = datetime.datetime.now()
+        update_time = datetime.datetime(now.year, now.month, now.day, hour=6, minute=0)
+        wait_time = (update_time + datetime.timedelta(days=1) - now).total_seconds()
+        gevent.sleep(max(60, wait_time))
+
+        # Send an action to inform the front-end the status of the last opened till, to warn the
+        # user if it needs to be closed
+        with api.new_store() as store:
+            EventStream.put({
+                'type': 'CHECK_TILL_FINISHED',
+                'lastTill': {'status': Till.get_last(store).status}
+            })
+
+
+@worker
 def post_ping_request():
     target = 'https://app.stoq.link:9000/api/ping'
     time_format = '%d-%m-%Y %H:%M:%S%Z'
