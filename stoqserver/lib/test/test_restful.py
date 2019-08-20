@@ -50,9 +50,7 @@ class _TestFlask(DomainTest):
     def setUp(self):
         super().setUp()
 
-        from stoqntk.ntkui import NtkUI
         register_config(StoqConfig())
-        self.plugin = NtkUI()
         app = bootstrap_app()
         app.testing = True
         self.client = app.test_client()
