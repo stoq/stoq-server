@@ -13,3 +13,4 @@ stoqserver.egg-info
 stoqserver/data/eggs
 venv
 locale
+settings.json
