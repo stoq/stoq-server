@@ -1,4 +1,4 @@
-image: cprov/stoq:latest
+image: cprov/stoq:stable
 
 services:
   - postgres:9.5
@@ -19,11 +19,6 @@ variables:
 
 before_script:
   - python3 -V  # Print out python version for debugging
-  # Missing devel dependency
-  - apt update -q
-  - locale-gen pt_BR.UTF-8
-  - locale-gen en_US.UTF-8
-  - apt install build-essential python3.5-dev -y
   - virtualenv -p python3 --system-site-packages venv
   - source venv/bin/activate
   - pip3 uninstall setuptools -y
