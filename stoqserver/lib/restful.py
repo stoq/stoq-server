@@ -1684,6 +1684,9 @@ def inform_till_status():
 
 @worker
 def post_ping_request():
+    if is_developer_mode():
+        return
+
     target = 'https://app.stoq.link:9000/api/ping'
     time_format = '%d-%m-%Y %H:%M:%S%Z'
     store = api.get_default_store()
