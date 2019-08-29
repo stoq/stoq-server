@@ -1703,7 +1703,7 @@ def post_ping_request():
             with open('CliSiTef.ini', 'r') as fh:
                 return fh.read().encode()
         except FileNotFoundError:
-            return ''
+            return ''.encode()
 
     while True:
         try:
