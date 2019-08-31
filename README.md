@@ -6,6 +6,26 @@
 
 ## CI
 
+
+### Running CI locally
+
+Install `gitlab-runner`
+
+    sudo curl -L --output /usr/local/bin/gitlab-runner https://gitlab-runner-downloads.s3.amazonaws.com/latest/binaries/gitlab-runner-linux-amd64
+    sudo chmod +x /usr/local/bin/gitlab-runner
+
+Install the `docker` snap
+
+    sudo snap install docker
+    docker.help
+    # Follow the instructions for classic systems
+    sudo snap restart docker
+
+Run the CI for the local project
+
+    gitlab-runner exec docker test
+
+
 ### Refreshing the testing container
 
 Rebuild a container `candidade` with proposed changes to the `Dockerfile`:

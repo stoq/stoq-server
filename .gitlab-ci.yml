@@ -1,12 +1,9 @@
-image: cprov/stoq:stable
+image: cprov/stoq:candidate
 
 services:
   - postgres:9.5
 
 variables:
-  # Change pip's cache directory to be inside the project directory since we can
-  # only cache local items.
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   # Fetch utils/ submodule
   GIT_SUBMODULE_STRATEGY: recursive
   POSTGRES_DB: test
@@ -18,16 +15,10 @@ variables:
   STOQLIB_TEST_PASSWORD: ""
 
 before_script:
-  - python3 -V  # Print out python version for debugging
-  - virtualenv -p python3 --system-site-packages venv
-  - source venv/bin/activate
-  - pip3 uninstall setuptools -y
-  - pip3 install -U setuptools pip
-  - pip3 install https://launchpad.net/~stoq-maintainers/+archive/ubuntu/unstable/+sourcefiles/storm/0.20.0.100-2~py3-1bionic/storm_0.20.0.100-2~py3-1bionic.tar.gz
+  # Install stoqlib from master.
   - git clone https://github.com/stoq/stoq.git
-  - pip3 install -e stoq --no-deps
-  - pip3 install -Ur requirements-test.txt
-  - ln -s $PWD/venv/bin/pyflakes $PWD/venv/bin/pyflakes3
+  - easy_install3 pip
+  - pip install -e stoq --no-deps
   
 test:
   script:
