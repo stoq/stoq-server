@@ -30,7 +30,7 @@ Run the CI for the local project
 
 Rebuild a container `candidade` with proposed changes to the `Dockerfile`:
 
-    docker build -t stoq:candidate .
+    docker build -t stoq:candidate -f utils/Dockerfile.stoq .
 
 Push the `candidate` container to dockerhub (ensure you are logged in):
 
