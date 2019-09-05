@@ -14,12 +14,33 @@ variables:
   STOQLIB_TEST_USERNAME: "test"
   STOQLIB_TEST_PASSWORD: ""
 
+stages:
+  - test
+  - build
+
 before_script:
   # Install stoqlib from master.
   - git clone https://github.com/stoq/stoq.git
   - easy_install3 pip
   - pip install -e stoq --no-deps
+  # Install tools to create debian packages
+  - apt update
+  - apt --yes install devscripts debhelper python3-all
 
 test:
+  stage: test
   script:
     - ./runtests.py stoqserver/lib/test
+
+generate_deb:
+  stage: build
+  script:
+    - rm -rf dist
+    - make deb
+
+  artifacts:
+    paths:
+      - dist/*.deb
+
+  only:
+  - master
