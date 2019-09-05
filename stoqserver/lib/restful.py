@@ -146,6 +146,7 @@ TefCheckPendingEvent = signal('TefCheckPendingEvent')
 GrantLoyaltyPointsEvent = signal('GrantLoyaltyPointsEvent')  # XXX: not sure about this names
 PrintAdvancePaymentReceiptEvent = signal('PrintAdvancePaymentReceiptEvent')
 GetAdvancePaymentCategoryEvent = signal('GetAdvancePaymentCategoryEvent')
+GenerateInvoicePictureEvent = signal('GenerateInvoicePictureEvent')
 
 ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
 
@@ -1482,6 +1483,23 @@ class PrintCouponResource(_BaseResource):
 
         sale = store.get(Sale, sale_id)
         signal('PrintCouponCopyEvent').send(sale)
+
+
+class SaleCouponImageResource(_BaseResource):
+
+    routes = ['/sale/<string:sale_id>/coupon']
+    method_decorators = [_login_required, _store_provider]
+
+    def get(self, store, sale_id):
+        sale = store.get(Sale, sale_id)
+        if not sale:
+            abort(400)
+
+        responses = GenerateInvoicePictureEvent.send(sale)
+        assert len(responses) >= 0
+        return {
+            'image': responses[0][1],
+        }, 200
 
 
 class SmsResource(_BaseResource):
