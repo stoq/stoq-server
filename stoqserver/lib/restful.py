@@ -624,7 +624,7 @@ class DrawerResource(_BaseResource):
         return self.ensure_printer(station)
 
     @lock_printer
-    def post(self):
+    def post(self, store):
         """Send a signal to open the drawer"""
         if not api.device_manager.printer:
             raise UnhandledMisconfiguration('Printer not configured in this station')
@@ -1376,7 +1376,7 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         if till.status != Till.STATUS_OPEN:
             raise TillError(_('There is no till open'))
 
-        sale.confirm(till)
+        sale.confirm(user, till)
 
         GrantLoyaltyPointsEvent.send(sale, document=(client_document or coupon_document))
 
