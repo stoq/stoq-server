@@ -151,6 +151,8 @@ GenerateInvoicePictureEvent = signal('GenerateInvoicePictureEvent')
 
 ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
 
+PrintKitchenCouponEvent = signal('PrintKitchenCouponEvent')
+
 
 def override(column):
     from storm.references import Reference
@@ -504,7 +506,8 @@ class DataResource(_BaseResource):
                             si.branch.id: str(si.quantity)
                             for si in s.product.storable.get_stock_items()
                         }
-                    )
+                    ),
+                    'requires_kitchen_production': s.get_requires_kitchen_production(branch)
                 })
 
             aux[c.id] = c_dict
@@ -585,6 +588,7 @@ class DataResource(_BaseResource):
                 code=station.code,
                 name=station.name,
                 type=station.type.name if station.type else None,
+                has_kps_enabled=station.has_kps_enabled,
             ),
             user_id=user and user.id,
             user=user and user.username,
@@ -1377,6 +1381,12 @@ class SaleResource(_BaseResource, SaleResourceMixin):
             raise TillError(_('There is no till open'))
 
         sale.confirm(user, till)
+
+        # Print kitchen coupon only if the station has a kitchen
+        if sale.station.has_kps_enabled:
+            table_number = data.get('table_number')
+            if table_number is not None:
+                PrintKitchenCouponEvent.send(sale, table_number)
 
         GrantLoyaltyPointsEvent.send(sale, document=(client_document or coupon_document))
 
