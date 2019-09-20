@@ -1386,7 +1386,7 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         if sale.station.has_kps_enabled:
             table_number = data.get('table_number')
             if table_number is not None:
-                PrintKitchenCouponEvent.send(sale, table_number)
+                PrintKitchenCouponEvent.send(sale, table_number=table_number)
 
         GrantLoyaltyPointsEvent.send(sale, document=(client_document or coupon_document))
 
