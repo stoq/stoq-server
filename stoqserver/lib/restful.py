@@ -298,24 +298,6 @@ def get_plugin(manager, name):
         return None
 
 
-def _nfe_progress_event(message):
-    EventStream.put({'type': 'NFE_PROGRESS', 'message': message})
-
-
-def _nfe_warning_event(message, details):
-    EventStream.put({'type': 'NFE_WARNING', 'message': message, 'details': details})
-
-
-def _nfe_success_event(message, details=None):
-    EventStream.put({'type': 'NFE_SUCCESS', 'message': message, 'details': details})
-
-
-if has_nfe:
-    NfeProgressEvent.connect(_nfe_progress_event)
-    NfeWarning.connect(_nfe_warning_event)
-    NfeSuccess.connect(_nfe_success_event)
-
-
 class UnhandledMisconfiguration(Exception):
     pass
 
@@ -414,7 +396,7 @@ class DataResource(_BaseResource):
 
     # Disabled for now while testing gevent instead of threads
     #@worker
-    def _postgres_listen():
+    def _postgres_listen(station):
         store = api.new_store()
         conn = store._connection._raw_connection
         conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
@@ -432,7 +414,7 @@ class DataResource(_BaseResource):
                     message = message or table in DataResource.watch_tables
 
             if message:
-                EventStream.put({
+                EventStream.put_all({
                     'type': 'SERVER_UPDATE_DATA',
                     'data': DataResource.get_data(store)
                 })
@@ -953,18 +935,30 @@ class EventStream(_BaseResource):
     Note that there should be only one client connected at a time. If more than one are connected,
     all of them will receive all events
     """
-    _streams = []
+    _streams = {}
     has_stream = Event()
 
     routes = ['/stream']
 
     @classmethod
-    def put(cls, data):
+    def put(cls, client, data):
+        """Put a event only on the client stream"""
+        # Wait until we have at least one stream
+        cls.has_stream.wait()
+
+        # Put event only on client stream
+        stream = cls._streams.get(client)
+        if stream:
+            stream.put(data)
+
+    @classmethod
+    def put_all(cls, data):
+        """Put a event in all streams"""
         # Wait until we have at least one stream
         cls.has_stream.wait()
 
         # Put event in all streams
-        for stream in cls._streams:
+        for stream in cls._streams.values():
             stream.put(data)
 
     def _loop(self, stream):
@@ -974,7 +968,8 @@ class EventStream(_BaseResource):
 
     def get(self):
         stream = Queue()
-        self._streams.append(stream)
+        station = self.get_current_station(api.get_default_store())
+        self._streams[station] = stream
         self.has_stream.set()
 
         # If we dont put one event, the event stream does not seem to get stabilished in the browser
@@ -984,10 +979,10 @@ class EventStream(_BaseResource):
         # stabilished a connection with the backend (thats us).
         has_canceled = TefCheckPendingEvent.send()
         if has_canceled and has_canceled[0][1]:
-            EventStream.put({'type': 'TEF_WARNING_MESSAGE',
-                             'message': ('Última transação TEF não foi efetuada.'
-                                         ' Favor reter o Cupom.')})
-            EventStream.put({'type': 'CLEAR_SALE'})
+            EventStream.put(station, {'type': 'TEF_WARNING_MESSAGE',
+                                      'message': ('Última transação TEF não foi efetuada.'
+                                                  ' Favor reter o Cupom.')})
+            EventStream.put(station, {'type': 'CLEAR_SALE'})
         return Response(self._loop(stream), mimetype="text/event-stream")
 
 
@@ -1013,7 +1008,8 @@ class TefResource(_BaseResource):
             printer.cut_paper()
 
     def _message_callback(self, lib, message, can_abort=False):
-        EventStream.put({
+        station = self.get_current_station(api.get_default_store())
+        EventStream.put(station, {
             'type': 'TEF_DISPLAY_MESSAGE',
             'message': message,
             'can_abort': can_abort,
@@ -1025,7 +1021,8 @@ class TefResource(_BaseResource):
         gevent.sleep(0.001)
 
     def _question_callback(self, lib, question):
-        EventStream.put({
+        station = self.get_current_station(api.get_default_store())
+        EventStream.put(station, {
             'type': 'TEF_ASK_QUESTION',
             'data': question,
         })
@@ -1050,7 +1047,7 @@ class TefResource(_BaseResource):
             with _printer_lock:
                 self.ensure_printer(station)
         except Exception:
-            EventStream.put({
+            EventStream.put(station, {
                 'type': 'TEF_OPERATION_FINISHED',
                 'success': False,
                 'message': 'Erro comunicando com a impressora',
@@ -1084,7 +1081,7 @@ class TefResource(_BaseResource):
             else:
                 message = 'Falha na operação'
 
-        EventStream.put({
+        EventStream.put(station, {
             'type': 'TEF_OPERATION_FINISHED',
             'success': retval,
             'message': message,
@@ -1315,6 +1312,18 @@ class SaleResource(_BaseResource, SaleResourceMixin):
                  'price': str(i.price),
                  'description': i.get_description()} for i in items]
 
+    def _nfe_progress_event(self, message):
+        station = self.get_current_station(api.get_default_store())
+        EventStream.put(station, {'type': 'NFE_PROGRESS', 'message': message})
+
+    def _nfe_warning_event(self, message, details):
+        station = self.get_current_station(api.get_default_store())
+        EventStream.put(station, {'type': 'NFE_WARNING', 'message': message, 'details': details})
+
+    def _nfe_success_event(self, message, details=None):
+        station = self.get_current_station(api.get_default_store())
+        EventStream.put(station, {'type': 'NFE_SUCCESS', 'message': message, 'details': details})
+
     @lock_printer
     @lock_sat(block=True)
     def post(self, store):
@@ -1389,6 +1398,11 @@ class SaleResource(_BaseResource, SaleResourceMixin):
                 PrintKitchenCouponEvent.send(sale, table_number=table_number)
 
         GrantLoyaltyPointsEvent.send(sale, document=(client_document or coupon_document))
+
+        if has_nfe:
+            NfeProgressEvent.connect(self._nfe_progress_event)
+            NfeWarning.connect(self._nfe_warning_event)
+            NfeSuccess.connect(self._nfe_success_event)
 
         # Fiscal plugins will connect to this event and "do their job"
         # It's their responsibility to raise an exception in case of any error
@@ -1600,7 +1614,7 @@ def run_flaskserver(port, debug=False, multiclient=False):
     # about devices health, the till status, etc. instead of the other way around.
     if not is_multiclient:
         for function in WORKERS:
-            gevent.spawn(function)
+            gevent.spawn(function, get_current_station(api.get_default_store()))
 
     try:
         from stoqserver.lib import stacktracer
@@ -1651,7 +1665,7 @@ def check_drawer():
 
 
 @worker
-def check_drawer_loop():
+def check_drawer_loop(station):
     # default value of is_open
     is_open = ''
 
@@ -1666,11 +1680,11 @@ def check_drawer_loop():
                 False: 'DRAWER_ALERT_CLOSE',
                 None: 'DRAWER_ALERT_ERROR',
             }
-            EventStream.put({
+            EventStream.put(station, {
                 'type': message[new_is_open],
             })
             status_printer = None if new_is_open is None else True
-            EventStream.put({
+            EventStream.put(station, {
                 'type': 'DEVICE_STATUS_CHANGED',
                 'device': 'printer',
                 'status': status_printer,
@@ -1692,7 +1706,7 @@ def check_sat():
 
 
 @worker
-def check_sat_loop():
+def check_sat_loop(station):
     if len(CheckSatStatusEvent.receivers) == 0:
         return
 
@@ -1706,7 +1720,7 @@ def check_sat_loop():
             new_sat_ok = sat_ok
 
         if sat_ok != new_sat_ok:
-            EventStream.put({
+            EventStream.put(station, {
                 'type': 'DEVICE_STATUS_CHANGED',
                 'device': 'sat',
                 'status': new_sat_ok,
@@ -1723,7 +1737,7 @@ def check_pinpad():
 
 
 @worker
-def check_pinpad_loop():
+def check_pinpad_loop(station):
     pinpad_ok = -1
 
     while True:
@@ -1734,7 +1748,7 @@ def check_pinpad_loop():
             new_pinpad_ok = pinpad_ok
 
         if pinpad_ok != new_pinpad_ok:
-            EventStream.put({
+            EventStream.put(station, {
                 'type': 'DEVICE_STATUS_CHANGED',
                 'device': 'pinpad',
                 'status': new_pinpad_ok,
@@ -1745,7 +1759,7 @@ def check_pinpad_loop():
 
 
 @worker
-def inform_till_status():
+def inform_till_status(station):
     while True:
         # Wait for the new work day
         now = datetime.datetime.now()
@@ -1756,14 +1770,14 @@ def inform_till_status():
         # Send an action to inform the front-end the status of the last opened till, to warn the
         # user if it needs to be closed
         with api.new_store() as store:
-            EventStream.put({
+            EventStream.put(station, {
                 'type': 'CHECK_TILL_FINISHED',
-                'lastTill': {'status': Till.get_last(store, get_current_station(store)).status}
+                'lastTill': {'status': Till.get_last(store, station).status}
             })
 
 
 @worker
-def post_ping_request():
+def post_ping_request(station):
     if is_developer_mode():
         return
 
@@ -1771,7 +1785,6 @@ def post_ping_request():
     time_format = '%d-%m-%Y %H:%M:%S%Z'
     store = api.get_default_store()
     plugin_manager = get_plugin_manager()
-    station = get_current_station(store)
     boot_time = datetime.datetime.fromtimestamp(psutil.boot_time()).strftime(time_format)
 
     def get_stoq_conf():
