@@ -325,9 +325,11 @@ class _BaseResource(Resource):
         token = AccessToken.get_by_token(store=store, token=auth[1])
         return token and token.user
 
-    def get_current_station(self, store):
-        auth = request.headers.get('Authorization', '').split('Bearer ')
-        token = AccessToken.get_by_token(store=store, token=auth[1])
+    def get_current_station(self, store, token=None):
+        if not token:
+            auth = request.headers.get('Authorization', '').split('Bearer ')
+            token = auth[1]
+        token = AccessToken.get_by_token(store=store, token=token)
         return token and token.station
 
     def get_current_branch(self, store):
@@ -941,13 +943,14 @@ class EventStream(_BaseResource):
     routes = ['/stream']
 
     @classmethod
-    def put(cls, client, data):
+    def put(cls, station, data):
         """Put a event only on the client stream"""
         # Wait until we have at least one stream
         cls.has_stream.wait()
 
         # Put event only on client stream
-        stream = cls._streams.get(client)
+        stream = cls._streams.get(station.id)
+        print(station, stream, data)
         if stream:
             stream.put(data)
 
@@ -968,8 +971,8 @@ class EventStream(_BaseResource):
 
     def get(self):
         stream = Queue()
-        station = self.get_current_station(api.get_default_store())
-        self._streams[station] = stream
+        station = self.get_current_station(api.get_default_store(), token=request.args['token'])
+        self._streams[station.id] = stream
         self.has_stream.set()
 
         # If we dont put one event, the event stream does not seem to get stabilished in the browser
