@@ -133,7 +133,7 @@ _printer_lock = Semaphore()
 log = logging.getLogger(__name__)
 is_multiclient = False
 
-TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # nopep8
+TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # noqa
 
 WORKERS = []
 
@@ -1390,12 +1390,6 @@ class SaleResource(_BaseResource, SaleResourceMixin):
 
         sale.confirm(user, till)
 
-        # Print kitchen coupon only if the station has a kitchen
-        if sale.station.has_kps_enabled:
-            table_number = data.get('table_number')
-            if table_number is not None:
-                PrintKitchenCouponEvent.send(sale, table_number=table_number)
-
         GrantLoyaltyPointsEvent.send(sale, document=(client_document or coupon_document))
 
         if has_nfe:
@@ -1412,6 +1406,14 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         except NfeRejectedException as e:
             return self._handle_nfe_coupon_rejected(sale, e.reason)
 
+        if not sale.station.has_kps_enabled or not sale.get_kitchen_items():
+            return True
+
+        order_number = data.get('order_number')
+        if order_number in {'0', '', None}:
+            abort(400, "Invalid order number")
+
+        PrintKitchenCouponEvent.send(sale, order_number=order_number)
         return True
 
     def get(self, store, sale_id):

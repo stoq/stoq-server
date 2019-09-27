@@ -1,6 +1,7 @@
 PACKAGE="stoqserver"
 
 check: check-source-all
+	pytest -v tests
 	./runtests.py $(PACKAGE)
 	echo "FIXME enable this when we have tests"
 	#cd data/webrtc && npm test
