@@ -96,6 +96,7 @@ from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
 from stoqserver import main
 from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
+from stoqserver.lib.constants import PROVIDER_MAP
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1145,15 +1146,6 @@ class SaleResourceMixin:
         - Sale/Advance already saved checking
     """
 
-    PROVIDER_MAP = {
-        'ELO CREDITO': 'ELO',
-        'TICKET RESTA': 'TICKET REFEICAO',
-        'VISA ELECTRO': 'VISA',
-        'MAESTROCP': 'MASTER',
-        'MASTERCARD D': 'MASTER',
-        'MASTERCARD': 'MASTER',
-    }
-
     def _check_already_saved(self, store, klass, obj_id):
         existing_sale = store.get(klass, obj_id)
         if existing_sale:
@@ -1220,11 +1212,14 @@ class SaleResourceMixin:
         return device
 
     def _get_provider(self, store, name):
-        name = name.strip()
-        name = self.PROVIDER_MAP.get(name, name)
+        received_name = name.strip()
+        name = PROVIDER_MAP.get(received_name, received_name)
         provider = store.find(CreditProvider, provider_id=name).one()
         if not provider:
             provider = CreditProvider(store=store, short_name=name, provider_id=name)
+            log.info('Could not find a provider named %s', name)
+        else:
+            log.info('Fixing card name from %s to %s', received_name, name)
         return provider
 
     def _create_payments(self, store, group, branch, station, sale_total, payment_data):
