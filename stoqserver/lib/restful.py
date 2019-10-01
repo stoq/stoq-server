@@ -579,6 +579,7 @@ class DataResource(_BaseResource):
             user_object=user and dict(
                 id=user.id,
                 name=user.username,
+                person_name=user.person.name,
                 profile_id=user.profile_id,
             ),
             categories=self._get_categories(store, station),
