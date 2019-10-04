@@ -1,4 +1,7 @@
 -r requirements.txt
+coverage
+nose
+nosexcover
 pytest
 pytest-cov
 pytest-stoq

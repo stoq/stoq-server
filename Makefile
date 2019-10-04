@@ -1,16 +1,13 @@
 PACKAGE="stoqserver"
 
 check: check-source-all
-	pytest -v tests
-	./runtests.py $(PACKAGE)
-	echo "FIXME enable this when we have tests"
-	#cd data/webrtc && npm test
+	./runtests.py stoqserver/lib/test
+	pytest -v tests --quick
 
 coverage: check-source-all
-	./runtests.py --with-xcoverage --with-xunit \
-	              --cover-package=$(PACKAGE) --cover-erase $(PACKAGE)
-	echo "FIXME enable this when we have tests"
-	#cd data/webrtc && npm test
+	./runtests.py stoqserver/lib/test --with-xcoverage --with-xunit \
+	              --cover-package=$(PACKAGE) --cover-erase
+	pytest -vvv tests --cov=stoqserver --cov-report=term-missing --quick
 
 flask:
 	./bin/stoqserver flask

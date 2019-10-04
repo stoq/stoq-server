@@ -22,21 +22,21 @@ before_script:
   # Install stoqlib from master.
   - git clone https://github.com/stoq/stoq.git
   - easy_install3 pip
+  - pip install -U setuptools pip
   - pip install -e stoq --no-deps
   - pip install -r requirements-test.txt
-  # Install tools to create debian packages
-  - apt update
-  - apt --yes install devscripts debhelper python3-all
 
 test:
   stage: test
   script:
-    - ./runtests.py stoqserver/lib/test
-    - pytest -v tests
+    - make coverage
 
 generate_deb:
   stage: build
   script:
+    # Install tools to create debian packages
+    - apt update
+    - apt --yes install devscripts debhelper python3-all
     - rm -rf dist
     - make deb
 
