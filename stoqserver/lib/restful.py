@@ -480,6 +480,7 @@ class DataResource(_BaseResource):
 
                 products_list.append({
                     'id': s.id,
+                    'code': s.code,
                     'description': s.description,
                     'price': str(s.price),
                     'order': str(s.product.height),
