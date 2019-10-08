@@ -1414,6 +1414,7 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         if order_number in {'0', '', None}:
             abort(400, "Invalid order number")
 
+        log.info('emitting event PrintKitchenCouponEvent {}'.format(order_number))
         PrintKitchenCouponEvent.send(sale, order_number=order_number)
         return True
 
