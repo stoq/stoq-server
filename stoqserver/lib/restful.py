@@ -761,6 +761,16 @@ class TillResource(_BaseResource):
             if not till:
                 return None
 
+            # Checks the remaining time available for till to be open
+            if till.needs_closing():
+                expiration_time_in_seconds = 0
+            else:
+                # Till must be closed on the next day (midnight) + tolerance time
+                opening_date = till.opening_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                tolerance = api.sysparam.get_int('TILL_TOLERANCE_FOR_CLOSING')
+                next_close = opening_date + datetime.timedelta(days=1, hours=tolerance)
+                expiration_time_in_seconds = (next_close - localnow()).seconds
+
             till_data = {
                 'status': till.status,
                 'opening_date': till.opening_date.strftime('%Y-%m-%d'),
@@ -770,6 +780,7 @@ class TillResource(_BaseResource):
                 'final_cash_amount': str(till.final_cash_amount),
                 # Get payments data that will be used on 'close_till' action.
                 'entry_types': till.status == 'open' and self._get_till_summary(store, till) or [],
+                'expiration_time_in_seconds': expiration_time_in_seconds  # seconds
             }
 
         return till_data
