@@ -148,6 +148,7 @@ TefCheckPendingEvent = signal('TefCheckPendingEvent')
 GrantLoyaltyPointsEvent = signal('GrantLoyaltyPointsEvent')  # XXX: not sure about this names
 PrintAdvancePaymentReceiptEvent = signal('PrintAdvancePaymentReceiptEvent')
 GetAdvancePaymentCategoryEvent = signal('GetAdvancePaymentCategoryEvent')
+GenerateAdvancePaymentReceiptPictureEvent = signal('GenerateAdvancePaymentReceiptPictureEvent')
 GenerateInvoicePictureEvent = signal('GenerateInvoicePictureEvent')
 
 ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
@@ -953,7 +954,6 @@ class EventStream(_BaseResource):
 
         # Put event only on client stream
         stream = cls._streams.get(station.id)
-        print(station, stream, data)
         if stream:
             stream.put(data)
 
@@ -1500,6 +1500,22 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
             return self._handle_coupon_printing_fail(advance)
 
         return True
+
+
+class AdvancePaymentCouponImageResource(_BaseResource):
+
+    routes = ['/advance_payment/<string:id>/coupon']
+    method_decorators = [_login_required, _store_provider]
+
+    def get(self, store, id):
+        responses = GenerateAdvancePaymentReceiptPictureEvent.send(id)
+
+        if len(responses) == 0:
+            abort(400)
+
+        return {
+            'image': responses[0][1],
+        }, 200
 
 
 class PrintCouponResource(_BaseResource):
