@@ -701,7 +701,10 @@ class TillResource(_BaseResource):
         # The close till report will not be printed here, but can still be printed in
         # the frontend (using an image)
         if include_receipt_image:
-            image = signal('GenerateTillClosingReceiptImageEvent').send(till)[0][1]
+            image = None
+            responses = signal('GenerateTillClosingReceiptImageEvent').send(till)
+            if (len(responses) == 1):  # Only nonfiscal plugin should answer this signal
+                image = responses[0][1]
             return {'image': image}
 
     def _add_credit_or_debit_entry(self, store, data):
