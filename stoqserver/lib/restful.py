@@ -668,9 +668,10 @@ class TillResource(_BaseResource):
             # Error, till already opened
             assert False
 
-    def _close_till(self, store, till_summaries):
+    def _close_till(self, store, till_summaries, include_receipt_image=False):
         station = self.get_current_station(store)
-        self.ensure_printer(station)
+        if not include_receipt_image:
+            self.ensure_printer(station)
         # Here till object must exist
         till = Till.get_last(store, station)
 
@@ -696,6 +697,12 @@ class TillResource(_BaseResource):
         if balance:
             till.add_debit_entry(balance, _('Blind till closing'))
         till.close_till(self.get_current_user(store))
+
+        # The close till report will not be printed here, but can still be printed in
+        # the frontend (using an image)
+        if include_receipt_image:
+            image = signal('GenerateTillClosingReceiptImageEvent').send(till)[0][1]
+            return {'image': image}
 
     def _add_credit_or_debit_entry(self, store, data):
         # Here till object must exist
@@ -732,13 +739,16 @@ class TillResource(_BaseResource):
         with api.new_store() as store:
             # Provide responsible
             if data['operation'] == 'open_till':
-                self._open_till(store, data['initial_cash_amount'])
+                reply = self._open_till(store, data['initial_cash_amount'])
             elif data['operation'] == 'close_till':
-                self._close_till(store, data['till_summaries'])
+                reply = self._close_till(store,
+                                         data['till_summaries'], data['include_receipt_image'])
             elif data['operation'] in ['debit_entry', 'credit_entry']:
-                self._add_credit_or_debit_entry(store, data)
+                reply = self._add_credit_or_debit_entry(store, data)
+            else:
+                raise AssertionError('Unkown till operation %r', data['operation'])
 
-        return 200
+        return reply
 
     def get(self):
         # Retrieve Till data
