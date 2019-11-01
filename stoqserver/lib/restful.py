@@ -546,6 +546,7 @@ class DataResource(_BaseResource):
         branch = station.branch
         config = get_config()
         can_send_sms = config.get("Twilio", "sid") is not None
+        iti_discount = True if config.get("Discounts", "iti") == '1' else False
 
         sat_status = pinpad_status = printer_status = True
         if not is_multiclient:
@@ -590,6 +591,7 @@ class DataResource(_BaseResource):
             providers=self._get_card_providers(store),
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
+            iti_discount=iti_discount,
             plugins=get_plugin_manager().active_plugins_names,
             # Device statuses
             sat_status=sat_status,
