@@ -615,6 +615,9 @@ class Worker(object):
                 Task('_rtc', start_rtc),
             ])
 
+        store = get_default_store()
+        is_link = store.is_link_server()
+
         manager = get_plugin_manager()
         for plugin_name in manager.installed_plugins_names:
             plugin = manager.get_plugin(plugin_name)
@@ -624,6 +627,10 @@ class Worker(object):
             # FIXME: Check that the plugin implements IPluginTask when
             # we Stoq 1.11 is released
             for plugin_task in plugin.get_server_tasks():
+                link_only = getattr(plugin_task, 'link_only', False)
+                if is_link != link_only:
+                    continue
+
                 task_name = plugin_task.name
                 name = _get_plugin_task_name(plugin_name, task_name)
                 if self._manager.is_running(name):

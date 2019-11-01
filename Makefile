@@ -2,7 +2,7 @@ PACKAGE="stoqserver"
 
 check: check-source-all
 	./runtests.py stoqserver/lib/test
-	pytest -v tests --quick
+	pytest -v tests
 
 coverage: check-source-all
 	./runtests.py stoqserver/lib/test --with-xcoverage --with-xunit \
