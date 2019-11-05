@@ -1,3 +1,9 @@
+stoq-server (0.35.0~beta) xenial; urgency=medium
+
+  * Release 0.35.0~beta
+
+ -- vmcamillo <vmcamillo@vmcamillo-HP-260-G1-DM>  Tue, 05 Nov 2019 16:41:08 -0300
+
 stoq-server (0.34.0~beta) xenial; urgency=medium
 
   * Release 0.34.0~beta
