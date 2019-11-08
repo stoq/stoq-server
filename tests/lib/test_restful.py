@@ -13,14 +13,14 @@ from stoqlib.lib.decorators import cached_property
 class StoqTestClient(FlaskClient):
     @cached_property(ttl=0)
     def auth_token(self):
-        rv = super().post(
+        response = super().post(
             '/login',
             data={
                 'user': self.user.username,
                 'pw_hash': self.user.pw_hash,
                 'station_name': self.station.name
             })
-        ans = json.loads(rv.data.decode())
+        ans = json.loads(response.data.decode())
         return ans['token'].replace('JWT', 'Bearer')
 
     def post(self, *args, **kwargs):
@@ -120,10 +120,10 @@ def test_kps_sale_with_invalid_order_number(
     sellable.requires_kitchen_production = True
     sale_payload['order_number'] = order_number
 
-    rv = client.post('/sale', json=sale_payload)
+    response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
-    assert rv.status_code == 400
+    assert response.status_code == 400
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -135,10 +135,10 @@ def test_kps_sale_with_kps_station_disabled(
 
     mock_new_store.return_value = new_store
 
-    rv = client.post('/sale', json=sale_payload)
+    response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
-    assert rv.status_code == 200
+    assert response.status_code == 200
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -150,10 +150,10 @@ def test_kps_sale_without_kitchen_items(
 
     mock_new_store.return_value = new_store
 
-    rv = client.post('/sale', json=sale_payload)
+    response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
-    assert rv.status_code == 200
+    assert response.status_code == 200
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -163,9 +163,9 @@ def test_kps_sale(mock_new_store, mock_kps_event_send, client, new_store, sale_p
     mock_new_store.return_value = new_store
     sellable.requires_kitchen_production = True
 
-    rv = client.post('/sale', json=sale_payload)
+    response = client.post('/sale', json=sale_payload)
 
-    assert rv.status_code == 200
+    assert response.status_code == 200
     assert mock_kps_event_send.call_count == 1
     args, kwargs = mock_kps_event_send.call_args_list[0]
     assert len(args) == 1
