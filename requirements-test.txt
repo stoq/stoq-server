@@ -4,4 +4,4 @@ nose
 nosexcover
 pytest
 pytest-cov
-pytest-stoq
+pytest-stoq>=0.4.2

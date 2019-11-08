@@ -37,7 +37,7 @@ class StoqTestClient(FlaskClient):
 
 # This is flask test client according to boilerplate:
 # https://flask.palletsprojects.com/en/1.0.x/testing/
-@pytest.fixture(scope='session')
+@pytest.fixture
 def client(current_user, current_station):
     app = bootstrap_app()
     db_fd, app.config['DATABASE'] = tempfile.mkstemp()
@@ -51,14 +51,6 @@ def client(current_user, current_station):
 
     os.close(db_fd)
     os.unlink(app.config['DATABASE'])
-
-
-@pytest.fixture
-def new_store(store):
-    store.commit = mock.Mock()
-    store.close = mock.Mock()
-    store.rollback = mock.Mock()
-    return store
 
 
 @pytest.fixture
@@ -98,7 +90,7 @@ def kps_station(current_station):
     return current_station
 
 
-@pytest.fixture()
+@pytest.fixture
 def open_till(current_till, current_user):
     from stoqlib.domain.till import Till
 
@@ -108,15 +100,17 @@ def open_till(current_till, current_user):
     return current_till
 
 
-@mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
-@mock.patch('stoqserver.lib.restful.api.new_store')
-@pytest.mark.parametrize('order_number', ('0', '', None))
-@pytest.mark.usefixtures('kps_station', 'open_till')
-def test_kps_sale_with_invalid_order_number(
-        mock_new_store, mock_kps_event_send, client,
-        new_store, order_number, sale_payload, sellable):
+@pytest.fixture
+def mock_new_store(monkeypatch, store):
+    monkeypatch.setattr('stoqserver.lib.restful.api.new_store', mock.Mock(return_value=store))
 
-    mock_new_store.return_value = new_store
+
+@mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
+@pytest.mark.parametrize('order_number', ('0', '', None))
+@pytest.mark.usefixtures('kps_station', 'open_till', 'mock_new_store')
+def test_kps_sale_with_invalid_order_number(
+    mock_kps_event_send, client, order_number, sale_payload, sellable,
+):
     sellable.requires_kitchen_production = True
     sale_payload['order_number'] = order_number
 
@@ -127,14 +121,8 @@ def test_kps_sale_with_invalid_order_number(
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
-@mock.patch('stoqserver.lib.restful.api.new_store')
-@pytest.mark.usefixtures('current_station')
-def test_kps_sale_with_kps_station_disabled(
-        mock_new_store, mock_kps_event_send, client,
-        new_store, sale_payload):
-
-    mock_new_store.return_value = new_store
-
+@pytest.mark.usefixtures('current_station', 'open_till', 'mock_new_store')
+def test_kps_sale_with_kps_station_disabled(mock_kps_event_send, client, sale_payload):
     response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
@@ -142,14 +130,8 @@ def test_kps_sale_with_kps_station_disabled(
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
-@mock.patch('stoqserver.lib.restful.api.new_store')
-@pytest.mark.usefixtures('open_till', 'kps_station')
-def test_kps_sale_without_kitchen_items(
-        mock_new_store, mock_kps_event_send, client,
-        new_store, sale_payload):
-
-    mock_new_store.return_value = new_store
-
+@pytest.mark.usefixtures('open_till', 'kps_station', 'mock_new_store')
+def test_kps_sale_without_kitchen_items(mock_kps_event_send, client, sale_payload):
     response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
@@ -157,10 +139,8 @@ def test_kps_sale_without_kitchen_items(
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
-@mock.patch('stoqserver.lib.restful.api.new_store')
-@pytest.mark.usefixtures("kps_station")
-def test_kps_sale(mock_new_store, mock_kps_event_send, client, new_store, sale_payload, sellable):
-    mock_new_store.return_value = new_store
+@pytest.mark.usefixtures('kps_station', 'open_till', 'mock_new_store')
+def test_kps_sale(mock_kps_event_send, client, sale_payload, sellable):
     sellable.requires_kitchen_production = True
 
     response = client.post('/sale', json=sale_payload)
