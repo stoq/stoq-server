@@ -90,11 +90,10 @@ from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
-#from stoqlib.lib.threadutils import threadit
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
-from stoqserver import main
+from stoqserver import sentry
 from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
 from stoqserver.lib.constants import PROVIDER_MAP
 
@@ -1628,7 +1627,7 @@ def bootstrap_app():
         log.exception('Unhandled Exception: {timestamp} {error} {traceback_hash}'.format(
             timestamp=timestamp, error=e, traceback_hash=traceback_hash))
 
-        main.sentry_report(type(e), e, e.__traceback__, traceback_hash=traceback_hash)
+        sentry.sentry_report(type(e), e, e.__traceback__, traceback_hash=traceback_hash)
 
         return Response(json.dumps({'error': _('bad request!'), 'timestamp': timestamp,
                                     'exception': traceback_exception,
@@ -1670,7 +1669,7 @@ def run_flaskserver(port, debug=False, multiclient=False):
     app = bootstrap_app()
     app.debug = debug
     if not is_developer_mode():
-        main.raven_client = Sentry(app, dsn=main.SENTRY_URL, client=main.raven_client)
+        sentry.raven_client = Sentry(app, dsn=sentry.SENTRY_URL, client=sentry.raven_client)
 
     @app.after_request
     def after_request(response):

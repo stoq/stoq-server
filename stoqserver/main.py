@@ -29,12 +29,10 @@ import multiprocessing
 import optparse
 import os
 import platform
-import raven
 import signal
 import socket
 import sys
 import time
-import traceback
 import xmlrpc.client
 
 import stoq
@@ -43,28 +41,22 @@ from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.api import api
 from stoqlib.database.interfaces import ICurrentBranch
-from stoqlib.database.settings import get_database_version, db_settings
+from stoqlib.database.settings import db_settings
 from stoqlib.lib.appinfo import AppInfo
-from stoqlib.lib.configparser import StoqConfig, register_config
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.interfaces import IAppInfo
 from stoqlib.lib.osutils import get_application_dir
-from stoqlib.lib.pluginmanager import InstalledPlugin
-from stoqlib.lib.webservice import get_main_cnpj
 
 import stoqserver
-from stoqserver.common import APP_CONF_FILE, SERVER_XMLRPC_PORT
-from stoqserver.taskmanager import Worker
-from stoqserver.tasks import backup_database, restore_database, backup_status, start_flask_server
+from .common import SERVER_XMLRPC_PORT
+from .taskmanager import Worker
+from .tasks import backup_database, restore_database, backup_status, start_flask_server
+from .sentry import setup_sentry
 
 logger = logging.getLogger(__name__)
 
-SENTRY_URL = ('http://d971a2c535ab444ab18fa14b4b6495ea:'
-              'dc3a89e2701e4336ab0c6df781d1855d@sentry.stoq.com.br/11')
 _LOGGING_FORMAT = '%(asctime)-15s %(name)-35s %(levelname)-8s %(message)s'
 _LOGGING_DATE_FORMAT = '%y-%m-%d %H:%M:%S'
-
-raven_client = None
 
 
 class _Tee(object):
@@ -90,45 +82,6 @@ def _windows_fixes():
     # From: http://stackoverflow.com/a/33334042
     import requests
     requests.utils.DEFAULT_CA_BUNDLE_PATH = os.path.join(root, 'cacert.pem')
-
-
-def sentry_report(exctype, value, tb, **tags):
-    tags.update({
-        'version': stoqserver.version_str,
-        'stoq_version': stoq.version,
-        'architecture': platform.architecture(),
-        'distribution': platform.dist(),
-        'python_version': tuple(sys.version_info),
-        'system': platform.system(),
-        'uname': platform.uname(),
-    })
-    # Those are inside a try/except because thy require database access.
-    # If the database access is not working, we won't be able to get them
-    try:
-        default_store = api.get_default_store()
-        tags['user_hash'] = api.sysparam.get_string('USER_HASH')
-        tags['demo'] = api.sysparam.get_bool('DEMO_MODE')
-        tags['postgresql_version'] = get_database_version(default_store)
-        tags['plugins'] = InstalledPlugin.get_plugin_names(default_store)
-        tags['cnpj'] = get_main_cnpj(default_store)
-    except Exception:
-        pass
-
-    # Disable send sentry log if we are on developer mode.
-    developer_mode = stoqserver.library.uninstalled
-    if raven_client is not None and not developer_mode:
-        if hasattr(raven_client, 'user_context'):
-            raven_client.user_context({'id': tags.get('hash', None),
-                                       'username': tags.get('cnpj', None)})
-        raven_client.captureException((exctype, value, tb), tags=tags)
-
-
-def setup_excepthook(sentry_url):
-    def _excepthook(exctype, value, tb):
-        sentry_report(exctype, value, tb)
-        traceback.print_exception(exctype, value, tb)
-
-    sys.excepthook = _excepthook
 
 
 def setup_stoq(register_station=False, name='stoqserver',
@@ -406,20 +359,6 @@ def main(args):
     parser = get_option_parser()
     handler.add_options(cmd, parser)
     options, args = parser.parse_args(args)
-
-    config = StoqConfig()
-    filename = (options.filename
-                if options.load_config and options.filename else
-                APP_CONF_FILE)
-    config.load(filename)
-    # FIXME: This is called only when register_station=True. Without
-    # this, db_settings would not be updated. We should fix it on Stoq
-    config.get_settings()
-    register_config(config)
-
-    global SENTRY_URL, raven_client
-    SENTRY_URL = config.get('Sentry', 'url') or SENTRY_URL
-    raven_client = raven.Client(SENTRY_URL, release=stoqserver.version_str)
-    setup_excepthook(SENTRY_URL)
+    setup_sentry(options)
 
     return handler.run_cmd(cmd, options, *args)

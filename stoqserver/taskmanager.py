@@ -166,8 +166,9 @@ class Task(multiprocessing.Process):
             t.daemon = True
             t.start()
         else:
-            from stoqserver.main import (setup_stoq, setup_logging,
-                                         setup_excepthook)
+            from stoqserver.main import setup_stoq, setup_logging
+            from stoqserver.sentry import setup_excepthook
+
             # Do this as soon as possible so we can log any early traceback
             setup_excepthook()
 
