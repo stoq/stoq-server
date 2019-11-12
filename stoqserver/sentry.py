@@ -1,9 +1,12 @@
+import functools
 import logging
 import platform
 import sys
 import traceback
+from urllib.error import URLError
 
 import raven
+from raven.transport.threaded import ThreadedHTTPTransport
 
 import stoq
 from stoqlib.api import api
@@ -21,6 +24,19 @@ SENTRY_URL = ('http://d971a2c535ab444ab18fa14b4b6495ea:'
               'dc3a89e2701e4336ab0c6df781d1855d@sentry.stoq.com.br/11')
 
 raven_client = None
+
+
+class SilentTransport(ThreadedHTTPTransport):
+    @staticmethod
+    def _handle_fail(failure_cb, url, exc):
+        if isinstance(exc, URLError):
+            logger.warning('Sentry responded with an error: %s (url: %s)', type(exc), url)
+            return
+        return failure_cb(exc)
+
+    def send_sync(self, url, data, headers, success_cb, failure_cb):
+        handle_fail = functools.partial(self._handle_fail, failure_cb, url)
+        return super().send_sync(url, data, headers, success_cb, handle_fail)
 
 
 def sentry_report(exctype, value, tb, **tags):
@@ -76,5 +92,6 @@ def setup_sentry(options):
     register_config(config)
     global SENTRY_URL, raven_client
     SENTRY_URL = config.get('Sentry', 'url') or SENTRY_URL
-    raven_client = raven.Client(SENTRY_URL, release=stoqserver.version_str)
+    raven_client = raven.Client(SENTRY_URL, release=stoqserver.version_str,
+                                transport=SilentTransport)
     setup_excepthook()

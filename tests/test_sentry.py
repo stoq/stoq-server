@@ -1,10 +1,12 @@
 import sys
 from unittest import mock
+from urllib.error import URLError
 
 import pytest
 
 import stoqserver
-from stoqserver.sentry import SENTRY_URL, sentry_report, setup_excepthook, setup_sentry
+from stoqserver.sentry import (SENTRY_URL, sentry_report, setup_excepthook,
+                               setup_sentry, SilentTransport)
 
 
 class CustomException(Exception):
@@ -73,5 +75,48 @@ def test_setup_sentry(sentry_client_mock, setup_excepthook_mock, register_config
     setup_sentry(options_mock)
 
     assert register_config_mock.call_count == 1
-    sentry_client_mock.assert_called_once_with(SENTRY_URL, release=stoqserver.version_str)
+    sentry_client_mock.assert_called_once_with(SENTRY_URL, release=stoqserver.version_str,
+                                               transport=SilentTransport)
     setup_excepthook_mock.assert_called_once_with()
+
+
+def test_silent_transport_handle_fail():
+    class CustomException(Exception):
+        pass
+
+    failure_cb = mock.Mock()
+    exc = CustomException()
+
+    result = SilentTransport._handle_fail(failure_cb, 'http://pudim.com.br', exc)
+
+    assert result == failure_cb.return_value
+    failure_cb.assert_called_once_with(exc)
+
+
+def test_silent_transport_handle_fail_url_error():
+    failure_cb = mock.Mock()
+    exc = URLError('fodeu')
+
+    result = SilentTransport._handle_fail(failure_cb, 'http://pudim.com.br', exc)
+
+    assert result is None
+    assert failure_cb.call_count == 0
+
+
+@mock.patch('stoqserver.sentry.ThreadedHTTPTransport.send_sync')
+def test_silent_transport_send_sync(super_send_sync_mock):
+    transport = SilentTransport()
+    url = 'http://pudim.com.br'
+    data = {'foo': 'bar'}
+    headers = {'cabeça de': 'alho'}
+    success_cb = mock.Mock()
+    failure_cb = mock.Mock()
+
+    transport.send_sync(url, data, headers, success_cb, failure_cb)
+
+    assert super_send_sync_mock.call_count == 1
+    call = super_send_sync_mock.call_args_list[0][0]
+    assert call[:4] == (url, data, headers, success_cb)
+    handle_fail = call[4]
+    assert handle_fail.func == transport._handle_fail
+    assert handle_fail.args == (failure_cb, url)
