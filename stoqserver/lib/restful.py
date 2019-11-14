@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 # vi:si:et:sw=4:sts=4:ts=4
 
-##
-## Copyright (C) 2018 Async Open Source <http://www.async.com.br>
-## All rights reserved
-##
-## This program is free software; you can redistribute it and/or
-## modify it under the terms of the GNU Lesser General Public License
-## as published by the Free Software Foundation; either version 2
-## of the License, or (at your option) any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU Lesser General Public License for more details.
-##
-## You should have received a copy of the GNU Lesser General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., or visit: http://www.gnu.org/.
-##
-## Author(s): Stoq Team <stoq-devel@async.com.br>
-##
+#
+# Copyright (C) 2018 Async Open Source <http://www.async.com.br>
+# All rights reserved
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., or visit: http://www.gnu.org/.
+#
+# Author(s): Stoq Team <stoq-devel@async.com.br>
+#
 
 import base64
 import contextlib
@@ -40,23 +40,18 @@ import platform
 import re
 import select
 import subprocess
-import traceback
-import hashlib
 import requests
 from hashlib import md5
 
-from gevent.pywsgi import WSGIServer
 import gevent
 from blinker import signal
-from werkzeug.serving import run_with_reloader
 import psutil
 import tzlocal
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
-from flask import Flask, request, abort, send_file, make_response, Response, jsonify
-from flask_restful import Api, Resource
-from raven.contrib.flask import Sentry
+from flask import request, abort, send_file, make_response, Response, jsonify
+from flask_restful import Resource
 from serial.serialutil import SerialException
 from stoqdrivers.exceptions import InvalidReplyException
 
@@ -84,8 +79,7 @@ from stoqlib.domain.sellable import (Sellable, SellableCategory,
 from stoqlib.domain.till import Till, TillSummary
 from stoqlib.exceptions import LoginError, TillError
 from stoqlib.lib.configparser import get_config
-from stoqlib.lib.dateutils import (INTERVALTYPE_MONTH, create_date_interval,
-                                   localnow)
+from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, localnow
 from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.osutils import get_application_dir
@@ -93,15 +87,15 @@ from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
-from stoqserver import sentry
 from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
 from stoqserver.lib.constants import PROVIDER_MAP
+from stoqserver.utils import JsonEncoder, get_user_hash
 
 
 # This needs to be imported to workaround a storm limitation
 PurchaseOrder, PaymentRenegotiation
 
-_ = lambda s: dgettext('stoqserver', s)
+_ = functools.partial(dgettext, 'stoqserver')
 
 try:
     from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess
@@ -191,11 +185,6 @@ def override(column):
 Sellable.default_sale_cfop = override(Sellable.default_sale_cfop)
 
 
-def _get_user_hash():
-    return md5(
-        api.sysparam.get_string('USER_HASH').encode('UTF-8')).hexdigest()
-
-
 @contextlib.contextmanager
 def _get_session():
     global _session
@@ -204,8 +193,7 @@ def _get_session():
     # Indexing some session data by the USER_HASH will help to avoid
     # maintaining sessions between two different databases. This could lead to
     # some errors in the POS in which the user making the sale does not exist.
-    session_file = os.path.join(
-        get_application_dir(), 'session-{}.db'.format(_get_user_hash()))
+    session_file = os.path.join(get_application_dir(), 'session-{}.db'.format(get_user_hash()))
     if os.path.exists(session_file):
         with open(session_file, 'rb') as f:
             try:
@@ -315,7 +303,6 @@ class _BaseResource(Resource):
     def get_arg(self, attr, default=None):
         """Get the attr from querystring, form data or json"""
         # This is not working on all versions.
-        #if request.is_json:
         if self.get_json():
             return self.get_json().get(attr, None)
 
@@ -397,8 +384,7 @@ class DataResource(_BaseResource):
                     'branch', 'login_user', 'sellable_category', 'client_category_price',
                     'payment_method', 'credit_provider']
 
-    # Disabled for now while testing gevent instead of threads
-    #@worker
+    # Disabled @worker for now while testing gevent instead of threads
     def _postgres_listen(station):
         store = api.new_store()
         conn = store._connection._raw_connection
@@ -947,14 +933,6 @@ class AuthResource(_BaseResource):
         if user.profile.check_app_permission(permission):
             return True
         return make_response(_('User does not have permission'), 403)
-
-
-class JsonEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat()
-        # Let the base class default method raise the TypeError
-        return json.JSONEncoder.default(self, obj)
 
 
 class EventStream(_BaseResource):
@@ -1600,104 +1578,6 @@ class SmsResource(_BaseResource):
         message = GetCouponSmsTextEvent.send(sale)[0][1]
         to = '+55' + self.get_json()['phone_number']
         return self._send_sms(to, message)
-
-
-def bootstrap_app():
-    app = Flask(__name__)
-
-    # Indexing some session data by the USER_HASH will help to avoid maintaining
-    # sessions between two different databases. This could lead to some errors in
-    # the POS in which the user making the sale does not exist.
-    app.config['SECRET_KEY'] = _get_user_hash()
-    app.config['PROPAGATE_EXCEPTIONS'] = True
-    flask_api = Api(app)
-
-    for cls in _BaseResource.__subclasses__():
-        flask_api.add_resource(cls, *cls.routes)
-
-    signal('StoqTouchStartupEvent').send()
-
-    @app.errorhandler(Exception)
-    def unhandled_exception(e):
-        traceback_info = "\n".join(traceback.format_tb(e.__traceback__))
-        traceback_hash = hashlib.sha1(traceback_info.encode('utf-8')).hexdigest()[:8]
-        traceback_exception = traceback.format_exception_only(type(e), e)[-1]
-        timestamp = localnow().strftime('%Y%m%d-%H%M%S')
-
-        log.exception('Unhandled Exception: {timestamp} {error} {traceback_hash}'.format(
-            timestamp=timestamp, error=e, traceback_hash=traceback_hash))
-
-        sentry.sentry_report(type(e), e, e.__traceback__, traceback_hash=traceback_hash)
-
-        return Response(json.dumps({'error': _('bad request!'), 'timestamp': timestamp,
-                                    'exception': traceback_exception,
-                                    'traceback_hash': traceback_hash}),
-                        500, mimetype='application/json')
-
-    return app
-
-
-def _gtk_main_loop():
-    from gi.repository import Gtk
-    while True:
-        while Gtk.events_pending():
-            Gtk.main_iteration()
-        gevent.sleep(0.1)
-
-
-def run_flaskserver(port, debug=False, multiclient=False):
-    from stoqlib.lib.environment import configure_locale
-    # Force pt_BR for now.
-    configure_locale('pt_BR')
-
-    global is_multiclient
-    is_multiclient = multiclient
-
-    # For now we're disabling workers when stoqserver is serving multiple clients (multiclient mode)
-    # FIXME: a proper solution would be to modify the workflow so that the clients ask the server
-    # about devices health, the till status, etc. instead of the other way around.
-    if not is_multiclient:
-        for function in WORKERS:
-            gevent.spawn(function, get_current_station(api.get_default_store()))
-
-    try:
-        from stoqserver.lib import stacktracer
-        stacktracer.start_trace("/tmp/trace-stoqserver-flask.txt", interval=5, auto=True)
-    except ImportError:
-        pass
-
-    app = bootstrap_app()
-    app.debug = debug
-    if not is_developer_mode():
-        sentry.raven_client = Sentry(app, dsn=sentry.SENTRY_URL, client=sentry.raven_client)
-
-    @app.after_request
-    def after_request(response):
-        # Add all the CORS headers the POS needs to have its ajax requests
-        # accepted by the browser
-        origin = request.headers.get('origin')
-        if not origin:
-            origin = request.args.get('origin', request.form.get('origin', '*'))
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS, DELETE'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        return response
-
-    log.info('Starting wsgi server (has_sat=%s, has_nfe=%s)', has_sat, has_nfe)
-    http_server = WSGIServer(('0.0.0.0', port), app, spawn=gevent.spawn_raw, log=log,
-                             error_log=log)
-
-    if is_developer_mode():
-        if debug:
-            gevent.spawn(_gtk_main_loop)
-
-        @run_with_reloader
-        def run_server():
-            http_server.serve_forever()
-        run_server()
-    else:
-        http_server.serve_forever()
 
 
 @lock_printer

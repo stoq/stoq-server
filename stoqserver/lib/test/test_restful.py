@@ -35,8 +35,8 @@ from stoqlib.domain.test.domaintest import DomainTest
 from stoqlib.lib.configparser import register_config, StoqConfig
 from storm.expr import Desc
 
-from stoqserver.lib.restful import (bootstrap_app,
-                                    PingResource,
+from stoqserver.app import bootstrap_app
+from stoqserver.lib.restful import (PingResource,
                                     LoginResource,
                                     DataResource,
                                     SaleResource,
@@ -257,7 +257,7 @@ class TestSaleResource(_TestFlask):
 
     resource_class = SaleResource
 
-    @mock.patch('stoqserver.lib.restful.hashlib')
+    @mock.patch('stoqserver.app.hashlib')
     def test_post(self, hl):
         hl.sha1.return_value = hashlib.sha1(b'foo')
 
@@ -266,9 +266,10 @@ class TestSaleResource(_TestFlask):
                 e = es.enter_context(
                     mock.patch('stoqserver.lib.restful.SaleConfirmedRemoteEvent.emit'))
                 d = datetime.datetime(2018, 3, 6, 4, 20, 53)
-                now = es.enter_context(
-                    mock.patch('stoqserver.lib.restful.localnow'))
-                now.return_value = d
+                restful_now = es.enter_context(mock.patch('stoqserver.lib.restful.localnow'))
+                restful_now.return_value = d
+                app_now = es.enter_context(mock.patch('stoqserver.app.localnow'))
+                app_now.return_value = d
                 tt = es.enter_context(
                     mock.patch('stoqlib.domain.sale.TransactionTimestamp'))
                 tt.return_value = d

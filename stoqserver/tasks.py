@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 # vi:si:et:sw=4:sts=4:ts=4
 
-##
-## Copyright (C) 2015 Async Open Source <http://www.async.com.br>
-## All rights reserved
-##
-## This program is free software; you can redistribute it and/or
-## modify it under the terms of the GNU Lesser General Public License
-## as published by the Free Software Foundation; either version 2
-## of the License, or (at your option) any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU Lesser General Public License for more details.
-##
-## You should have received a copy of the GNU Lesser General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., or visit: http://www.gnu.org/.
-##
-## Author(s): Stoq Team <stoq-devel@async.com.br>
-##
+#
+# Copyright (C) 2015 Async Open Source <http://www.async.com.br>
+# All rights reserved
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., or visit: http://www.gnu.org/.
+#
+# Author(s): Stoq Team <stoq-devel@async.com.br>
+#
 
 import collections
 import datetime
@@ -140,9 +140,6 @@ def restore_database(user_hash, time=None):
     finally:
         # get_default_store will recreate it (since we closed it above)
         get_default_store()
-        # Dont remove the directory. Since the restauration could have failed, we could use the
-        # files to inspect what happend
-        #shutil.rmtree(tmp_path, ignore_errors=True)
 
 
 def backup_status(user_hash=None):
@@ -160,8 +157,9 @@ def start_xmlrpc_server(pipe_conn):
 
 
 def start_flask_server(debug=False, multiclient=False):
-    # We need to delay importing from restfull so that the plugin infrastructure gets setup correcly
-    from stoqserver.lib.restful import run_flaskserver
+    # We need to delay importing so that the plugin infrastructure gets setup correcly
+    # XXX: is this still needed?
+    from stoqserver.app import run_flaskserver
 
     _setup_signal_termination()
     logger.info("Starting the flask server")

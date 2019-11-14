@@ -6,8 +6,9 @@ from unittest import mock
 import pytest
 from flask.testing import FlaskClient
 
-from stoqserver.lib.restful import bootstrap_app
 from stoqlib.lib.decorators import cached_property
+
+from stoqserver.app import bootstrap_app
 
 
 class StoqTestClient(FlaskClient):
