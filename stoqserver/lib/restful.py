@@ -1216,6 +1216,8 @@ class SaleResourceMixin:
         return device
 
     def _get_provider(self, store, name):
+        if not name:
+            name = _("UNKNOWN")
         received_name = name.strip()
         name = PROVIDER_MAP.get(received_name, received_name)
         provider = store.find(CreditProvider, provider_id=name).one()

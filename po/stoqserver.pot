@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-05-16 12:07-0300\n"
+"POT-Creation-Date: 2019-11-19 11:20-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -37,49 +37,53 @@ msgstr ""
 msgid "Stoq Server"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:711
+#: ../stoqserver/lib/restful.py:699
 msgid "Blind till closing"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:721
+#: ../stoqserver/lib/restful.py:718
 #, python-format
 msgid "The user %s removed cash from till"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:724
+#: ../stoqserver/lib/restful.py:721
 #, python-format
 msgid "The user %s supplied cash to the till"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:908
+#: ../stoqserver/lib/restful.py:949
 msgid "User does not have permission"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:1012 ../stoqserver/lib/restful.py:1325
-#: ../stoqserver/lib/restful.py:1403
+#: ../stoqserver/lib/restful.py:1075 ../stoqserver/lib/restful.py:1417
+#: ../stoqserver/lib/restful.py:1519
 msgid "There is no till open"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:1128
+#: ../stoqserver/lib/restful.py:1185
 msgid "Sale already saved"
 msgstr ""
 
 #. Use data to get name from passbook
-#: ../stoqserver/lib/restful.py:1132
+#: ../stoqserver/lib/restful.py:1189
 msgid "No name"
 msgstr ""
 
 #. XXX: Rever string
-#: ../stoqserver/lib/restful.py:1162
+#: ../stoqserver/lib/restful.py:1224
 #, python-brace-format
 msgid "Sale {sale_identifier} confirmed but printing coupon failed"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:1255
+#: ../stoqserver/lib/restful.py:1242
+msgid "UNKNOWN"
+msgstr ""
+
+#: ../stoqserver/lib/restful.py:1325
 #, python-brace-format
 msgid "NFC-e of sale {sale_identifier} was rejected"
 msgstr ""
 
-#: ../stoqserver/lib/restful.py:1485
+#: ../stoqserver/lib/restful.py:1634
 msgid "bad request!"
 msgstr ""
