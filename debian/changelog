@@ -1,3 +1,9 @@
+stoq-server (0.36.0~beta) xenial; urgency=medium
+
+  * Release 0.36.0~beta
+
+ -- Luiz Menezes <luiz@kamari>  Wed, 20 Nov 2019 11:06:25 -0300
+
 stoq-server (0.35.0~beta) xenial; urgency=medium
 
   * Release 0.35.0~beta
