@@ -53,6 +53,8 @@ from kiwi.currency import currency
 from flask import request, abort, send_file, make_response, Response, jsonify
 from flask_restful import Resource
 from serial.serialutil import SerialException
+from stoq import version as stoq_version
+from stoqdrivers import __version__ as stoqdrivers_version
 from stoqdrivers.exceptions import InvalidReplyException
 
 from stoqlib.api import api
@@ -87,6 +89,7 @@ from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
+from stoqserver import __version__ as stoqserver_version
 from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
 from stoqserver.lib.constants import PROVIDER_MAP
 from stoqserver.utils import JsonEncoder, get_user_hash
@@ -96,6 +99,7 @@ from stoqserver.utils import JsonEncoder, get_user_hash
 PurchaseOrder, PaymentRenegotiation
 
 _ = functools.partial(dgettext, 'stoqserver')
+PDV_VERSION = None
 
 try:
     from stoqnfe.events import NfeProgressEvent, NfeWarning, NfeSuccess
@@ -872,6 +876,8 @@ class LoginResource(_BaseResource):
         station_name = self.get_arg('station_name')
 
         station = store.find(BranchStation, name=station_name, is_active=True).one()
+        global PDV_VERSION
+        PDV_VERSION = request.args.get('pdv_version')
         if not station:
             abort(401)
 
@@ -1730,6 +1736,11 @@ def post_ping_request(station):
         except subprocess.CalledProcessError:
             dpkg_list = ""
         stoq_packages = re.findall(r'ii\s*(\S*)\s*(\S*)', dpkg_list)
+        if PDV_VERSION:
+            log.info('Running stoq_pdv {}'.format(PDV_VERSION))
+        log.info('Running stoq {}'.format(stoq_version))
+        log.info('Running stoq-server {}'.format(stoqserver_version))
+        log.info('Running stoqdrivers {}'.format(stoqdrivers_version))
         local_time = tzlocal.get_localzone().localize(datetime.datetime.now())
 
         response = requests.post(
@@ -1759,6 +1770,12 @@ def post_ping_request(station):
                         'installed': plugin_manager.installed_plugins_names,
                         'active': plugin_manager.active_plugins_names,
                         'versions': getattr(plugin_manager, 'available_plugins_versions', None)
+                    },
+                    'package_versions': {
+                        'pdv': PDV_VERSION,
+                        'stoq': stoq_version,
+                        'stoqserver': stoqserver_version,
+                        'stoqdrivers': stoqdrivers_version
                     },
                     'stoq_packages': dict(stoq_packages),
                     'local_time': local_time.strftime(time_format),
