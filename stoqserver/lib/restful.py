@@ -1771,7 +1771,7 @@ def post_ping_request(station):
                         'active': plugin_manager.active_plugins_names,
                         'versions': getattr(plugin_manager, 'available_plugins_versions', None)
                     },
-                    'package_versions': {
+                    'running_versions': {
                         'pdv': PDV_VERSION,
                         'stoq': stoq_version,
                         'stoqserver': stoqserver_version,
