@@ -1087,7 +1087,7 @@ class TefResource(_BaseResource):
             # requests (specially when handling comunication with the user through the callbacks
             # above)
             log.info('send tef signal %s (%s)', signal_name, data)
-            retval = operation_signal.send(**data)[0][1]
+            retval = operation_signal.send(station=station, **data)[0][1]
             message = retval['message']
         except Exception as e:
             retval = False
