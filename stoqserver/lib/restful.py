@@ -23,14 +23,12 @@
 #
 
 import base64
-import contextlib
 import datetime
 import decimal
 import functools
 import json
 import logging
 import os
-import pickle
 import psycopg2
 from gevent.queue import Queue
 from gevent.event import Event
@@ -84,15 +82,20 @@ from stoqlib.lib.configparser import get_config
 from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, localnow
 from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.formatters import raw_document
-from stoqlib.lib.osutils import get_application_dir
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
 from stoqserver import __version__ as stoqserver_version
-from stoqserver.lib.lock import lock_pinpad, lock_sat, LockFailedException
-from stoqserver.lib.constants import PROVIDER_MAP
-from stoqserver.utils import JsonEncoder, get_user_hash
+from .lock import lock_pinpad, lock_sat, LockFailedException
+from .constants import PROVIDER_MAP
+from ..api.decorators import login_required, store_provider
+from ..signals import (CheckPinpadStatusEvent, CheckSatStatusEvent,
+                       GenerateAdvancePaymentReceiptPictureEvent, GenerateInvoicePictureEvent,
+                       GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
+                       PrintKitchenCouponEvent, ProcessExternalOrderEvent,
+                       TefCheckPendingEvent, TefPrintReceiptsEvent)
+from ..utils import JsonEncoder
 
 
 # This needs to be imported to workaround a storm limitation
@@ -123,9 +126,6 @@ except ImportError:
     class SatPrinterException(Exception):
         pass
 
-_last_gc = None
-_expire_time = datetime.timedelta(days=1)
-_session = None
 _printer_lock = Semaphore()
 log = logging.getLogger(__name__)
 is_multiclient = False
@@ -133,130 +133,6 @@ is_multiclient = False
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # noqa
 
 WORKERS = []
-
-# Device status events
-CheckSatStatusEvent = signal('CheckSatStatusEvent')
-CheckPinpadStatusEvent = signal('CheckPinpadStatusEvent')
-
-# Tef events
-TefPrintReceiptsEvent = signal('TefPrintReceiptsEvent')
-TefCheckPendingEvent = signal('TefCheckPendingEvent')
-
-GrantLoyaltyPointsEvent = signal('GrantLoyaltyPointsEvent')  # XXX: not sure about this names
-PrintAdvancePaymentReceiptEvent = signal('PrintAdvancePaymentReceiptEvent')
-GetAdvancePaymentCategoryEvent = signal('GetAdvancePaymentCategoryEvent')
-GenerateAdvancePaymentReceiptPictureEvent = signal('GenerateAdvancePaymentReceiptPictureEvent')
-GenerateInvoicePictureEvent = signal('GenerateInvoicePictureEvent')
-
-ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
-
-PrintKitchenCouponEvent = signal('PrintKitchenCouponEvent')
-
-
-def override(column):
-    from storm.references import Reference
-
-    # Column is already a property. No need to override it.
-    if isinstance(column, property):
-        return column
-
-    # Save a reference to the original column
-    if isinstance(column, Reference):
-        name = column._relation.local_key[0].name[:-3]
-        klass = column._cls
-        setattr(klass, '__' + name, column)
-    else:
-        assert False, type(column)
-
-    def _get(self):
-        branch = api.get_current_branch(self.store)
-
-        if klass == Sellable:
-            override = self.store.find(SellableBranchOverride, sellable=self, branch=branch).one()
-        elif klass == Product:
-            override = self.store.find(ProductBranchOverride, product=self, branch=branch).one()
-
-        original = getattr(self, '__' + name)
-        return getattr(override, name, original) or original
-
-    def _set(self, value):
-        assert False
-
-    return property(_get, _set)
-
-
-# Monkey patch sellable overrides until we release a new version of stoq
-Sellable.default_sale_cfop = override(Sellable.default_sale_cfop)
-
-
-@contextlib.contextmanager
-def _get_session():
-    global _session
-    global _last_gc
-
-    # Indexing some session data by the USER_HASH will help to avoid
-    # maintaining sessions between two different databases. This could lead to
-    # some errors in the POS in which the user making the sale does not exist.
-    session_file = os.path.join(get_application_dir(), 'session-{}.db'.format(get_user_hash()))
-    if os.path.exists(session_file):
-        with open(session_file, 'rb') as f:
-            try:
-                _session = pickle.load(f)
-            except Exception:
-                _session = {}
-    else:
-        _session = {}
-
-    # From time to time remove old entries from the session dict
-    now = localnow()
-    if now - (_last_gc or datetime.datetime.min) > _expire_time:
-        for k, v in list(_session.items()):
-            if now - v['date'] > _expire_time:
-                del _session[k]
-        _last_gc = localnow()
-
-    yield _session
-
-    with open(session_file, 'wb') as f:
-        pickle.dump(_session, f)
-
-
-def _login_required(f):
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        # token should be sent through a header using the format 'Bearer <token>'
-        auth = request.headers.get('Authorization', '').split('Bearer ')
-        if len(auth) != 2:
-            abort(401)
-
-        with api.new_store() as store:
-            access_token = AccessToken.get_by_token(store=store, token=auth[1])
-            if not access_token.is_valid():
-                abort(403, "token {}".format(access_token.status))
-
-            # FIXME: the user utility acts as a singleton and since we'd like to have stoqserver API
-            # accepting requests from different stations (users), we cannot use this pattern as it
-            # can lead to racing problems. For now we are willing to put a lock in every request,
-            # but the final solution should be a refactor that makes every endpoint use the user
-            # provided in the token payload instead of this 'global' one.
-            user = store.get(LoginUser, access_token.payload['user_id'])
-            provide_utility(ICurrentUser, user, replace=True)
-
-        return f(*args, **kwargs)
-    return wrapper
-
-
-def _store_provider(f):
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        with api.new_store() as store:
-            try:
-                return f(store, *args, **kwargs)
-            except Exception as e:
-                store.retval = False
-                raise e
-
-    return wrapper
 
 
 def worker(f):
@@ -381,7 +257,7 @@ class DataResource(_BaseResource):
     """All the data the POS needs RESTful resource."""
 
     routes = ['/data']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     # All the tables get_data uses (directly or indirectly)
     watch_tables = ['sellable', 'product', 'storable', 'product_stock_item', 'branch_station',
@@ -601,7 +477,7 @@ class DrawerResource(_BaseResource):
     """Drawer RESTful resource."""
 
     routes = ['/drawer']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     @lock_printer
     def get(self, store):
@@ -648,7 +524,7 @@ def format_document(document):
 class TillResource(_BaseResource):
     """Till RESTful resource."""
     routes = ['/till']
-    method_decorators = [_login_required]
+    method_decorators = [login_required]
 
     def _open_till(self, store, initial_cash_amount=0):
         station = self.get_current_station(store)
@@ -871,7 +747,7 @@ class LoginResource(_BaseResource):
     """Login RESTful resource."""
 
     routes = ['/login']
-    method_decorators = [_store_provider]
+    method_decorators = [store_provider]
 
     def post(self, store):
         username = self.get_arg('user')
@@ -901,7 +777,7 @@ class LoginResource(_BaseResource):
 class LogoutResource(_BaseResource):
 
     routes = ['/logout']
-    method_decorators = [_store_provider]
+    method_decorators = [store_provider]
 
     def post(self, store):
         token = self.get_arg('token')
@@ -926,7 +802,7 @@ class AuthResource(_BaseResource):
     """
 
     routes = ['/auth']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     def post(self, store):
         username = self.get_arg('user')
@@ -1006,7 +882,7 @@ class EventStream(_BaseResource):
 
 class TefResource(_BaseResource):
     routes = ['/tef/<signal_name>']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     waiting_reply = Event()
     reply = Queue()
@@ -1108,7 +984,7 @@ class TefResource(_BaseResource):
 
 class TefReplyResource(_BaseResource):
     routes = ['/tef/reply']
-    method_decorators = [_login_required]
+    method_decorators = [login_required]
 
     def post(self):
         assert TefResource.waiting_reply.is_set()
@@ -1119,7 +995,7 @@ class TefReplyResource(_BaseResource):
 
 class TefCancelCurrentOperation(_BaseResource):
     routes = ['/tef/abort']
-    method_decorators = [_login_required]
+    method_decorators = [login_required]
 
     def post(self):
         signal('TefAbortOperationEvent').send()
@@ -1305,7 +1181,7 @@ class SaleResource(_BaseResource, SaleResourceMixin):
     """Sellable category RESTful resource."""
 
     routes = ['/sale', '/sale/<string:sale_id>']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     def _handle_nfe_coupon_rejected(self, sale, reason):
         log.exception('NFC-e sale rejected')
@@ -1459,7 +1335,7 @@ class SaleResource(_BaseResource, SaleResourceMixin):
 class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
 
     routes = ['/advance_payment']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     @lock_printer
     def post(self, store):
@@ -1520,7 +1396,7 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
 class AdvancePaymentCouponImageResource(_BaseResource):
 
     routes = ['/advance_payment/<string:id>/coupon']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     def get(self, store, id):
         responses = GenerateAdvancePaymentReceiptPictureEvent.send(id)
@@ -1537,7 +1413,7 @@ class PrintCouponResource(_BaseResource):
     """Image RESTful resource."""
 
     routes = ['/sale/<sale_id>/print_coupon']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     @lock_printer
     def get(self, store, sale_id):
@@ -1550,7 +1426,7 @@ class PrintCouponResource(_BaseResource):
 class SaleCouponImageResource(_BaseResource):
 
     routes = ['/sale/<string:sale_id>/coupon']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     def get(self, store, sale_id):
         sale = store.get(Sale, sale_id)
@@ -1567,7 +1443,7 @@ class SaleCouponImageResource(_BaseResource):
 class SmsResource(_BaseResource):
     """SMS RESTful resource."""
     routes = ['/sale/<sale_id>/send_coupon_sms']
-    method_decorators = [_login_required, _store_provider]
+    method_decorators = [login_required, store_provider]
 
     def _send_sms(self, to, message):
         config = get_config()
