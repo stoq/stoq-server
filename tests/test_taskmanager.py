@@ -25,11 +25,12 @@ def plugin_manager_mock(test_task):
     return manager_mock
 
 
+@mock.patch('stoqserver.taskmanager.set_default_store')
 @mock.patch('stoqserver.taskmanager.get_default_store')
 @mock.patch('stoqserver.taskmanager.TaskManager.run_task')
 @mock.patch('stoqserver.taskmanager.get_plugin_manager')
 def test_start_tasks_with_pos_task_on_pos_station(
-    mock_get_plugin_manager, mock_run_task, mock_get_default_store,
+    mock_get_plugin_manager, mock_run_task, mock_get_default_store, set_default_store_mock,
     test_task, worker, store, plugin_manager_mock,
 ):
     store.is_link_server = mock.Mock(return_value=False)
@@ -47,11 +48,12 @@ def test_start_tasks_with_pos_task_on_pos_station(
     assert task_was_run
 
 
+@mock.patch('stoqserver.taskmanager.set_default_store')
 @mock.patch('stoqserver.taskmanager.get_default_store')
 @mock.patch('stoqserver.taskmanager.TaskManager.run_task')
 @mock.patch('stoqserver.taskmanager.get_plugin_manager')
 def test_start_tasks_with_pos_task_on_server_station(
-    mock_get_plugin_manager, mock_run_task, mock_get_default_store,
+    mock_get_plugin_manager, mock_run_task, mock_get_default_store, set_default_store_mock,
     test_task, worker, store, plugin_manager_mock,
 ):
     mock.patch.object(store, 'is_link', mock.Mock(return_value=True))
@@ -65,11 +67,12 @@ def test_start_tasks_with_pos_task_on_server_station(
         assert test_task not in args
 
 
+@mock.patch('stoqserver.taskmanager.set_default_store')
 @mock.patch('stoqserver.taskmanager.get_default_store')
 @mock.patch('stoqserver.taskmanager.TaskManager.run_task')
 @mock.patch('stoqserver.taskmanager.get_plugin_manager')
 def test_start_tasks_with_server_task_on_pos_station(
-    mock_get_plugin_manager, mock_run_task, mock_get_default_store,
+    mock_get_plugin_manager, mock_run_task, mock_get_default_store, set_default_store_mock,
     plugin_manager_mock, worker, store, test_task,
 ):
     mock.patch.object(store, 'is_link', mock.Mock(return_value=False))
@@ -83,11 +86,12 @@ def test_start_tasks_with_server_task_on_pos_station(
         assert test_task not in args
 
 
+@mock.patch('stoqserver.taskmanager.set_default_store')
 @mock.patch('stoqserver.taskmanager.get_default_store')
 @mock.patch('stoqserver.taskmanager.TaskManager.run_task')
 @mock.patch('stoqserver.taskmanager.get_plugin_manager')
 def test_start_tasks_with_server_task_on_server_station(
-    mock_get_plugin_manager, mock_run_task, mock_get_default_store,
+    mock_get_plugin_manager, mock_run_task, mock_get_default_store, set_default_store_mock,
     test_task, worker, store, plugin_manager_mock,
 ):
     mock.patch.object(store, 'is_link', mock.Mock(return_value=True))

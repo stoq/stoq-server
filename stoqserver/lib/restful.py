@@ -537,6 +537,7 @@ class DataResource(_BaseResource):
         config = get_config()
         can_send_sms = config.get("Twilio", "sid") is not None
         iti_discount = True if config.get("Discounts", "iti") == '1' else False
+        hotjar_id = config.get("Hotjar", "id")
 
         sat_status = pinpad_status = printer_status = True
         if not is_multiclient:
@@ -582,6 +583,7 @@ class DataResource(_BaseResource):
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
             iti_discount=iti_discount,
+            hotjar_id=hotjar_id,
             plugins=get_plugin_manager().active_plugins_names,
             # Device statuses
             sat_status=sat_status,

@@ -25,6 +25,7 @@ before_script:
   - pip install -U setuptools pip
   - pip install -e stoq --no-deps
   - pip install -r requirements-test.txt
+  - pip freeze
 
 test:
   stage: test

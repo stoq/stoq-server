@@ -24,16 +24,24 @@ class StoqTestClient(FlaskClient):
         ans = json.loads(response.data.decode())
         return ans['token'].replace('JWT', 'Bearer')
 
+    def _request(self, method_name, *args, **kwargs):
+        method = getattr(super(), method_name)
+        response = method(
+            *args,
+            headers={'Authorization': self.auth_token},
+            content_type='application/json',
+            **kwargs,
+        )
+        response.json = json.loads(response.data.decode())
+        return response
+
+    def get(self, *args, **kwargs):
+        return self._request('get', *args, **kwargs)
+
     def post(self, *args, **kwargs):
         if 'json' in kwargs:
             kwargs['data'] = json.dumps(kwargs.pop('json'))
-
-        return super().post(
-            *args,
-            **kwargs,
-            headers={'Authorization': self.auth_token},
-            content_type='application/json',
-        )
+        return self._request('post', *args, **kwargs)
 
 
 # This is flask test client according to boilerplate:
@@ -44,11 +52,11 @@ def client(current_user, current_station):
     db_fd, app.config['DATABASE'] = tempfile.mkstemp()
     app.config['TESTING'] = True
     app.test_client_class = StoqTestClient
-    client = app.test_client()
-    client.user = current_user
-    client.station = current_station
-
-    yield client
+    with app.test_client() as client:
+        with app.app_context():
+            client.user = current_user
+            client.station = current_station
+            yield client
 
     os.close(db_fd)
     os.unlink(app.config['DATABASE'])
@@ -153,3 +161,22 @@ def test_kps_sale(mock_kps_event_send, client, sale_payload, sellable):
     sale_items = list(args[0].get_items())
     assert sale_items[0].sellable == sellable
     assert kwargs == {'order_number': 69}
+
+
+def test_data_resource(client):
+    response = client.get('/data')
+
+    assert response.json['hotjar_id'] is None
+
+
+# TODO: find a better way to test configs without using mock
+@mock.patch('stoqserver.lib.restful.get_config')
+def test_data_resource_with_hotjar_config(get_config_mock, client):
+    get_config_mock.return_value.get.return_value = 'hotjar-id'
+
+    response = client.get('/data')
+
+    assert response.json['hotjar_id'] == 'hotjar-id'
+    get_config_mock.assert_called_once_with()
+    get_config_mock.return_value.get.assert_any_call('Hotjar', 'id')
+    assert get_config_mock.return_value.get.call_count == 3
