@@ -103,7 +103,7 @@ def run_flaskserver(port, debug=False, multiclient=False):
     global is_multiclient
     is_multiclient = multiclient
 
-    from stoqserver.lib.restful import WORKERS
+    from .workers import WORKERS
     # For now we're disabling workers when stoqserver is serving multiple clients (multiclient mode)
     # FIXME: a proper solution would be to modify the workflow so that the clients ask the server
     # about devices health, the till status, etc. instead of the other way around.

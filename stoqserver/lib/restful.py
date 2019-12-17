@@ -28,35 +28,22 @@ import decimal
 import functools
 import json
 import logging
-import os
 import psycopg2
 from gevent.queue import Queue
 from gevent.event import Event
 import io
-import platform
-import re
 import select
-import subprocess
 import requests
-from hashlib import md5
 
 import gevent
 from blinker import signal
-import psutil
-import tzlocal
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
 from flask import request, abort, send_file, make_response, jsonify
-from serial.serialutil import SerialException
-from stoq import version as stoq_version
-from stoqdrivers import __version__ as stoqdrivers_version
-from stoqdrivers.exceptions import InvalidReplyException
 
 from stoqlib.api import api
-from stoqlib.database.runtime import get_current_station
 from stoqlib.database.interfaces import ICurrentUser
-from stoqlib.database.settings import get_database_version
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
 from stoqlib.domain.overrides import ProductBranchOverride, SellableBranchOverride
@@ -77,23 +64,20 @@ from stoqlib.domain.till import Till, TillSummary
 from stoqlib.exceptions import LoginError, TillError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, localnow
-from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
-from stoqserver import __version__ as stoqserver_version
 from stoqserver.lib.baseresource import BaseResource
 from stoqserver.lib.eventstream import EventStream
-from .lock import lock_pinpad, lock_sat, LockFailedException, printer_lock
+from .checks import check_drawer, check_pinpad, check_sat
 from .constants import PROVIDER_MAP
+from .lock import lock_pinpad, lock_printer, lock_sat, printer_lock, LockFailedException
 from ..api.decorators import login_required, store_provider
-from ..signals import (CheckPinpadStatusEvent, CheckSatStatusEvent,
-                       GenerateAdvancePaymentReceiptPictureEvent, GenerateInvoicePictureEvent,
+from ..signals import (GenerateAdvancePaymentReceiptPictureEvent, GenerateInvoicePictureEvent,
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
-                       PrintKitchenCouponEvent, ProcessExternalOrderEvent,
-                       TefPrintReceiptsEvent)
+                       PrintKitchenCouponEvent, ProcessExternalOrderEvent, TefPrintReceiptsEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -128,33 +112,6 @@ log = logging.getLogger(__name__)
 is_multiclient = False
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # noqa
-
-WORKERS = []
-
-
-def worker(f):
-    """A marker for a function that should be threaded when the server executes.
-
-    Usefull for regular checks that should be made on the server that will require warning the
-    client
-    """
-    WORKERS.append(f)
-    return f
-
-
-def lock_printer(func):
-    """Decorator to handle printer access locking.
-
-    This will make sure that only one callsite is using the printer at a time.
-    """
-    def new_func(*args, **kwargs):
-        if printer_lock.locked():
-            log.info('Waiting printer lock release in func %s' % func)
-
-        with printer_lock:
-            return func(*args, **kwargs)
-
-    return new_func
 
 
 class UnhandledMisconfiguration(Exception):
@@ -1313,207 +1270,3 @@ class SmsResource(BaseResource):
         message = GetCouponSmsTextEvent.send(sale)[0][1]
         to = '+55' + self.get_json()['phone_number']
         return self._send_sms(to, message)
-
-
-@lock_printer
-def check_drawer():
-    try:
-        return DrawerResource.ensure_printer(get_current_station(), retries=1)
-    except (SerialException, InvalidReplyException):
-        return None
-
-
-@worker
-def check_drawer_loop(station):
-    # default value of is_open
-    is_open = ''
-
-    # Check every second if it is opened.
-    # Alert only if changes.
-    while True:
-        new_is_open = check_drawer()
-
-        if is_open != new_is_open:
-            message = {
-                True: 'DRAWER_ALERT_OPEN',
-                False: 'DRAWER_ALERT_CLOSE',
-                None: 'DRAWER_ALERT_ERROR',
-            }
-            EventStream.put(station, {
-                'type': message[new_is_open],
-            })
-            status_printer = None if new_is_open is None else True
-            EventStream.put(station, {
-                'type': 'DEVICE_STATUS_CHANGED',
-                'device': 'printer',
-                'status': status_printer,
-            })
-            is_open = new_is_open
-
-        gevent.sleep(1)
-
-
-@lock_sat(block=False)
-def check_sat():
-    if len(CheckSatStatusEvent.receivers) == 0:
-        # No SAT was found, what means there is no need to warn front-end there is a missing
-        # or broken SAT
-        return True
-
-    event_reply = CheckSatStatusEvent.send()
-    return event_reply and event_reply[0][1]
-
-
-@worker
-def check_sat_loop(station):
-    if len(CheckSatStatusEvent.receivers) == 0:
-        return
-
-    sat_ok = -1
-
-    while True:
-        try:
-            new_sat_ok = check_sat()
-        except LockFailedException:
-            # Keep previous state.
-            new_sat_ok = sat_ok
-
-        if sat_ok != new_sat_ok:
-            EventStream.put(station, {
-                'type': 'DEVICE_STATUS_CHANGED',
-                'device': 'sat',
-                'status': new_sat_ok,
-            })
-            sat_ok = new_sat_ok
-
-        gevent.sleep(60 * 5)
-
-
-@lock_pinpad(block=False)
-def check_pinpad():
-    event_reply = CheckPinpadStatusEvent.send()
-    return event_reply and event_reply[0][1]
-
-
-@worker
-def check_pinpad_loop(station):
-    pinpad_ok = -1
-
-    while True:
-        try:
-            new_pinpad_ok = check_pinpad()
-        except LockFailedException:
-            # Keep previous state.
-            new_pinpad_ok = pinpad_ok
-
-        if pinpad_ok != new_pinpad_ok:
-            EventStream.put(station, {
-                'type': 'DEVICE_STATUS_CHANGED',
-                'device': 'pinpad',
-                'status': new_pinpad_ok,
-            })
-            pinpad_ok = new_pinpad_ok
-
-        gevent.sleep(60)
-
-
-@worker
-def inform_till_status(station):
-    while True:
-        # Wait for the new work day
-        now = datetime.datetime.now()
-        update_time = datetime.datetime(now.year, now.month, now.day, hour=6, minute=0)
-        wait_time = (update_time + datetime.timedelta(days=1) - now).total_seconds()
-        gevent.sleep(max(60, wait_time))
-
-        # Send an action to inform the front-end the status of the last opened till, to warn the
-        # user if it needs to be closed
-        with api.new_store() as store:
-            EventStream.put(station, {
-                'type': 'CHECK_TILL_FINISHED',
-                'lastTill': {'status': Till.get_last(store, station).status}
-            })
-
-
-@worker
-def post_ping_request(station):
-    if is_developer_mode():
-        return
-
-    target = 'https://app.stoq.link:9000/api/ping'
-    time_format = '%d-%m-%Y %H:%M:%S%Z'
-    store = api.get_default_store()
-    plugin_manager = get_plugin_manager()
-    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time()).strftime(time_format)
-
-    def get_stoq_conf():
-        with open(get_config().get_filename(), 'r') as fh:
-            return fh.read().encode()
-
-    def get_clisitef_ini():
-        try:
-            with open('CliSiTef.ini', 'r') as fh:
-                return fh.read().encode()
-        except FileNotFoundError:
-            return ''.encode()
-
-    while True:
-        try:
-            dpkg_list = subprocess.check_output('dpkg -l \\*stoq\\*', shell=True).decode()
-        except subprocess.CalledProcessError:
-            dpkg_list = ""
-        stoq_packages = re.findall(r'ii\s*(\S*)\s*(\S*)', dpkg_list)
-        if PDV_VERSION:
-            log.info('Running stoq_pdv {}'.format(PDV_VERSION))
-        log.info('Running stoq {}'.format(stoq_version))
-        log.info('Running stoq-server {}'.format(stoqserver_version))
-        log.info('Running stoqdrivers {}'.format(stoqdrivers_version))
-        local_time = tzlocal.get_localzone().localize(datetime.datetime.now())
-
-        response = requests.post(
-            target,
-            headers={'Stoq-Backend': '{}-portal'.format(api.sysparam.get_string('USER_HASH'))},
-            data={
-                'station_id': station.id,
-                'data': json.dumps({
-                    'platform': {
-                        'architecture': platform.architecture(),
-                        'distribution': platform.dist(),
-                        'system': platform.system(),
-                        'uname': platform.uname(),
-                        'python_version': platform.python_version_tuple(),
-                        'postgresql_version': get_database_version(store)
-                    },
-                    'system': {
-                        'boot_time': boot_time,
-                        'cpu_times': psutil.cpu_times(),
-                        'load_average': os.getloadavg(),
-                        'disk_usage': psutil.disk_usage('/'),
-                        'virtual_memory': psutil.virtual_memory(),
-                        'swap_memory': psutil.swap_memory()
-                    },
-                    'plugins': {
-                        'available': plugin_manager.available_plugins_names,
-                        'installed': plugin_manager.installed_plugins_names,
-                        'active': plugin_manager.active_plugins_names,
-                        'versions': getattr(plugin_manager, 'available_plugins_versions', None)
-                    },
-                    'running_versions': {
-                        'pdv': PDV_VERSION,
-                        'stoq': stoq_version,
-                        'stoqserver': stoqserver_version,
-                        'stoqdrivers': stoqdrivers_version
-                    },
-                    'stoq_packages': dict(stoq_packages),
-                    'local_time': local_time.strftime(time_format),
-                    'stoq_conf_md5': md5(get_stoq_conf()).hexdigest(),
-                    'clisitef_ini_md5': md5(get_clisitef_ini()).hexdigest()
-                })
-            }
-        )
-
-        log.info("POST {} {} {}".format(
-            target,
-            response.status_code,
-            response.elapsed.total_seconds()))
-        gevent.sleep(3600)

@@ -1,9 +1,32 @@
+# -*- coding: utf-8 -*-
+# vi:si:et:sw=4:sts=4:ts=4
+
+#
+# Copyright (C) 2020 Async Open Source <http://www.async.com.br>
+# All rights reserved
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., or visit: http://www.gnu.org/.
+#
+# Author(s): Stoq Team <stoq-devel@async.com.br>
+#
+
 import logging
 
 from gevent.lock import Semaphore
 
 log = logging.getLogger(__name__)
-
 
 printer_lock = Semaphore()
 
@@ -45,3 +68,18 @@ class lock_pinpad(base_lock_decorator):
 
 class lock_sat(base_lock_decorator):
     lock = Semaphore()
+
+
+def lock_printer(func):
+    """Decorator to handle printer access locking.
+
+    This will make sure that only one callsite is using the printer at a time.
+    """
+    def new_func(*args, **kwargs):
+        if printer_lock.locked():
+            log.info('Waiting printer lock release in func %s' % func)
+
+        with printer_lock:
+            return func(*args, **kwargs)
+
+    return new_func
