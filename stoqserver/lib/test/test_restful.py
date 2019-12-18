@@ -198,6 +198,7 @@ class TestDataResource(_TestFlask):
 
             retval = json.loads(rv.data.decode())
             self.assertEqual(retval['branch'], b.id)
+            self.assertEqual(retval['parameters'], {'NFCE_CAN_SEND_DIGITAL_INVOICE': False})
             # Those are the default payment methods created by example data
             self.assertEqual(
                 retval['payment_methods'],

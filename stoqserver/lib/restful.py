@@ -279,6 +279,10 @@ class DataResource(BaseResource):
         can_send_sms = config.get("Twilio", "sid") is not None
         iti_discount = True if config.get("Discounts", "iti") == '1' else False
         hotjar_id = config.get("Hotjar", "id")
+        try:
+            can_send_digital_invoice = api.sysparam.get_bool('NFCE_CAN_SEND_DIGITAL_INVOICE')
+        except ValueError:
+            can_send_digital_invoice = False
 
         sat_status = pinpad_status = printer_status = True
         if not is_multiclient:
@@ -317,6 +321,9 @@ class DataResource(BaseResource):
                 name=user.username,
                 person_name=user.person.name,
                 profile_id=user.profile_id,
+            ),
+            parameters=dict(
+                NFCE_CAN_SEND_DIGITAL_INVOICE=can_send_digital_invoice,
             ),
             categories=self._get_categories(store, station),
             payment_methods=self._get_payment_methods(store),

@@ -167,6 +167,7 @@ def test_data_resource(client):
     response = client.get('/data')
 
     assert response.json['hotjar_id'] is None
+    assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is False
 
 
 # TODO: find a better way to test configs without using mock
@@ -180,3 +181,17 @@ def test_data_resource_with_hotjar_config(get_config_mock, client):
     get_config_mock.assert_called_once_with()
     get_config_mock.return_value.get.assert_any_call('Hotjar', 'id')
     assert get_config_mock.return_value.get.call_count == 3
+
+
+@mock.patch('stoqserver.lib.restful.api')
+def test_data_resource_with_send_digital_invoice_parameter_as_true(api_mock, client):
+    api_mock.sysparam.get_bool.return_value = True
+    response = client.get('/data')
+    assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is True
+
+
+@mock.patch('stoqserver.lib.restful.api')
+def test_data_resource_with_send_digital_invoice_parameter_as_false(api_mock, client):
+    api_mock.sysparam.get_bool.return_value = False
+    response = client.get('/data')
+    assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is False
