@@ -43,7 +43,7 @@ from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.translation import dgettext
 
 from stoqserver import sentry
-from stoqserver.lib.restful import _BaseResource
+from stoqserver.lib.baseresource import BaseResource
 from stoqserver.sentry import raven_client, sentry_report, SENTRY_URL
 from stoqserver.utils import get_user_hash
 
@@ -62,7 +62,7 @@ def bootstrap_app():
     app.config['PROPAGATE_EXCEPTIONS'] = True
     flask_api = Api(app)
 
-    for cls in _BaseResource.__subclasses__():
+    for cls in BaseResource.__subclasses__():
         flask_api.add_resource(cls, *cls.routes)
 
     signal('StoqTouchStartupEvent').send()

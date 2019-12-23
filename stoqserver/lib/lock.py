@@ -5,6 +5,9 @@ from gevent.lock import Semaphore
 log = logging.getLogger(__name__)
 
 
+printer_lock = Semaphore()
+
+
 class LockFailedException(Exception):
     pass
 

@@ -32,7 +32,6 @@ import os
 import psycopg2
 from gevent.queue import Queue
 from gevent.event import Event
-from gevent.lock import Semaphore
 import io
 import platform
 import re
@@ -48,8 +47,7 @@ import tzlocal
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
-from flask import request, abort, send_file, make_response, Response, jsonify
-from flask_restful import Resource
+from flask import request, abort, send_file, make_response, jsonify
 from serial.serialutil import SerialException
 from stoq import version as stoq_version
 from stoqdrivers import __version__ as stoqdrivers_version
@@ -60,7 +58,6 @@ from stoqlib.database.runtime import get_current_station
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.database.settings import get_database_version
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
-from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.image import Image
 from stoqlib.domain.overrides import ProductBranchOverride, SellableBranchOverride
 from stoqlib.domain.payment.group import PaymentGroup
@@ -83,19 +80,20 @@ from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, loca
 from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.translation import dgettext
-from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
+from stoqlib.lib.pluginmanager import get_plugin_manager
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
 from stoqserver import __version__ as stoqserver_version
-from .lock import lock_pinpad, lock_sat, LockFailedException
+from stoqserver.lib.baseresource import BaseResource
+from stoqserver.lib.eventstream import EventStream
+from .lock import lock_pinpad, lock_sat, LockFailedException, printer_lock
 from .constants import PROVIDER_MAP
 from ..api.decorators import login_required, store_provider
 from ..signals import (CheckPinpadStatusEvent, CheckSatStatusEvent,
                        GenerateAdvancePaymentReceiptPictureEvent, GenerateInvoicePictureEvent,
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
                        PrintKitchenCouponEvent, ProcessExternalOrderEvent,
-                       TefCheckPendingEvent, TefPrintReceiptsEvent)
-from ..utils import JsonEncoder
+                       TefPrintReceiptsEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -126,7 +124,6 @@ except ImportError:
     class SatPrinterException(Exception):
         pass
 
-_printer_lock = Semaphore()
 log = logging.getLogger(__name__)
 is_multiclient = False
 
@@ -151,109 +148,20 @@ def lock_printer(func):
     This will make sure that only one callsite is using the printer at a time.
     """
     def new_func(*args, **kwargs):
-        if _printer_lock.locked():
+        if printer_lock.locked():
             log.info('Waiting printer lock release in func %s' % func)
 
-        with _printer_lock:
+        with printer_lock:
             return func(*args, **kwargs)
 
     return new_func
-
-
-def get_plugin(manager, name):
-    try:
-        return manager.get_plugin(name)
-    except PluginError:
-        return None
 
 
 class UnhandledMisconfiguration(Exception):
     pass
 
 
-class _BaseResource(Resource):
-
-    routes = []
-
-    def get_json(self):
-        if not request.data:
-            return None
-        return json.loads(request.data.decode(), parse_float=decimal.Decimal)
-
-    def get_arg(self, attr, default=None):
-        """Get the attr from querystring, form data or json"""
-        # This is not working on all versions.
-        if self.get_json():
-            return self.get_json().get(attr, None)
-
-        return request.form.get(attr, request.args.get(attr, default))
-
-    def get_current_user(self, store):
-        auth = request.headers.get('Authorization', '').split('Bearer ')
-        token = AccessToken.get_by_token(store=store, token=auth[1])
-        return token and token.user
-
-    def get_current_station(self, store, token=None):
-        if not token:
-            auth = request.headers.get('Authorization', '').split('Bearer ')
-            token = auth[1]
-        token = AccessToken.get_by_token(store=store, token=token)
-        return token and token.station
-
-    def get_current_branch(self, store):
-        station = self.get_current_station(store)
-        return station and station.branch
-
-    @classmethod
-    def ensure_printer(cls, station, retries=20):
-        assert _printer_lock.locked()
-
-        store = api.get_default_store()
-        device = DeviceSettings.get_by_station_and_type(store, station,
-                                                        DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
-        if not device:
-            # If we have no printer configured, there's nothing to ensure
-            return
-
-        # There is no need to lock the printer here, since it should already be locked by the
-        # calling site of this method.
-        # Test the printer to see if its working properly.
-        printer = None
-        try:
-            printer = api.device_manager.printer
-            return printer.is_drawer_open()
-        except (SerialException, InvalidReplyException):
-            if printer:
-                printer._port.close()
-            api.device_manager._printer = None
-            for i in range(retries):
-                log.info('Printer check failed. Reopening')
-                try:
-                    printer = api.device_manager.printer
-                    printer.is_drawer_open()
-                    break
-                except SerialException:
-                    gevent.sleep(1)
-            else:
-                # Reopening printer failed. re-raise the original exception
-                raise
-
-            # Invalidate the printer in the plugins so that it re-opens it
-            manager = get_plugin_manager()
-
-            # nfce does not need to reset the printer since it does not cache it.
-            sat = get_plugin(manager, 'sat')
-            if sat and sat.ui:
-                sat.ui.printer = None
-
-            nonfiscal = get_plugin(manager, 'nonfiscal')
-            if nonfiscal and nonfiscal.ui:
-                nonfiscal.ui.printer = printer
-
-            return printer.is_drawer_open()
-
-
-class DataResource(_BaseResource):
+class DataResource(BaseResource):
     """All the data the POS needs RESTful resource."""
 
     routes = ['/data']
@@ -473,7 +381,7 @@ class DataResource(_BaseResource):
         return self.get_data(store)
 
 
-class DrawerResource(_BaseResource):
+class DrawerResource(BaseResource):
     """Drawer RESTful resource."""
 
     routes = ['/drawer']
@@ -495,7 +403,7 @@ class DrawerResource(_BaseResource):
         return 'success', 200
 
 
-class PingResource(_BaseResource):
+class PingResource(BaseResource):
     """Ping RESTful resource."""
 
     routes = ['/ping']
@@ -521,7 +429,7 @@ def format_document(document):
         return format_cnpj(document)
 
 
-class TillResource(_BaseResource):
+class TillResource(BaseResource):
     """Till RESTful resource."""
     routes = ['/till']
     method_decorators = [login_required]
@@ -656,7 +564,7 @@ class TillResource(_BaseResource):
         return till_data
 
 
-class ClientResource(_BaseResource):
+class ClientResource(BaseResource):
     """Client RESTful resource."""
     routes = ['/client']
 
@@ -728,7 +636,7 @@ class ClientResource(_BaseResource):
         return data
 
 
-class ExternalClientResource(_BaseResource):
+class ExternalClientResource(BaseResource):
     """Information about a client from external services, such as Passbook"""
     routes = ['/extra_client_info/<doc>']
 
@@ -743,7 +651,7 @@ class ExternalClientResource(_BaseResource):
         return data
 
 
-class LoginResource(_BaseResource):
+class LoginResource(BaseResource):
     """Login RESTful resource."""
 
     routes = ['/login']
@@ -774,7 +682,7 @@ class LoginResource(_BaseResource):
         })
 
 
-class LogoutResource(_BaseResource):
+class LogoutResource(BaseResource):
 
     routes = ['/logout']
     method_decorators = [store_provider]
@@ -795,7 +703,7 @@ class LogoutResource(_BaseResource):
         return jsonify({"message": "successfully revoked token"})
 
 
-class AuthResource(_BaseResource):
+class AuthResource(BaseResource):
     """Authenticate a user agasint the database.
 
     This will not replace the ICurrentUser. It will just validate if a login/password is valid.
@@ -820,67 +728,7 @@ class AuthResource(_BaseResource):
         return make_response(_('User does not have permission'), 403)
 
 
-class EventStream(_BaseResource):
-    """A stream of events from this server to the application.
-
-    Callsites can use EventStream.put(event) to send a message from the server to the client
-    asynchronously.
-
-    Note that there should be only one client connected at a time. If more than one are connected,
-    all of them will receive all events
-    """
-    _streams = {}
-    has_stream = Event()
-
-    routes = ['/stream']
-
-    @classmethod
-    def put(cls, station, data):
-        """Put a event only on the client stream"""
-        # Wait until we have at least one stream
-        cls.has_stream.wait()
-
-        # Put event only on client stream
-        stream = cls._streams.get(station.id)
-        if stream:
-            stream.put(data)
-
-    @classmethod
-    def put_all(cls, data):
-        """Put a event in all streams"""
-        # Wait until we have at least one stream
-        cls.has_stream.wait()
-
-        # Put event in all streams
-        for stream in cls._streams.values():
-            stream.put(data)
-
-    def _loop(self, stream):
-        while True:
-            data = stream.get()
-            yield "data: " + json.dumps(data, cls=JsonEncoder) + "\n\n"
-
-    def get(self):
-        stream = Queue()
-        station = self.get_current_station(api.get_default_store(), token=request.args['token'])
-        self._streams[station.id] = stream
-        self.has_stream.set()
-
-        # If we dont put one event, the event stream does not seem to get stabilished in the browser
-        stream.put(json.dumps({}))
-
-        # This is the best time to check if there are pending transactions, since the frontend just
-        # stabilished a connection with the backend (thats us).
-        has_canceled = TefCheckPendingEvent.send()
-        if has_canceled and has_canceled[0][1]:
-            EventStream.put(station, {'type': 'TEF_WARNING_MESSAGE',
-                                      'message': ('Última transação TEF não foi efetuada.'
-                                                  ' Favor reter o Cupom.')})
-            EventStream.put(station, {'type': 'CLEAR_SALE'})
-        return Response(self._loop(stream), mimetype="text/event-stream")
-
-
-class TefResource(_BaseResource):
+class TefResource(BaseResource):
     routes = ['/tef/<signal_name>']
     method_decorators = [login_required, store_provider]
 
@@ -938,7 +786,7 @@ class TefResource(_BaseResource):
                 raise TillError(_('There is no till open'))
 
         try:
-            with _printer_lock:
+            with printer_lock:
                 self.ensure_printer(station)
         except Exception:
             EventStream.put(station, {
@@ -982,7 +830,7 @@ class TefResource(_BaseResource):
         })
 
 
-class TefReplyResource(_BaseResource):
+class TefReplyResource(BaseResource):
     routes = ['/tef/reply']
     method_decorators = [login_required]
 
@@ -993,7 +841,7 @@ class TefReplyResource(_BaseResource):
         TefResource.reply.put(json.loads(data['value']))
 
 
-class TefCancelCurrentOperation(_BaseResource):
+class TefCancelCurrentOperation(BaseResource):
     routes = ['/tef/abort']
     method_decorators = [login_required]
 
@@ -1001,7 +849,7 @@ class TefCancelCurrentOperation(_BaseResource):
         signal('TefAbortOperationEvent').send()
 
 
-class ImageResource(_BaseResource):
+class ImageResource(BaseResource):
     """Image RESTful resource."""
 
     routes = ['/image/<id>']
@@ -1177,7 +1025,7 @@ class SaleResourceMixin:
             assert money_payment.value >= 0, money_payment.value
 
 
-class SaleResource(_BaseResource, SaleResourceMixin):
+class SaleResource(BaseResource, SaleResourceMixin):
     """Sellable category RESTful resource."""
 
     routes = ['/sale', '/sale/<string:sale_id>']
@@ -1332,7 +1180,7 @@ class SaleResource(_BaseResource, SaleResourceMixin):
         signal('SaleAbortedEvent').send(sale_id)
 
 
-class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
+class AdvancePaymentResource(BaseResource, SaleResourceMixin):
 
     routes = ['/advance_payment']
     method_decorators = [login_required, store_provider]
@@ -1393,7 +1241,7 @@ class AdvancePaymentResource(_BaseResource, SaleResourceMixin):
         return True
 
 
-class AdvancePaymentCouponImageResource(_BaseResource):
+class AdvancePaymentCouponImageResource(BaseResource):
 
     routes = ['/advance_payment/<string:id>/coupon']
     method_decorators = [login_required, store_provider]
@@ -1409,7 +1257,7 @@ class AdvancePaymentCouponImageResource(_BaseResource):
         }, 200
 
 
-class PrintCouponResource(_BaseResource):
+class PrintCouponResource(BaseResource):
     """Image RESTful resource."""
 
     routes = ['/sale/<sale_id>/print_coupon']
@@ -1423,7 +1271,7 @@ class PrintCouponResource(_BaseResource):
         signal('PrintCouponCopyEvent').send(sale)
 
 
-class SaleCouponImageResource(_BaseResource):
+class SaleCouponImageResource(BaseResource):
 
     routes = ['/sale/<string:sale_id>/coupon']
     method_decorators = [login_required, store_provider]
@@ -1440,7 +1288,7 @@ class SaleCouponImageResource(_BaseResource):
         }, 200
 
 
-class SmsResource(_BaseResource):
+class SmsResource(BaseResource):
     """SMS RESTful resource."""
     routes = ['/sale/<sale_id>/send_coupon_sms']
     method_decorators = [login_required, store_provider]
