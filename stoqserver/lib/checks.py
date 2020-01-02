@@ -42,8 +42,10 @@ def check_drawer():
 
 @lock_pinpad(block=False)
 def check_pinpad():
-    event_reply = CheckPinpadStatusEvent.send()
-    return event_reply and event_reply[0][1]
+    responses = CheckPinpadStatusEvent.send()
+    if len(responses) > 0:
+        return responses[0][1]
+    return True
 
 
 @lock_sat(block=False)
