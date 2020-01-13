@@ -1052,6 +1052,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
         station = self.get_current_station(store)
         user = self.get_current_user(store)
         group = PaymentGroup(store=store)
+        discount_value = data.get('discount_value')
         sale = Sale(
             store=store,
             id=sale_id,
@@ -1063,6 +1064,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
             group=group,
             open_date=localnow(),
             coupon_id=None,
+            discount_value=discount_value,
         )
 
         # Add products

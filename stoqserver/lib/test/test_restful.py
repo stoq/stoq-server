@@ -26,8 +26,8 @@ import datetime
 import contextlib
 import hashlib
 import json
+from unittest import mock
 
-import mock
 from kiwi.currency import currency
 from stoqlib.api import api
 from stoqlib.domain.sale import Sale

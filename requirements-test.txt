@@ -5,3 +5,4 @@ nosexcover
 pytest
 pytest-cov
 pytest-stoq>=0.4.2
+mock

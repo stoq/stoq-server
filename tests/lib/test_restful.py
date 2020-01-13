@@ -6,7 +6,10 @@ from unittest import mock
 import pytest
 from flask.testing import FlaskClient
 
+from kiwi.currency import currency
 from stoqlib.lib.decorators import cached_property
+from stoqlib.domain.sale import Sale
+from storm.expr import Desc
 
 from stoqserver.app import bootstrap_app
 
@@ -90,6 +93,7 @@ def sale_payload(sellable):
         'products': products,
         'payments': payments,
         'order_number': 69,
+        'discount_value': 0,
     }
 
 
@@ -161,6 +165,21 @@ def test_kps_sale(mock_kps_event_send, client, sale_payload, sellable):
     sale_items = list(args[0].get_items())
     assert sale_items[0].sellable == sellable
     assert kwargs == {'order_number': 69}
+
+
+@pytest.mark.usefixtures('kps_station', 'open_till', 'mock_new_store')
+def test_sale_with_discount(client, sale_payload, store):
+    sale_payload['products'][0]['quantity'] = 10
+    sale_payload['payments'][0]['value'] = 100
+    sale_payload['discount_value'] = 25
+
+    response = client.post('/sale', json=sale_payload)
+
+    sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
+
+    assert response.status_code == 200
+    assert sale.get_total_sale_amount() == currency('75')
+    assert sale.discount_value == currency('25')
 
 
 def test_data_resource(client):
