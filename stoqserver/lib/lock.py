@@ -26,6 +26,8 @@ import logging
 
 from gevent.lock import Semaphore
 
+from stoqserver.app import is_multiclient
+
 log = logging.getLogger(__name__)
 
 printer_lock = Semaphore()
@@ -49,10 +51,13 @@ class base_lock_decorator:
     def __call__(self, func):
 
         def new_func(*args, **kwargs):
-            acquired = self.lock.acquire(blocking=self._block)
-            if not acquired:
-                log.info('Failed %s in func %s' % (type(self).__name__, func))
-                raise LockFailedException()
+            if not is_multiclient:
+                # Only acquire the lock if running in single client mode. Multi client mode cannot
+                # have any locks in the requests
+                acquired = self.lock.acquire(blocking=self._block)
+                if not acquired:
+                    log.info('Failed %s in func %s', type(self).__name__, func)
+                    raise LockFailedException()
 
             try:
                 return func(*args, **kwargs)

@@ -43,7 +43,6 @@ from stoqlib.lib.environment import is_developer_mode
 from stoqlib.lib.translation import dgettext
 
 from stoqserver import sentry
-from stoqserver.lib.baseresource import BaseResource
 from stoqserver.sentry import raven_client, sentry_report, SENTRY_URL
 from stoqserver.utils import get_user_hash
 
@@ -51,8 +50,11 @@ logger = logging.getLogger(__name__)
 
 _ = functools.partial(dgettext, 'stoqserver')
 
+is_multiclient = False
+
 
 def bootstrap_app():
+    from stoqserver.lib.baseresource import BaseResource
     app = Flask(__name__)
 
     # Indexing some session data by the USER_HASH will help to avoid maintaining

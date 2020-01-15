@@ -29,14 +29,12 @@ import functools
 import json
 import logging
 import psycopg2
-from gevent.queue import Queue
-from gevent.event import Event
 import io
 import select
 import requests
 
 import gevent
-from blinker import signal
+from blinker import signal, ANY as ANY_SENDER
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
@@ -69,8 +67,9 @@ from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
+from stoqserver.app import is_multiclient
 from stoqserver.lib.baseresource import BaseResource
-from stoqserver.lib.eventstream import EventStream
+from stoqserver.lib.eventstream import EventStream, EventStreamBrokenException
 from .checks import check_drawer, check_pinpad, check_sat
 from .constants import PROVIDER_MAP
 from .lock import lock_pinpad, lock_printer, lock_sat, printer_lock, LockFailedException
@@ -109,7 +108,6 @@ except ImportError:
         pass
 
 log = logging.getLogger(__name__)
-is_multiclient = False
 
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # noqa
 
@@ -630,6 +628,7 @@ class LoginResource(BaseResource):
         global PDV_VERSION
         PDV_VERSION = request.args.get('pdv_version')
         if not station:
+            log.info('Access denied: station not found: %s', station_name)
             abort(401)
 
         try:
@@ -696,9 +695,6 @@ class TefResource(BaseResource):
     routes = ['/tef/<signal_name>']
     method_decorators = [login_required, store_provider]
 
-    waiting_reply = Event()
-    reply = Queue()
-
     @lock_printer
     def _print_callback(self, lib, holder, merchant):
         printer = api.device_manager.printer
@@ -728,17 +724,9 @@ class TefResource(BaseResource):
 
     def _question_callback(self, lib, question):
         station = self.get_current_station(api.get_default_store())
-        EventStream.put(station, {
-            'type': 'TEF_ASK_QUESTION',
-            'data': question,
-        })
-
-        log.info('Waiting tef reply')
-        self.waiting_reply.set()
-        reply = self.reply.get()
-        log.info('Got tef reply: %s', reply)
-        self.waiting_reply.clear()
-
+        reply = EventStream.ask_question(station, question)
+        if reply is EventStreamBrokenException:
+            raise EventStreamBrokenException()
         return reply
 
     @lock_pinpad(block=True)
@@ -760,9 +748,18 @@ class TefResource(BaseResource):
             })
             return
 
-        signal('TefMessageEvent').connect(self._message_callback)
-        signal('TefQuestionEvent').connect(self._question_callback)
-        signal('TefPrintEvent').connect(self._print_callback)
+        # FIXME: If we fix sitef/ntk, we should be able to use only sender = station
+        if is_multiclient:
+            # When running in multi client mode, we want the callbacks to only get the signals
+            # emmited for the current station.
+            sender = station
+        else:
+            # In single client it doens't matter, since there can be only one client connected
+            sender = ANY_SENDER
+
+        signal('TefMessageEvent').connect(self._message_callback, sender=sender)
+        signal('TefQuestionEvent').connect(self._question_callback, sender=sender)
+        signal('TefPrintEvent').connect(self._print_callback, sender=sender)
 
         operation_signal = signal(signal_name)
         # There should be just one plugin connected to this event.
@@ -777,8 +774,11 @@ class TefResource(BaseResource):
             # requests (specially when handling comunication with the user through the callbacks
             # above)
             log.info('send tef signal %s (%s)', signal_name, data)
-            retval = operation_signal.send(station=station, **data)[0][1]
+            retval = operation_signal.send(station, **data)[0][1]
             message = retval['message']
+        except EventStreamBrokenException:
+            retval = False
+            message = 'Falha na operação. Tente novamente'
         except Exception as e:
             retval = False
             log.info('Tef failed: %s', str(e))
@@ -799,10 +799,9 @@ class TefReplyResource(BaseResource):
     method_decorators = [login_required]
 
     def post(self):
-        assert TefResource.waiting_reply.is_set()
-
         data = self.get_json()
-        TefResource.reply.put(json.loads(data['value']))
+        station = self.get_current_station(api.get_default_store())
+        EventStream.put_reply(station.id, json.loads(data['value']))
 
 
 class TefCancelCurrentOperation(BaseResource):
