@@ -7,11 +7,18 @@ import pytest
 from flask.testing import FlaskClient
 
 from kiwi.currency import currency
-from stoqlib.lib.decorators import cached_property
+from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.sale import Sale
+from stoqlib.lib.decorators import cached_property
 from storm.expr import Desc
 
 from stoqserver.app import bootstrap_app
+from stoqserver.lib import restful
+
+
+# We must import restful if we want to run some tests individually. Otherwise, only patches that
+# mock stoqlib.lib.restful work when running pytest with -k
+restful
 
 
 class StoqTestClient(FlaskClient):
@@ -35,7 +42,10 @@ class StoqTestClient(FlaskClient):
             content_type='application/json',
             **kwargs,
         )
-        response.json = json.loads(response.data.decode())
+        try:
+            response.json = json.loads(response.data.decode())
+        except AttributeError:
+            pass
         return response
 
     def get(self, *args, **kwargs):
@@ -336,6 +346,39 @@ def test_data_resource_with_send_digital_invoice_parameter_as_false(api_mock, cl
     api_mock.sysparam.get.return_value = False
     response = client.get('/data')
     assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is False
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_new_store')
+def test_data_resource_branch_override(api_mock, client, sellable, example_creator,
+                                       current_station):
+    # Insert a category with high priority so that it appears first in our list
+    category = example_creator.create_sellable_category()
+    category.sort_order = 1000
+    sellable.category = category
+
+    # Sellable should be in the response when not forcing override
+    api_mock.sysparam.get_bool.return_value = False
+    response = client.get('/data')
+    assert len(response.json['categories'][0]['products']) == 1
+    assert response.json['categories'][0]['products'][0]['id'] == sellable.id
+
+    # Now force branch override. Since this sellable does not have one, it should not be in the list
+    api_mock.sysparam.get_bool.return_value = True
+    response = client.get('/data')
+    assert response.json['categories'][0]['products'] == []
+
+    # Creating an override is not enought to make the sellable appear...
+    override = ProductBranchOverride(store=sellable.store, product=sellable.product,
+                                     branch=current_station.branch)
+    response = client.get('/data')
+    assert response.json['categories'][0]['products'] == []
+
+    # .. it should also have an icms template to show up again
+    override.icms_template = example_creator.create_product_icms_template()
+    response = client.get('/data')
+    assert len(response.json['categories'][0]['products']) == 1
+    assert response.json['categories'][0]['products'][0]['id'] == sellable.id
 
 
 @pytest.mark.parametrize('query_string', ({}, {'partial_document': None}, {'partial_document': ''}))

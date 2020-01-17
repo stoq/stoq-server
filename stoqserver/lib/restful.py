@@ -114,6 +114,43 @@ log = logging.getLogger(__name__)
 TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # noqa
 
 
+def override(column):
+    from storm.references import Reference
+
+    # Column is already a property. No need to override it.
+    if isinstance(column, property):
+        return column
+
+    # Save a reference to the original column
+    if isinstance(column, Reference):
+        name = column._relation.local_key[0].name[:-3]
+        klass = column._cls
+        setattr(klass, '__' + name, column)
+    else:
+        assert False, type(column)
+
+    def _get(self):
+        branch = api.get_current_branch(self.store)
+
+        if klass == Sellable:
+            obj = self.store.find(SellableBranchOverride, sellable=self, branch=branch).one()
+        elif klass == Product:
+            obj = self.store.find(ProductBranchOverride, product=self, branch=branch).one()
+
+        original = getattr(self, '__' + name)
+        return getattr(obj, name, original) or original
+
+    def _set(self, value):
+        assert False, self
+
+    return property(_get, _set)
+
+
+# Monkey patch sellable overrides until we properly implement this in stoq
+# FIXME: https://gitlab.com/stoqtech/private/stoq-server/issues/45
+Sellable.default_sale_cfop = override(Sellable.default_sale_cfop)
+
+
 class UnhandledMisconfiguration(Exception):
     pass
 
@@ -161,7 +198,7 @@ class DataResource(BaseResource):
 
         # SellableCategory and Sellable/Product data
         # FIXME: Remove categories that have no products inside them
-        for c in store.find(SellableCategory):
+        for c in store.find(SellableCategory).order_by(Desc('sort_order'), 'description'):
             if c.category_id is None:
                 parent_list = categories_root
             else:
@@ -181,7 +218,7 @@ class DataResource(BaseResource):
 
             tables = [Sellable, LeftJoin(Product, Product.id == Sellable.id)]
 
-            if branch.person.company.cnpj.startswith('11.950.487'):
+            if api.sysparam.get_bool('REQUIRE_PRODUCT_BRANCH_OVERRIDE'):
                 # For now, only display products that have a fiscal configuration for the
                 # current branch. We should find a better way to ensure this in the future
                 tables.append(
