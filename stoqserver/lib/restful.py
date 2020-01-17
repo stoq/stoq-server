@@ -846,7 +846,7 @@ class SaleResourceMixin:
         - Sale/Advance already saved checking
     """
 
-    def _check_already_saved(self, store, klass, obj_id):
+    def _check_already_saved(self, store, klass, obj_id, should_print_receipts):
         existing_sale = store.get(klass, obj_id)
         if existing_sale:
             log.info('Sale already saved: %s' % obj_id)
@@ -855,7 +855,10 @@ class SaleResourceMixin:
             # need specific handling.
             is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(existing_sale)[0][1]
             if is_coupon_transmitted:
-                return self._handle_coupon_printing_fail(existing_sale)
+                if should_print_receipts:
+                    return self._handle_coupon_printing_fail(existing_sale)
+                return {'sale_id': obj_id}, 200
+
             raise AssertionError(_('Sale already saved'))
 
     def _create_client(self, store, document, data):
@@ -1037,7 +1040,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
         client, client_document, coupon_document = self._get_client_and_document(store, data)
 
         sale_id = data.get('sale_id')
-        early_response = self._check_already_saved(store, Sale, sale_id)
+        early_response = self._check_already_saved(store, Sale, sale_id, should_print_receipts)
         if early_response:
             return early_response
 
