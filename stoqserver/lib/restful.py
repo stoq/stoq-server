@@ -1101,12 +1101,29 @@ class SaleResource(BaseResource, SaleResourceMixin):
         # Add products
         for p in products:
             sellable = store.get(Sellable, p['id'])
-            item = sale.add_sellable(sellable, price=currency(p['price']),
-                                     quantity=decimal.Decimal(p['quantity']))
-            # XXX: bdil has requested that when there is a special discount, the discount does
-            # not appear on the coupon. Instead, the item wil be sold using the discount price
-            # as the base price. Maybe this should be a parameter somewhere
-            item.base_price = item.price
+            product = sellable.product
+            if product and product.is_package:
+                parent = sale.add_sellable(sellable, price=0,
+                                           quantity=decimal.Decimal(p['quantity']))
+                # XXX: Maybe this should be done in sale.add_sellable automatically, but this would
+                # require refactoring stoq as well.
+                # TODO: Tests will come in the next patchset
+                for child in product.get_components():
+                    quantity = child.quantity * decimal.Decimal(p['quantity'])
+                    item = sale.add_sellable(child.component.sellable, price=child.price,
+                                             quantity=quantity, parent=parent)
+                    # FIXME: The same comment bellow applies
+                    item.base_price = item.price
+            else:
+                item = sale.add_sellable(sellable, price=currency(p['price']),
+                                         quantity=decimal.Decimal(p['quantity']))
+
+                # FIXME: There seems to be a parameter in the nfce plugin to handle exactly this. We
+                # should duplicate the behaviour for the sat plugin and remove this code
+                # XXX: bdil has requested that when there is a special discount, the discount does
+                # not appear on the coupon. Instead, the item wil be sold using the discount price
+                # as the base price. Maybe this should be a parameter somewhere
+                item.base_price = item.price
 
         # Add payments
         self._create_payments(store, group, branch, station,

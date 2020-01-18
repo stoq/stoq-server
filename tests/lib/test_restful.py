@@ -271,6 +271,35 @@ def test_dont_remove_passbook_stamps_if_type_points(
     assert signal('StartPassbookSaleEvent').send.call_count == 0
 
 
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_sale_with_package(client, sale_payload, example_creator, store):
+    child1 = example_creator.create_product(price=88, description='child1', stock=5, code='98')
+    child2 = example_creator.create_product(price=8, description='child2', stock=5, code='99')
+
+    # But in a package, they have special prices
+    package = example_creator.create_product(price=15, description=u'package', is_package=True)
+    example_creator.create_product_component(product=package, component=child1, price=10)
+    example_creator.create_product_component(product=package, component=child2, price=5)
+
+    sale_payload['products'] = [{
+        'id': package.id,
+        'price': str(package.sellable.price),
+        'quantity': 1,
+    }]
+
+    response = client.post('/sale', json=sale_payload)
+    sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
+
+    assert response.status_code == 200
+    assert sale.get_total_sale_amount() == 15
+
+    items = list(sale.get_items())
+    assert len(items) == 3  # 3, since the parent is also in the sale
+
+    sellables = set(i.sellable for i in items)
+    assert sellables == {package.sellable, child1.sellable, child2.sellable}
+
+
 def test_data_resource(client):
     response = client.get('/data')
 
