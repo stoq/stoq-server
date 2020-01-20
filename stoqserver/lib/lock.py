@@ -81,10 +81,17 @@ def lock_printer(func):
     This will make sure that only one callsite is using the printer at a time.
     """
     def new_func(*args, **kwargs):
-        if printer_lock.locked():
-            log.info('Waiting printer lock release in func %s' % func)
 
-        with printer_lock:
+        if not is_multiclient:
+            if printer_lock.locked():
+                log.info('Waiting printer lock release in func %s', func)
+            # Only acquire the lock if running in single client mode. Multi client mode cannot
+            # have any locks in the requests
+            printer_lock.acquire()
+
+        try:
             return func(*args, **kwargs)
+        finally:
+            printer_lock.release()
 
     return new_func

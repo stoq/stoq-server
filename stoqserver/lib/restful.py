@@ -738,8 +738,10 @@ class TefResource(BaseResource):
                 raise TillError(_('There is no till open'))
 
         try:
-            with printer_lock:
-                self.ensure_printer(station)
+            # Only lock printer in single client mode
+            if not is_multiclient:
+                with printer_lock:
+                    self.ensure_printer(station)
         except Exception:
             EventStream.put(station, {
                 'type': 'TEF_OPERATION_FINISHED',
