@@ -1164,7 +1164,9 @@ class AdvancePaymentResource(BaseResource, SaleResourceMixin):
             client = self._create_client(store, client_document, data)
 
         advance_id = data.get('sale_id')
-        early_response = self._check_already_saved(store, AdvancePayment, advance_id)
+        should_print_receipts = data.get('print_receipts', True)
+        early_response = self._check_already_saved(
+            store, AdvancePayment, advance_id, should_print_receipts)
         if early_response:
             return early_response
 
