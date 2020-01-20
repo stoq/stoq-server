@@ -258,6 +258,23 @@ class DataResource(BaseResource):
 
         return providers
 
+    def _get_parameters(self):
+        params = [
+            ('NFCE_CAN_SEND_DIGITAL_INVOICE', bool, 'nfce', False),
+            ('NFE_SEFAZ_TIMEOUT', int, 'nfce', 10)
+        ]
+
+        retval = {}
+        active_plugins = get_plugin_manager().active_plugins_names
+        for param_name, param_type, plugin_name, fallback_value in params:
+            # We fetch the param value if the param comes from stoq (plugin_name is None)
+            # or the informed plugin is active
+            if not plugin_name or plugin_name in active_plugins:
+                retval[param_name] = api.sysparam.get(param_name, param_type)
+            else:
+                retval[param_name] = fallback_value
+        return retval
+
     def get_data(self, store):
         """Returns all data the POS needs to run
 
@@ -277,10 +294,6 @@ class DataResource(BaseResource):
         can_send_sms = config.get("Twilio", "sid") is not None
         iti_discount = True if config.get("Discounts", "iti") == '1' else False
         hotjar_id = config.get("Hotjar", "id")
-        try:
-            can_send_digital_invoice = api.sysparam.get_bool('NFCE_CAN_SEND_DIGITAL_INVOICE')
-        except ValueError:
-            can_send_digital_invoice = False
 
         sat_status = pinpad_status = printer_status = True
         if not is_multiclient:
@@ -320,9 +333,7 @@ class DataResource(BaseResource):
                 person_name=user.person.name,
                 profile_id=user.profile_id,
             ),
-            parameters=dict(
-                NFCE_CAN_SEND_DIGITAL_INVOICE=can_send_digital_invoice,
-            ),
+            parameters=self._get_parameters(),
             categories=self._get_categories(store, station),
             payment_methods=self._get_payment_methods(store),
             providers=self._get_card_providers(store),

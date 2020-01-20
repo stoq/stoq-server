@@ -114,8 +114,21 @@ def open_till(current_till, current_user):
 
 
 @pytest.fixture
+def plugin_manager():
+    plugin_manager = mock.Mock()
+    plugin_manager.active_plugins_names = ["nfce"]
+    return plugin_manager
+
+
+@pytest.fixture
 def mock_new_store(monkeypatch, store):
     monkeypatch.setattr('stoqserver.lib.restful.api.new_store', mock.Mock(return_value=store))
+
+
+@pytest.fixture
+def mock_get_plugin_manager(monkeypatch, plugin_manager):
+    monkeypatch.setattr('stoqserver.lib.restful.get_plugin_manager',
+                        mock.Mock(return_value=plugin_manager))
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -203,14 +216,16 @@ def test_data_resource_with_hotjar_config(get_config_mock, client):
 
 
 @mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
 def test_data_resource_with_send_digital_invoice_parameter_as_true(api_mock, client):
-    api_mock.sysparam.get_bool.return_value = True
+    api_mock.sysparam.get.return_value = True
     response = client.get('/data')
     assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is True
 
 
 @mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
 def test_data_resource_with_send_digital_invoice_parameter_as_false(api_mock, client):
-    api_mock.sysparam.get_bool.return_value = False
+    api_mock.sysparam.get.return_value = False
     response = client.get('/data')
     assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is False
