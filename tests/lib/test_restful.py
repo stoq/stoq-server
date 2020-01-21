@@ -12,6 +12,7 @@ from stoqlib.domain.sale import Sale
 from storm.expr import Desc
 
 from stoqserver.app import bootstrap_app
+from blinker import signal
 
 
 class StoqTestClient(FlaskClient):
@@ -131,6 +132,24 @@ def mock_get_plugin_manager(monkeypatch, plugin_manager):
                         mock.Mock(return_value=plugin_manager))
 
 
+@pytest.fixture
+def passbook_client():
+    return {
+        'name': 'Test client',
+        'doc': '123.123.123-12',
+        'passbook_client_info': {
+            'user': {
+                'name': 'Test client',
+                'uniqueId': '123.123.123-12',
+            },
+            'hasPinNumber': 'false',
+            'type': 'stamps',
+            'points': "10",
+            'stamps_limit': 10
+        }
+    }
+
+
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
 @pytest.mark.parametrize('order_number', ('0', '', None))
 @pytest.mark.usefixtures('kps_station', 'open_till', 'mock_new_store')
@@ -193,6 +212,63 @@ def test_sale_with_discount(client, sale_payload, store):
     assert response.status_code == 200
     assert sale.get_total_sale_amount() == currency('75')
     assert sale.discount_value == currency('25')
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_remove_passbook_stamps(
+    client, sale_payload, passbook_client, current_station, current_user
+):
+    signal('StartPassbookSaleEvent').send = mock.Mock()
+
+    data = {
+        'value': 10,
+        'card_type': "credit",
+        'provider': "",
+        'user': current_user,
+        'sale_ref': None,
+        'client': {
+            'name': 'Test client',
+            'doc': '123.123.123-12',
+            'passbook_client_info': passbook_client['passbook_client_info']
+        },
+    }
+
+    sale_payload['passbook_client_info'] = passbook_client['passbook_client_info']
+    sale_payload['discount_value'] = 9
+    client.post('/sale', json=sale_payload)
+
+    assert signal('StartPassbookSaleEvent').send.call_count == 1
+    signal('StartPassbookSaleEvent').send.assert_called_with(
+        current_station, **data
+    )
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_dont_remove_passbook_stamps(
+    client, sale_payload, passbook_client, current_station, current_user
+):
+    signal('StartPassbookSaleEvent').send = mock.Mock()
+
+    passbook_client['passbook_client_info']['points'] = '5'
+
+    sale_payload['passbook_client_info'] = passbook_client['passbook_client_info']
+    client.post('/sale', json=sale_payload)
+
+    assert signal('StartPassbookSaleEvent').send.call_count == 0
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_dont_remove_passbook_stamps_if_type_points(
+    client, sale_payload, passbook_client, current_station, current_user
+):
+    signal('StartPassbookSaleEvent').send = mock.Mock()
+
+    passbook_client['passbook_client_info']['type'] = 'points'
+
+    sale_payload['passbook_client_info'] = passbook_client['passbook_client_info']
+    client.post('/sale', json=sale_payload)
+
+    assert signal('StartPassbookSaleEvent').send.call_count == 0
 
 
 def test_data_resource(client):

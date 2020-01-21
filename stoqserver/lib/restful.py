@@ -1041,6 +1041,21 @@ class SaleResource(BaseResource, SaleResourceMixin):
         station = self.get_current_station(api.get_default_store())
         EventStream.put(station, {'type': 'NFE_SUCCESS', 'message': message, 'details': details})
 
+    def _remove_passbook_stamps(self, store, passbook_client, sale_id):
+        data = {
+            'value': passbook_client['stamps_limit'],
+            'card_type': "credit",
+            'provider': "",
+            'user': self.get_current_user(store),
+            'sale_ref': sale_id,
+            'client': {
+                'name': passbook_client['user']['name'],
+                'doc': passbook_client['user']['uniqueId'],
+                'passbook_client_info': passbook_client
+            },
+        }
+        signal('StartPassbookSaleEvent').send(self.get_current_station(store), **data)
+
     @lock_printer
     @lock_sat(block=True)
     def post(self, store):
@@ -1067,7 +1082,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         station = self.get_current_station(store)
         user = self.get_current_user(store)
         group = PaymentGroup(store=store)
-        discount_value = data.get('discount_value')
+        discount_value = data.get('discount_value', 0)
+        passbook_client = data.get('passbook_client_info')
         sale = Sale(
             store=store,
             id=sale_id,
@@ -1095,6 +1111,10 @@ class SaleResource(BaseResource, SaleResourceMixin):
         # Add payments
         self._create_payments(store, group, branch, station,
                               sale.get_total_sale_amount(), data['payments'])
+
+        if (discount_value > 0 and passbook_client and passbook_client['type'] == 'stamps'
+            and int(passbook_client['points']) >= passbook_client['stamps_limit']):
+            self._remove_passbook_stamps(store, passbook_client, sale_id)
 
         # Confirm the sale
         group.confirm()
