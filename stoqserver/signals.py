@@ -41,3 +41,5 @@ GenerateInvoicePictureEvent = signal('GenerateInvoicePictureEvent')
 ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
 
 PrintKitchenCouponEvent = signal('PrintKitchenCouponEvent')
+
+StartPassbookSaleEvent = signal('StartPassbookSaleEvent')

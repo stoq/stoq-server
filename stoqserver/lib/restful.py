@@ -76,7 +76,8 @@ from .lock import lock_pinpad, lock_printer, lock_sat, printer_lock, LockFailedE
 from ..api.decorators import login_required, store_provider
 from ..signals import (GenerateAdvancePaymentReceiptPictureEvent, GenerateInvoicePictureEvent,
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
-                       PrintKitchenCouponEvent, ProcessExternalOrderEvent, TefPrintReceiptsEvent)
+                       PrintKitchenCouponEvent, ProcessExternalOrderEvent, TefPrintReceiptsEvent,
+                       StartPassbookSaleEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1054,7 +1055,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
                 'passbook_client_info': passbook_client
             },
         }
-        signal('StartPassbookSaleEvent').send(self.get_current_station(store), **data)
+        StartPassbookSaleEvent.send(self.get_current_station(store), **data)
 
     @lock_printer
     @lock_sat(block=True)

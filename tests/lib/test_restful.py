@@ -12,7 +12,6 @@ from stoqlib.domain.sale import Sale
 from storm.expr import Desc
 
 from stoqserver.app import bootstrap_app
-from blinker import signal
 
 
 class StoqTestClient(FlaskClient):
@@ -214,12 +213,11 @@ def test_sale_with_discount(client, sale_payload, store):
     assert sale.discount_value == currency('25')
 
 
+@mock.patch('stoqserver.lib.restful.StartPassbookSaleEvent.send')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_remove_passbook_stamps(
-    client, sale_payload, passbook_client, current_station, current_user
+    mock_passbook_send_event, client, sale_payload, passbook_client, current_station, current_user
 ):
-    signal('StartPassbookSaleEvent').send = mock.Mock()
-
     data = {
         'value': 10,
         'card_type': "credit",
@@ -235,40 +233,44 @@ def test_remove_passbook_stamps(
 
     sale_payload['passbook_client_info'] = passbook_client['passbook_client_info']
     sale_payload['discount_value'] = 9
-    client.post('/sale', json=sale_payload)
+    response = client.post('/sale', json=sale_payload)
 
-    assert signal('StartPassbookSaleEvent').send.call_count == 1
-    signal('StartPassbookSaleEvent').send.assert_called_with(
+    assert response.status_code == 200
+    mock_passbook_send_event.assert_called_once_with(
         current_station, **data
     )
 
 
+@mock.patch('stoqserver.lib.restful.StartPassbookSaleEvent.send')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_dont_remove_passbook_stamps(
-    client, sale_payload, passbook_client, current_station, current_user
+    mock_passbook_send_event, client, sale_payload, passbook_client, current_station, current_user
 ):
-    signal('StartPassbookSaleEvent').send = mock.Mock()
-
     passbook_client['passbook_client_info']['points'] = '5'
 
     sale_payload['passbook_client_info'] = passbook_client['passbook_client_info']
     client.post('/sale', json=sale_payload)
 
-    assert signal('StartPassbookSaleEvent').send.call_count == 0
+    response = client.post('/sale', json=sale_payload)
+
+    assert response.status_code == 200
+    assert mock_passbook_send_event.send.call_count == 0
 
 
+@mock.patch('stoqserver.lib.restful.StartPassbookSaleEvent.send')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_dont_remove_passbook_stamps_if_type_points(
-    client, sale_payload, passbook_client, current_station, current_user
+    mock_passbook_send_event, client, sale_payload, passbook_client, current_station, current_user
 ):
-    signal('StartPassbookSaleEvent').send = mock.Mock()
-
     passbook_client['passbook_client_info']['type'] = 'points'
 
     sale_payload['passbook_client_info'] = passbook_client['passbook_client_info']
     client.post('/sale', json=sale_payload)
 
-    assert signal('StartPassbookSaleEvent').send.call_count == 0
+    response = client.post('/sale', json=sale_payload)
+
+    assert response.status_code == 200
+    assert mock_passbook_send_event.send.call_count == 0
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
