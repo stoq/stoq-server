@@ -336,3 +336,39 @@ def test_data_resource_with_send_digital_invoice_parameter_as_false(api_mock, cl
     api_mock.sysparam.get.return_value = False
     response = client.get('/data')
     assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is False
+
+
+@pytest.mark.parametrize('query_string', ({}, {'partial_document': None}, {'partial_document': ''}))
+def test_passbook_users_get_missing_parameter(client, query_string):
+    response = client.get('/passbook/users', query_string=query_string)
+
+    assert response.status_code == 400
+    assert 'Missing partial document' in response.json['message']
+
+
+@pytest.mark.parametrize('partial_doc', ('1', '12', '1' * 12))
+@mock.patch('stoqserver.lib.restful.SearchForPassbookUsersByDocumentEvent.send')
+def test_passbook_users_get_invalid_partial_document(mock_event_send, client, partial_doc):
+    mock_event_send.side_effect = ValueError('invalid partial document')
+
+    response = client.get('/passbook/users', query_string={'partial_document': partial_doc})
+
+    assert response.status_code == 400
+    assert 'Invalid partial document' in response.json['message']
+    mock_event_send.assert_called_once_with(partial_doc)
+
+
+@mock.patch('stoqserver.lib.restful.SearchForPassbookUsersByDocumentEvent.send')
+def test_passbook_users_get(mock_event_send, client):
+    partial_doc = '666'
+    users = [
+        {'document': '66612345612', 'name': 'Cuca Beludo da Silva'},
+        {'document': '66601234512', 'name': 'Dalva Gina de Carvalho'},
+    ]
+    mock_event_send.return_value = [(None, users)]
+
+    response = client.get('/passbook/users', query_string={'partial_document': partial_doc})
+
+    assert response.status_code == 200
+    assert response.json == users
+    mock_event_send.assert_called_once_with(partial_doc)

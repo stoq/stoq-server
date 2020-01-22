@@ -76,8 +76,9 @@ from .lock import lock_pinpad, lock_printer, lock_sat, printer_lock, LockFailedE
 from ..api.decorators import login_required, store_provider
 from ..signals import (GenerateAdvancePaymentReceiptPictureEvent, GenerateInvoicePictureEvent,
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
-                       PrintKitchenCouponEvent, ProcessExternalOrderEvent, TefPrintReceiptsEvent,
-                       StartPassbookSaleEvent)
+                       PrintKitchenCouponEvent, ProcessExternalOrderEvent,
+                       SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
+                       TefPrintReceiptsEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1335,3 +1336,19 @@ class SmsResource(BaseResource):
         message = GetCouponSmsTextEvent.send(sale)[0][1]
         to = '+55' + self.get_json()['phone_number']
         return self._send_sms(to, message)
+
+
+class PassbookUsersResource(BaseResource):
+    """Resource for fetching users given the beginning of a document (CPF)"""
+    routes = ['/passbook/users']
+    method_decorators = [login_required, store_provider]
+
+    def get(self, store):
+        partial_doc = request.args.get('partial_document')
+        if not partial_doc:
+            abort(400, 'Missing partial document')
+
+        try:
+            return SearchForPassbookUsersByDocumentEvent.send(partial_doc)[0][1]
+        except ValueError:
+            abort(400, 'Invalid partial document')

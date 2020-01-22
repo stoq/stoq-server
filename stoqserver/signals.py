@@ -43,3 +43,4 @@ ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
 PrintKitchenCouponEvent = signal('PrintKitchenCouponEvent')
 
 StartPassbookSaleEvent = signal('StartPassbookSaleEvent')
+SearchForPassbookUsersByDocumentEvent = signal('SearchForPassbookUsersByDocumentEvent')
