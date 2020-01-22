@@ -21,16 +21,12 @@ stages:
 before_script:
   # Install stoqlib from master.
   - apt update
-  - apt --yes install libcairo2-dev libgirepository1.0-dev python3-pip python3-virtualenv libpq-dev swig
+  - apt --yes install libcairo2-dev
   - git clone https://github.com/stoq/stoq.git --depth 1
-  - python3 -m venv env
-  - source env/bin/activate
-  - python --version
-  - which python
-  - pip --version
-  - pip install -U kiwi-gtk setuptools pip wheel
-  - pip install -e stoq
-  - pip install https://github.com/stoq/stoqdrivers/archive/master.zip
+  - easy_install3 pip
+  - pip install -U setuptools pip
+  - pip install pycairo
+  - pip install -e stoq --no-deps
   - pip install -r requirements-test.txt
   - pip freeze
 
@@ -44,6 +40,8 @@ test:
   script:
     # Install tools to create debian packages
     - apt update
+    - python --version
+    - python2 --version
     - apt --yes install devscripts debhelper python3-all
     - rm -rf dist
     - make deb
