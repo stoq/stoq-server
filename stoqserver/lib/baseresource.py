@@ -36,6 +36,7 @@ from stoqlib.api import api
 from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.token import AccessToken
 from stoqlib.lib.pluginmanager import get_plugin_manager, PluginError
+from ..app import is_multiclient
 from .lock import printer_lock
 
 log = logging.getLogger(__name__)
@@ -83,6 +84,10 @@ class BaseResource(Resource):
 
     @classmethod
     def ensure_printer(cls, station, retries=20):
+        # In multiclient mode there is no local printer
+        if is_multiclient:
+            return
+
         assert printer_lock.locked()
 
         store = api.get_default_store()
