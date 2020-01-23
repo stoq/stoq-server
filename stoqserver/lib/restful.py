@@ -1130,7 +1130,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
                               sale.get_total_sale_amount(), data['payments'])
 
         if (discount_value > 0 and passbook_client and passbook_client['type'] == 'stamps'
-            and int(passbook_client['points']) >= passbook_client['stamps_limit']):
+                and decimal.Decimal(passbook_client['points']) >= passbook_client['stamps_limit']):
             self._remove_passbook_stamps(store, passbook_client, sale_id)
 
         # Confirm the sale
