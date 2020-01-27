@@ -408,7 +408,7 @@ class TillResource(BaseResource):
     routes = ['/till']
     method_decorators = [login_required]
 
-    def _open_till(self, store, initial_cash_amount=0):
+    def _handle_open_till(self, store, initial_cash_amount=0):
         station = self.get_current_station(store)
         last_till = Till.get_last(store, station)
         if not last_till or last_till.status != Till.STATUS_OPEN:
@@ -416,17 +416,8 @@ class TillResource(BaseResource):
             till = Till(store=store, station=station, branch=station.branch)
             till.open_till(self.get_current_user(store))
             till.initial_cash_amount = decimal.Decimal(initial_cash_amount)
-        else:
-            # Error, till already opened
-            assert False
 
-    def _close_till(self, store, till_summaries, include_receipt_image=False):
-        station = self.get_current_station(store)
-        if not include_receipt_image:
-            self.ensure_printer(station)
-        # Here till object must exist
-        till = Till.get_last(store, station)
-
+    def _close_till(self, store, till, till_summaries):
         # Create TillSummaries
         till.get_day_summary()
 
@@ -450,12 +441,21 @@ class TillResource(BaseResource):
             till.add_debit_entry(balance, _('Blind till closing'))
         till.close_till(self.get_current_user(store))
 
+    def _handle_close_till(self, store, till_summaries, include_receipt_image=False):
+        station = self.get_current_station(store)
+        if not include_receipt_image:
+            self.ensure_printer(station)
+        # Here till object must exist
+        till = Till.get_last(store, station)
+        if till.status == Till.STATUS_OPEN:
+            self._close_till(store, till, till_summaries)
+
         # The close till report will not be printed here, but can still be printed in
         # the frontend (using an image)
         if include_receipt_image:
             image = None
             responses = signal('GenerateTillClosingReceiptImageEvent').send(till)
-            if (len(responses) == 1):  # Only nonfiscal plugin should answer this signal
+            if len(responses) == 1:  # Only nonfiscal plugin should answer this signal
                 image = responses[0][1]
             return {'image': image}
 
@@ -494,10 +494,10 @@ class TillResource(BaseResource):
         with api.new_store() as store:
             # Provide responsible
             if data['operation'] == 'open_till':
-                reply = self._open_till(store, data['initial_cash_amount'])
+                reply = self._handle_open_till(store, data['initial_cash_amount'])
             elif data['operation'] == 'close_till':
-                reply = self._close_till(store,
-                                         data['till_summaries'], data['include_receipt_image'])
+                reply = self._handle_close_till(store, data['till_summaries'],
+                                                data['include_receipt_image'])
             elif data['operation'] in ['debit_entry', 'credit_entry']:
                 reply = self._add_credit_or_debit_entry(store, data)
             else:
