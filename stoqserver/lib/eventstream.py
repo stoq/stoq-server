@@ -22,8 +22,10 @@
 # Author(s): Stoq Team <stoq-devel@async.com.br>
 #
 
-import logging
+from contextlib import suppress
+from enum import Enum
 import json
+import logging
 from typing import Dict
 
 from flask import request, Response
@@ -40,6 +42,24 @@ log = logging.getLogger(__name__)
 
 # pyflakes
 Dict
+
+
+DRAWER_STATUS_TO_EVENT_TYPE_MAP = {
+    True: 'DRAWER_ALERT_OPEN',
+    False: 'DRAWER_ALERT_CLOSE',
+    None: 'DRAWER_ALERT_ERROR',
+}
+
+
+class DeviceType(Enum):
+    DRAWER = 'drawer'
+    PRINTER = 'printer'
+    SAT = 'sat'
+    PINPAD = 'pinpad'
+
+
+class EventStreamUnconnectedStation(Exception):
+    pass
 
 
 class EventStreamBrokenException(Exception):
@@ -71,7 +91,9 @@ class EventStream(BaseResource):
     @classmethod
     def put(cls, station, data):
         """Put a event only on the client stream"""
-        assert station.id in cls._streams
+        if not station.id in cls._streams:
+            raise EventStreamUnconnectedStation
+
         cls._streams[station.id].put(data)
 
     @classmethod
@@ -104,6 +126,30 @@ class EventStream(BaseResource):
         assert cls._waiting_reply[station_id].is_set()
 
         return cls._replies[station_id].put(reply)
+
+    @classmethod
+    def _get_event_for_device(cls, device_type: DeviceType, device_status: bool):
+        if device_type == DeviceType.DRAWER:
+            return {
+                'type': DRAWER_STATUS_TO_EVENT_TYPE_MAP[device_status],
+            }
+
+        if device_type in [DeviceType.PRINTER, DeviceType.SAT, DeviceType.PINPAD]:
+            return {
+                'type': 'DEVICE_STATUS_CHANGED',
+                'device': device_type.value,
+                'status': device_status,
+            }
+
+    @classmethod
+    def put_device_status_changed(cls, station, device_type: DeviceType, device_status: bool):
+        """Put a device status changed event in a station stream"""
+        event = cls._get_event_for_device(device_type, device_status)
+        if not event:
+            return
+
+        with suppress(EventStreamUnconnectedStation):
+            cls.put(station, event)
 
     def _loop(self, stream: Queue, station_id):
         while True:

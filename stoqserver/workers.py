@@ -47,7 +47,7 @@ from stoqlib.lib.pluginmanager import get_plugin_manager
 from . import __version__ as stoqserver_version
 from .lib.checks import check_drawer, check_pinpad, check_sat
 from .lib.lock import LockFailedException
-from .lib.restful import EventStream
+from .lib.eventstream import EventStream, DeviceType
 from .signals import CheckSatStatusEvent
 
 logger = logging.getLogger(__name__)
@@ -76,20 +76,11 @@ def check_drawer_loop(station):
         new_is_open = check_drawer()
 
         if is_open != new_is_open:
-            message = {
-                True: 'DRAWER_ALERT_OPEN',
-                False: 'DRAWER_ALERT_CLOSE',
-                None: 'DRAWER_ALERT_ERROR',
-            }
-            EventStream.put(station, {
-                'type': message[new_is_open],
-            })
-            status_printer = None if new_is_open is None else True
-            EventStream.put(station, {
-                'type': 'DEVICE_STATUS_CHANGED',
-                'device': 'printer',
-                'status': status_printer,
-            })
+            printer_status = None if new_is_open is None else True
+
+            EventStream.put_device_status_changed(station, DeviceType.DRAWER, new_is_open)
+            EventStream.put_device_status_changed(station, DeviceType.PRINTER, printer_status)
+
             is_open = new_is_open
 
         gevent.sleep(1)
@@ -110,11 +101,8 @@ def check_sat_loop(station):
             new_sat_ok = sat_ok
 
         if sat_ok != new_sat_ok:
-            EventStream.put(station, {
-                'type': 'DEVICE_STATUS_CHANGED',
-                'device': 'sat',
-                'status': new_sat_ok,
-            })
+            EventStream.put_device_status_changed(station, DeviceType.SAT, new_sat_ok)
+
             sat_ok = new_sat_ok
 
         gevent.sleep(60 * 5)
@@ -132,11 +120,8 @@ def check_pinpad_loop(station):
             new_pinpad_ok = pinpad_ok
 
         if pinpad_ok != new_pinpad_ok:
-            EventStream.put(station, {
-                'type': 'DEVICE_STATUS_CHANGED',
-                'device': 'pinpad',
-                'status': new_pinpad_ok,
-            })
+            EventStream.put_device_status_changed(station, DeviceType.PINPAD, new_pinpad_ok)
+
             pinpad_ok = new_pinpad_ok
 
         gevent.sleep(60)
