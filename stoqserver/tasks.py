@@ -211,65 +211,6 @@ def start_htsql(port):
     popen.wait()
 
 
-def start_rtc():
-    if not api.sysparam.get_bool('ONLINE_SERVICES'):
-        logger.info("ONLINE_SERVICES not enabled. Not starting rtc...")
-        return
-
-    config = get_config()
-    if config.get('General', 'disable_rtc'):
-        logger.info("Not starting rtc as requested in config file.")
-        return
-
-    logger.info("Starting webRTC")
-
-    cwd = library.get_resource_filename('stoqserver', 'webrtc')
-    retry = True
-
-    extra_args = []
-    camera_urls = config.get('Camera', 'url') or None
-    if camera_urls:
-        extra_args.append('-c=' + ' '.join(set(camera_urls.split(' '))))
-
-    xmlrpc_host = config.get('General', 'serveraddress') or '127.0.0.1'
-    extra_args.append('-h={}'.format(xmlrpc_host))
-
-    xmlrpc_port = config.get('General', 'serverport') or SERVER_XMLRPC_PORT
-    extra_args.append('-p={}'.format(xmlrpc_port))
-
-    while retry:
-        retry = False
-        popen = Process(
-            ['bash', 'start.sh'] + extra_args, cwd=cwd)
-
-        def _sigterm_handler(_signal, _stack_frame):
-            popen.poll()
-            if popen.returncode is None:
-                popen.terminate()
-            os._exit(0)
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-        signal.signal(signal.SIGTERM, _sigterm_handler)
-
-        popen.wait()
-        if popen.returncode == 11:
-            logger.warning("libstdc++ too old, not running webRTC client. "
-                           "A system upgrade may be required!")
-            retry = False
-        elif popen.returncode == 10:
-            logger.warning("Something failed when trying to start webrtc. "
-                           "Retrying again in 10 minutes...")
-            time.sleep(10 * 60)
-            retry = True
-        elif popen.returncode == 12:
-            logger.warning("webrtc installation corrupted. Restarting it...")
-            time.sleep(1)
-            retry = True
-        elif popen.returncode == 139:
-            logger.warning("Segmentation fault caught on wrtc. Restarting...")
-            time.sleep(1)
-            retry = True
-
-
 def start_plugins_update_scheduler(event, doing_backup):
     _setup_signal_termination()
 

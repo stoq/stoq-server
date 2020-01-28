@@ -38,10 +38,6 @@ scripts = [
 ]
 
 data_files = [
-    ('$datadir/webrtc',
-     [os.path.join('data', 'webrtc', 'package.json'),
-      os.path.join('data', 'webrtc', 'start.sh')] +
-     listfiles('data', 'webrtc', '*.js')),
     ('$datadir/scripts', listfiles('data', 'scripts', '*.py')),
     ('$datadir/htsql', listfiles('data', 'htsql', '*.yml')),
 ]
