@@ -27,7 +27,7 @@ import json
 from typing import Dict
 
 from flask import request, Response
-from gevent.queue import Queue
+from gevent.queue import Queue, Empty
 from gevent.event import Event
 
 from stoqlib.api import api
@@ -105,9 +105,17 @@ class EventStream(BaseResource):
 
         return cls._replies[station_id].put(reply)
 
-    def _loop(self, stream, station_id):
+    def _loop(self, stream: Queue, station_id):
         while True:
-            data = stream.get()
+            try:
+                data = stream.get(timeout=2)
+            except Empty:
+                if self._streams[station_id] != stream:
+                    log.info('Stream for station %s changed. Closing old stream', station_id)
+                    break
+
+                continue
+
             yield "data: " + json.dumps(data, cls=JsonEncoder) + "\n\n"
         log.info('Closed event stream for %s', station_id)
 
