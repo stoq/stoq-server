@@ -616,8 +616,9 @@ class ExternalClientResource(BaseResource):
 
     def get(self, doc):
         # Extra precaution in case we ever send the cpf already formatted
+        station = self.get_current_station(api.get_default_store())
         doc = format_cpf(raw_document(doc))
-        responses = signal('GetClientInfoEvent').send(doc)
+        responses = signal('GetClientInfoEvent').send(station, document=doc)
 
         data = dict()
         for response in responses:
