@@ -359,7 +359,7 @@ def test_passbook_users_get_invalid_partial_document(
 
     assert response.status_code == 400
     assert 'Invalid partial document' in response.json['message']
-    mock_event_send.assert_called_once_with(current_branch, partial_doc)
+    mock_event_send.assert_called_once_with(current_branch, partial_document=partial_doc)
 
 
 @mock.patch('stoqserver.lib.restful.PassbookUsersResource.get_current_branch')
@@ -378,4 +378,4 @@ def test_passbook_users_get(mock_event_send, mock_get_branch, client, current_br
 
     assert response.status_code == 200
     assert response.json == users
-    mock_event_send.assert_called_once_with(current_branch, partial_doc)
+    mock_event_send.assert_called_once_with(current_branch, partial_document=partial_doc)
