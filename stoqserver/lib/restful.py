@@ -1348,7 +1348,8 @@ class PassbookUsersResource(BaseResource):
         if not partial_doc:
             abort(400, 'Missing partial document')
 
+        branch = self.get_current_branch(store)
         try:
-            return SearchForPassbookUsersByDocumentEvent.send(partial_doc)[0][1]
+            return SearchForPassbookUsersByDocumentEvent.send(branch, partial_doc)[0][1]
         except ValueError:
             abort(400, 'Invalid partial document')

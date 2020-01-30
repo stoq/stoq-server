@@ -347,19 +347,26 @@ def test_passbook_users_get_missing_parameter(client, query_string):
 
 
 @pytest.mark.parametrize('partial_doc', ('1', '12', '1' * 12))
+@mock.patch('stoqserver.lib.restful.PassbookUsersResource.get_current_branch')
 @mock.patch('stoqserver.lib.restful.SearchForPassbookUsersByDocumentEvent.send')
-def test_passbook_users_get_invalid_partial_document(mock_event_send, client, partial_doc):
+def test_passbook_users_get_invalid_partial_document(
+    mock_event_send, mock_get_branch, client, partial_doc, current_branch,
+):
+    mock_get_branch.return_value = current_branch
     mock_event_send.side_effect = ValueError('invalid partial document')
 
     response = client.get('/passbook/users', query_string={'partial_document': partial_doc})
 
     assert response.status_code == 400
     assert 'Invalid partial document' in response.json['message']
-    mock_event_send.assert_called_once_with(partial_doc)
+    mock_event_send.assert_called_once_with(current_branch, partial_doc)
 
 
+@mock.patch('stoqserver.lib.restful.PassbookUsersResource.get_current_branch')
 @mock.patch('stoqserver.lib.restful.SearchForPassbookUsersByDocumentEvent.send')
-def test_passbook_users_get(mock_event_send, client):
+def test_passbook_users_get(mock_event_send, mock_get_branch, client, current_branch):
+    mock_get_branch.return_value = current_branch
+
     partial_doc = '666'
     users = [
         {'document': '66612345612', 'name': 'Cuca Beludo da Silva'},
@@ -371,4 +378,4 @@ def test_passbook_users_get(mock_event_send, client):
 
     assert response.status_code == 200
     assert response.json == users
-    mock_event_send.assert_called_once_with(partial_doc)
+    mock_event_send.assert_called_once_with(current_branch, partial_doc)
