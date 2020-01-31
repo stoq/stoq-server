@@ -229,9 +229,10 @@ class DataResource(BaseResource):
                 })
 
             aux[c.id] = c_dict
-        responses = signal('GetAdvancePaymentCategoryEvent').send()
+        responses = signal('GetAdvancePaymentCategoryEvent').send(station)
         for response in responses:
-            categories_root.append(response[1])
+            if response[1]:
+                categories_root.append(response[1])
 
         return categories_root
 
