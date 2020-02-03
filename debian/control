@@ -13,7 +13,7 @@ X-Python3-Version: >= 3.4
 Package: stoq-server
 Architecture: all
 Depends: ${misc:Depends}, ${python:Depends},
- stoq (>= 3.1), python3-stoqdrivers (>= 1.7.0), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
+ stoq (>= 4.5), python3-stoqdrivers (>= 1.7.0), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
  python3-requests (>= 2.2), python3-netifaces, python3-flask, python3-flask-restful, python-htsql, python-htsql-pgsql, python-requests,
  python3-raven, tmate, python3-gevent, python3-psutil (>= 3.4.2), python3-tzlocal (>= 1.2)
 Recommends: python3-pygments
