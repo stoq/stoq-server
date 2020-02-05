@@ -53,8 +53,17 @@ _ = functools.partial(dgettext, 'stoqserver')
 is_multiclient = False
 
 
+def register_routes(flask_api):
+    # FIXME here we are importing BaseResource from the restful module because we need all
+    # BaseResource subclasses in the restful module to be processed so that the loop below can work.
+    # This is just to maintain the behavior prior to b68e1fecb while we develop a proper solution
+    from stoqserver.lib.restful import BaseResource
+
+    for cls in BaseResource.__subclasses__():
+        flask_api.add_resource(cls, *cls.routes)
+
+
 def bootstrap_app():
-    from stoqserver.lib.baseresource import BaseResource
     app = Flask(__name__)
 
     # Indexing some session data by the USER_HASH will help to avoid maintaining
@@ -64,8 +73,7 @@ def bootstrap_app():
     app.config['PROPAGATE_EXCEPTIONS'] = True
     flask_api = Api(app)
 
-    for cls in BaseResource.__subclasses__():
-        flask_api.add_resource(cls, *cls.routes)
+    register_routes(flask_api)
 
     signal('StoqTouchStartupEvent').send()
 
