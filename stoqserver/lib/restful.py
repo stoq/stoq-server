@@ -1106,6 +1106,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
         products = data['products']
         client_category_id = data.get('price_table')
         should_print_receipts = data.get('print_receipts', True)
+        postpone_emission = data.get('postpone_emission', False)
 
         client, client_document, coupon_document = self._get_client_and_document(store, data)
 
@@ -1199,7 +1200,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         # Fiscal plugins will connect to this event and "do their job"
         # It's their responsibility to raise an exception in case of any error
         try:
-            SaleConfirmedRemoteEvent.emit(sale, coupon_document, should_print_receipts)
+            SaleConfirmedRemoteEvent.emit(sale, coupon_document,
+                                          should_print_receipts, postpone_emission)
         except (NfePrinterException, SatPrinterException):
             return self._handle_coupon_printing_fail(sale)
         except NfeRejectedException as e:
