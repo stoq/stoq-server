@@ -301,7 +301,8 @@ class DataResource(BaseResource):
     def _get_parameters(self):
         params = [
             ('NFCE_CAN_SEND_DIGITAL_INVOICE', bool, 'nfce', False),
-            ('NFE_SEFAZ_TIMEOUT', int, 'nfce', 10)
+            ('NFE_SEFAZ_TIMEOUT', int, 'nfce', 10),
+            ('PASSBOOK_FIDELITY', str, 'passbook', None)
         ]
 
         retval = {}
