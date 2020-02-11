@@ -9,6 +9,7 @@ from flask.testing import FlaskClient
 from kiwi.currency import currency
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.sale import Sale
+from stoqlib.domain.till import Till
 from stoqlib.lib.decorators import cached_property
 from storm.expr import Desc
 
@@ -124,6 +125,13 @@ def open_till(current_till, current_user):
 
 
 @pytest.fixture
+def close_till(open_till, current_user):
+    open_till.close_till(current_user)
+
+    return open_till
+
+
+@pytest.fixture
 def plugin_manager():
     plugin_manager = mock.Mock()
     plugin_manager.active_plugins_names = ["nfce"]
@@ -133,6 +141,12 @@ def plugin_manager():
 @pytest.fixture
 def mock_new_store(monkeypatch, store):
     monkeypatch.setattr('stoqserver.lib.restful.api.new_store', mock.Mock(return_value=store))
+
+
+@pytest.fixture
+def mock_get_default_store(monkeypatch, store):
+    monkeypatch.setattr('stoqserver.lib.restful.api.get_default_store',
+                        mock.Mock(return_value=store))
 
 
 @pytest.fixture
@@ -422,3 +436,50 @@ def test_passbook_users_get(mock_event_send, mock_get_branch, client, current_br
     assert response.status_code == 200
     assert response.json == users
     mock_event_send.assert_called_once_with(current_branch, partial_document=partial_doc)
+
+
+@pytest.mark.usefixtures('mock_get_default_store', 'mock_new_store')
+def test_till_get_without_id(client, open_till):
+    response = client.get('/till')
+
+    assert response.status_code == 200
+    assert response.json['id'] == open_till.id
+
+
+@pytest.mark.usefixtures('mock_get_default_store', 'mock_new_store')
+def test_till_get_with_open_till(client, open_till):
+    response = client.get('/till/{}'.format(open_till.id))
+
+    assert response.status_code == 200
+    assert response.json['id'] == open_till.id
+    assert response.json['status'] == Till.STATUS_OPEN
+
+
+@pytest.mark.usefixtures('mock_get_default_store', 'mock_new_store')
+def test_till_get_with_close_till(client, close_till):
+    response = client.get('/till/{}'.format(close_till.id))
+
+    assert response.status_code == 200
+    assert response.json['id'] == close_till.id
+    assert response.json['status'] == Till.STATUS_CLOSED
+
+
+@pytest.mark.usefixtures('mock_get_default_store', 'mock_new_store')
+def test_till_get_closing_receipt_with_open_till(client, open_till):
+    response = client.get('/till/{}/closing_receipt'.format(open_till.id))
+
+    assert response.status_code == 200
+    assert not response.json
+
+
+@mock.patch('stoqserver.lib.restful.GenerateTillClosingReceiptImageEvent.send')
+@pytest.mark.usefixtures('mock_get_default_store', 'mock_new_store')
+def test_till_get_closing_receipt_with_close_till(mock_get_receipt, client, close_till):
+    fake_image = "eyJ1IjogInRlc3QifQ=="
+    mock_get_receipt.return_value = [(None, fake_image)]
+
+    response = client.get('/till/{}/closing_receipt'.format(close_till.id))
+
+    assert response.status_code == 200
+    assert response.json["id"] == close_till.id
+    assert response.json["image"] == fake_image

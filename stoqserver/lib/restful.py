@@ -78,7 +78,7 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent, GenerateInvoic
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
                        PrintKitchenCouponEvent, ProcessExternalOrderEvent,
                        SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
-                       TefPrintReceiptsEvent)
+                       TefPrintReceiptsEvent, GenerateTillClosingReceiptImageEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -443,14 +443,41 @@ def format_document(document):
         return format_cnpj(document)
 
 
-class TillResource(BaseResource):
-    """Till RESTful resource."""
-    routes = ['/till']
+class TillClosingReceiptResource(BaseResource):
+    routes = ['/till/<uuid:till_id>/closing_receipt']
     method_decorators = [login_required]
 
-    def _handle_open_till(self, store, initial_cash_amount=0):
+    @classmethod
+    def get_till_closing_receipt_image(cls, till):
+        image = None
+        responses = GenerateTillClosingReceiptImageEvent.send(till)
+        if len(responses) == 1:  # Only nonfiscal plugin should answer this signal
+            image = responses[0][1]
+
+        return image
+
+    def get(self, till_id):
+        till = api.get_default_store().get(Till, till_id)
+
+        if not till:
+            abort(404)
+
+        if till.status in [Till.STATUS_PENDING, Till.STATUS_OPEN]:
+            return None
+
+        return {
+            'id': till.id,
+            'image': self.get_till_closing_receipt_image(till)
+        }
+
+
+class TillResource(BaseResource):
+    """Till RESTful resource."""
+    routes = ['/till', '/till/<uuid:till_id>']
+    method_decorators = [login_required]
+
+    def _handle_open_till(self, store, last_till, initial_cash_amount=0):
         station = self.get_current_station(store)
-        last_till = Till.get_last(store, station)
         if not last_till or last_till.status != Till.STATUS_OPEN:
             # Create till and open
             till = Till(store=store, station=station, branch=station.branch)
@@ -481,27 +508,15 @@ class TillResource(BaseResource):
             till.add_debit_entry(balance, _('Blind till closing'))
         till.close_till(self.get_current_user(store))
 
-    def _handle_close_till(self, store, till_summaries, include_receipt_image=False):
+    def _handle_close_till(self, store, till, till_summaries, include_receipt_image=False):
         station = self.get_current_station(store)
         if not include_receipt_image:
             self.ensure_printer(station)
-        # Here till object must exist
-        till = Till.get_last(store, station)
         if till.status == Till.STATUS_OPEN:
             self._close_till(store, till, till_summaries)
 
-        # The close till report will not be printed here, but can still be printed in
-        # the frontend (using an image)
-        if include_receipt_image:
-            image = None
-            responses = signal('GenerateTillClosingReceiptImageEvent').send(till)
-            if len(responses) == 1:  # Only nonfiscal plugin should answer this signal
-                image = responses[0][1]
-            return {'image': image}
-
-    def _add_credit_or_debit_entry(self, store, data):
+    def _add_credit_or_debit_entry(self, store, till, data):
         # Here till object must exist
-        till = Till.get_last(store, self.get_current_station(store))
         user = self.get_current_user(store)
 
         # FIXME: Check balance when removing to prevent negative till.
@@ -528,30 +543,10 @@ class TillResource(BaseResource):
 
         return payment_data
 
-    @lock_printer
-    def post(self):
-        data = self.get_json()
+    def _get_till_data(self, till, include_receipt_image=False):
         with api.new_store() as store:
-            # Provide responsible
-            if data['operation'] == 'open_till':
-                reply = self._handle_open_till(store, data['initial_cash_amount'])
-            elif data['operation'] == 'close_till':
-                reply = self._handle_close_till(store, data['till_summaries'],
-                                                data['include_receipt_image'])
-            elif data['operation'] in ['debit_entry', 'credit_entry']:
-                reply = self._add_credit_or_debit_entry(store, data)
-            else:
-                raise AssertionError('Unkown till operation %r', data['operation'])
-
-        return reply
-
-    def get(self):
-        # Retrieve Till data
-        with api.new_store() as store:
-            till = Till.get_last(store, self.get_current_station(store))
-
             if not till:
-                return None
+                till = Till.get_last(store, self.get_current_station(store))
 
             # Checks the remaining time available for till to be open
             if till.needs_closing():
@@ -564,6 +559,7 @@ class TillResource(BaseResource):
                 expiration_time_in_seconds = (next_close - localnow()).seconds
 
             till_data = {
+                'id': till.id,
                 'status': till.status,
                 'opening_date': till.opening_date.strftime('%Y-%m-%d'),
                 'closing_date': (till.closing_date.strftime('%Y-%m-%d') if
@@ -575,7 +571,42 @@ class TillResource(BaseResource):
                 'expiration_time_in_seconds': expiration_time_in_seconds  # seconds
             }
 
-        return till_data
+            if include_receipt_image:
+                till_data["image"] = TillClosingReceiptResource.get_till_closing_receipt_image(till)
+
+            return till_data
+
+    @lock_printer
+    def post(self):
+        data = self.get_json()
+        with api.new_store() as store:
+            till = Till.get_last(store, self.get_current_station(store))
+
+            # Provide responsible
+            if data['operation'] == 'open_till':
+                self._handle_open_till(store, till, data['initial_cash_amount'])
+            elif data['operation'] == 'close_till':
+                self._handle_close_till(store, till, data['till_summaries'],
+                                        data['include_receipt_image'])
+            elif data['operation'] in ['debit_entry', 'credit_entry']:
+                self._add_credit_or_debit_entry(store, till, data)
+            else:
+                raise AssertionError('Unkown till operation %r', data['operation'])
+
+        return self._get_till_data(None, data.get('include_receipt_image'))
+
+    def get(self, till_id=None):
+        store = api.get_default_store()
+
+        if not till_id:
+            till = Till.get_last(store, self.get_current_station(store))
+        else:
+            till = store.get(Till, till_id)
+
+        if not till:
+            abort(404)
+
+        return self._get_till_data(till)
 
 
 class ClientResource(BaseResource):

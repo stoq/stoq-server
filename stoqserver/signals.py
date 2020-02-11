@@ -37,6 +37,7 @@ PrintAdvancePaymentReceiptEvent = signal('PrintAdvancePaymentReceiptEvent')
 GetAdvancePaymentCategoryEvent = signal('GetAdvancePaymentCategoryEvent')
 GenerateAdvancePaymentReceiptPictureEvent = signal('GenerateAdvancePaymentReceiptPictureEvent')
 GenerateInvoicePictureEvent = signal('GenerateInvoicePictureEvent')
+GenerateTillClosingReceiptImageEvent = signal('GenerateTillClosingReceiptImageEvent')
 
 ProcessExternalOrderEvent = signal('ProcessExternalOrderEvent')
 
