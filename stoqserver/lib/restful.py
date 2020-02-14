@@ -316,12 +316,19 @@ class DataResource(BaseResource):
                 retval[param_name] = fallback_value
         return retval
 
+    def _can_use_cnpj(self, store, branch, plugins):
+        address = branch.person.get_main_address()
+        state = address.city_location.state
+        if state == 'SP' and 'nfce' in plugins:
+            return False
+        return True
+
     def get_data(self, store):
         """Returns all data the POS needs to run
 
         This includes:
 
-        - Which branch and statoin he is operating for
+        - Which branch and station he is operating for
         - Current loged in user
         - What categories it has
             - What sellables those categories have
@@ -335,6 +342,7 @@ class DataResource(BaseResource):
         can_send_sms = config.get("Twilio", "sid") is not None
         iti_discount = True if config.get("Discounts", "iti") == '1' else False
         hotjar_id = config.get("Hotjar", "id")
+        plugins = get_plugin_manager().active_plugins_names
 
         sat_status = pinpad_status = printer_status = True
         if not is_multiclient:
@@ -380,9 +388,10 @@ class DataResource(BaseResource):
             providers=self._get_card_providers(store),
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
+            can_use_cnpj=self._can_use_cnpj(store, branch, plugins),
             iti_discount=iti_discount,
             hotjar_id=hotjar_id,
-            plugins=get_plugin_manager().active_plugins_names,
+            plugins=plugins,
             # Device statuses
             sat_status=sat_status,
             pinpad_status=pinpad_status,
