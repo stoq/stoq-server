@@ -134,7 +134,7 @@ def close_till(open_till, current_user):
 @pytest.fixture
 def plugin_manager():
     plugin_manager = mock.Mock()
-    plugin_manager.active_plugins_names = ["nfce"]
+    plugin_manager.active_plugins_names = ["nfce", "passbook"]
     return plugin_manager
 
 
@@ -331,6 +331,9 @@ def test_data_resource(client):
 
     assert response.json['hotjar_id'] is None
     assert response.json['parameters']['NFCE_CAN_SEND_DIGITAL_INVOICE'] is False
+    assert response.json['parameters']['NFE_SEFAZ_TIMEOUT'] == 10
+    assert response.json['parameters']['PASSBOOK_FIDELITY'] is None
+    assert response.json['parameters']['INCLUDE_CASH_FUND_ON_TILL_CLOSING'] is False
 
 
 # TODO: find a better way to test configs without using mock
@@ -363,9 +366,60 @@ def test_data_resource_with_send_digital_invoice_parameter_as_false(api_mock, cl
 
 
 @mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_with_default_nfe_sefaz_timeout(api_mock, client):
+    api_mock.sysparam.get.return_value = 10
+    response = client.get('/data')
+    assert response.json['parameters']['NFE_SEFAZ_TIMEOUT'] == 10
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_without_default_nfe_sefaz_timeout(api_mock, client):
+    api_mock.sysparam.get.return_value = 666
+    response = client.get('/data')
+    assert response.json['parameters']['NFE_SEFAZ_TIMEOUT'] == 666
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_without_passbook_slogan(api_mock, client):
+    api_mock.sysparam.get.return_value = None
+    response = client.get('/data')
+    assert response.json['parameters']['PASSBOOK_FIDELITY'] is None
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_with_passbook_slogan(api_mock, client):
+    api_mock.sysparam.get.return_value = 'Main Pyke Loyalty Program'
+    response = client.get('/data')
+    assert response.json['parameters']['PASSBOOK_FIDELITY'] == 'Main Pyke Loyalty Program'
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_without_cash_fund_on_till_closing(api_mock, client):
+    api_mock.sysparam.get.return_value = False
+    response = client.get('/data')
+    assert response.json['parameters']['INCLUDE_CASH_FUND_ON_TILL_CLOSING'] is False
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_with_cash_fund_on_till_closing(api_mock, client):
+    api_mock.sysparam.get.return_value = True
+    response = client.get('/data')
+    assert response.json['parameters']['INCLUDE_CASH_FUND_ON_TILL_CLOSING'] is True
+
+
+@mock.patch('stoqserver.lib.restful.api')
 @pytest.mark.usefixtures('mock_new_store')
 def test_data_resource_branch_override(api_mock, client, sellable, example_creator,
                                        current_station):
+    # Mock necessary in order to execute the _get_parameters_ correctly
+    api_mock.sysparam.get.return_value = False
+
     # Insert a category with high priority so that it appears first in our list
     category = example_creator.create_sellable_category()
     category.sort_order = 1000

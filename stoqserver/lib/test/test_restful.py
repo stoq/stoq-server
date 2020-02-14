@@ -201,7 +201,8 @@ class TestDataResource(_TestFlask):
             self.assertEqual(retval['parameters'], {
                 'NFCE_CAN_SEND_DIGITAL_INVOICE': False,
                 'NFE_SEFAZ_TIMEOUT': 10,
-                'PASSBOOK_FIDELITY': None
+                'PASSBOOK_FIDELITY': None,
+                'INCLUDE_CASH_FUND_ON_TILL_CLOSING': False,
             })
             # Those are the default payment methods created by example data
             self.assertEqual(

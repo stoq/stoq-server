@@ -300,9 +300,10 @@ class DataResource(BaseResource):
 
     def _get_parameters(self):
         params = [
+            ('INCLUDE_CASH_FUND_ON_TILL_CLOSING', bool, None, False),
             ('NFCE_CAN_SEND_DIGITAL_INVOICE', bool, 'nfce', False),
             ('NFE_SEFAZ_TIMEOUT', int, 'nfce', 10),
-            ('PASSBOOK_FIDELITY', str, 'passbook', None)
+            ('PASSBOOK_FIDELITY', str, 'passbook', None),
         ]
 
         retval = {}
@@ -503,14 +504,20 @@ class TillResource(BaseResource):
 
             if till_summary['provider']:
                 provider = store.find(CreditProvider, short_name=till_summary['provider']).one()
-                summary = TillSummary.get_or_create(store, till=till, method=method.id,
-                                                    provider=provider.id,
+                summary = TillSummary.get_or_create(store, till=till, method=method,
+                                                    provider=provider,
                                                     card_type=till_summary['card_type'])
+                summary.user_value = decimal.Decimal(till_summary['user_value'])
+
             # Money method has no card_data or provider
             else:
-                summary = TillSummary.get_or_create(store, till=till, method=method.id)
-
-            summary.user_value = decimal.Decimal(till_summary['user_value'])
+                summary = TillSummary.get_or_create(store, till=till, method=method)
+                summary.user_value = decimal.Decimal(till_summary['user_value'])
+                if api.sysparam.get_bool('INCLUDE_CASH_FUND_ON_TILL_CLOSING'):
+                    if summary.user_value < till.initial_cash_amount:
+                        raise TillError(_('You are declaring a value less than the initial amount'))
+                    else:
+                        summary.user_value -= till.initial_cash_amount
 
         balance = till.get_balance()
         if balance:
