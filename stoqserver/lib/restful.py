@@ -552,38 +552,34 @@ class TillResource(BaseResource):
 
         return payment_data
 
-    def _get_till_data(self, till, include_receipt_image=False):
-        with api.new_store() as store:
-            if not till:
-                till = Till.get_last(store, self.get_current_station(store))
+    def _get_till_data(self, store, till, include_receipt_image=False):
+        # Checks the remaining time available for till to be open
+        if till.needs_closing():
+            expiration_time_in_seconds = 0
+        else:
+            # Till must be closed on the next day (midnight) + tolerance time
+            opening_date = till.opening_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            tolerance = api.sysparam.get_int('TILL_TOLERANCE_FOR_CLOSING')
+            next_close = opening_date + datetime.timedelta(days=1, hours=tolerance)
+            expiration_time_in_seconds = (next_close - localnow()).seconds
 
-            # Checks the remaining time available for till to be open
-            if till.needs_closing():
-                expiration_time_in_seconds = 0
-            else:
-                # Till must be closed on the next day (midnight) + tolerance time
-                opening_date = till.opening_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                tolerance = api.sysparam.get_int('TILL_TOLERANCE_FOR_CLOSING')
-                next_close = opening_date + datetime.timedelta(days=1, hours=tolerance)
-                expiration_time_in_seconds = (next_close - localnow()).seconds
+        till_data = {
+            'id': till.id,
+            'status': till.status,
+            'opening_date': till.opening_date.strftime('%Y-%m-%d'),
+            'closing_date': (till.closing_date.strftime('%Y-%m-%d') if
+                             till.closing_date else None),
+            'initial_cash_amount': str(till.initial_cash_amount),
+            'final_cash_amount': str(till.final_cash_amount),
+            # Get payments data that will be used on 'close_till' action.
+            'entry_types': till.status == 'open' and self._get_till_summary(store, till) or [],
+            'expiration_time_in_seconds': expiration_time_in_seconds  # seconds
+        }
 
-            till_data = {
-                'id': till.id,
-                'status': till.status,
-                'opening_date': till.opening_date.strftime('%Y-%m-%d'),
-                'closing_date': (till.closing_date.strftime('%Y-%m-%d') if
-                                 till.closing_date else None),
-                'initial_cash_amount': str(till.initial_cash_amount),
-                'final_cash_amount': str(till.final_cash_amount),
-                # Get payments data that will be used on 'close_till' action.
-                'entry_types': till.status == 'open' and self._get_till_summary(store, till) or [],
-                'expiration_time_in_seconds': expiration_time_in_seconds  # seconds
-            }
+        if include_receipt_image:
+            till_data["image"] = TillClosingReceiptResource.get_till_closing_receipt_image(till)
 
-            if include_receipt_image:
-                till_data["image"] = TillClosingReceiptResource.get_till_closing_receipt_image(till)
-
-            return till_data
+        return till_data
 
     @lock_printer
     def post(self):
@@ -602,20 +598,19 @@ class TillResource(BaseResource):
             else:
                 raise AssertionError('Unkown till operation %r', data['operation'])
 
-        return self._get_till_data(None, data.get('include_receipt_image'))
+            return self._get_till_data(store, till, data.get('include_receipt_image'))
 
     def get(self, till_id=None):
-        store = api.get_default_store()
+        with api.new_store() as store:
+            if not till_id:
+                till = Till.get_last(store, self.get_current_station(store))
+            else:
+                till = store.get(Till, till_id)
 
-        if not till_id:
-            till = Till.get_last(store, self.get_current_station(store))
-        else:
-            till = store.get(Till, till_id)
+            if not till:
+                abort(404)
 
-        if not till:
-            abort(404)
-
-        return self._get_till_data(till)
+            return self._get_till_data(store, till)
 
 
 class ClientResource(BaseResource):
