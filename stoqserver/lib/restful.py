@@ -51,7 +51,7 @@ from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import LoginUser, Person, Client, ClientCategory, Individual
 from stoqlib.domain.product import Product
 from stoqlib.domain.purchase import PurchaseOrder
-from stoqlib.domain.sale import Sale
+from stoqlib.domain.sale import Sale, SaleContext, Context
 from stoqlib.domain.station import BranchStation
 from stoqlib.domain.token import AccessToken
 from stoqlib.domain.payment.renegotiation import PaymentRenegotiation
@@ -321,6 +321,17 @@ class DataResource(BaseResource):
             return False
         return True
 
+    def _get_sale_contexts(self, store, branch):
+        sale_context_list = []
+        for context in store.find(Context, branch=branch):
+            sale_context_list.append({
+                'id': context.id,
+                'name': context.name,
+                'start_time': context.start_time,
+                'end_time': context.end_time,
+            })
+        return sale_context_list
+
     def get_data(self, store):
         """Returns all data the POS needs to run
 
@@ -341,7 +352,6 @@ class DataResource(BaseResource):
         iti_discount = True if config.get("Discounts", "iti") == '1' else False
         hotjar_id = config.get("Hotjar", "id")
         plugins = get_plugin_manager().active_plugins_names
-
         sat_status = pinpad_status = printer_status = True
         if not is_multiclient:
             try:
@@ -372,6 +382,7 @@ class DataResource(BaseResource):
                 type=station.type.name if station.type else None,
                 has_kps_enabled=station.has_kps_enabled,
             ),
+            sale_context=self._get_sale_contexts(store, branch),
             user_id=user and user.id,
             user=user and user.username,
             user_object=user and dict(
@@ -1178,6 +1189,16 @@ class SaleResource(BaseResource, SaleResourceMixin):
             coupon_id=None,
             discount_value=discount_value,
         )
+
+        # Sale Context
+        context_id = data.get('context_id')
+        context = store.get(Context, context_id)
+        if context_id and branch == context.branch:
+            SaleContext(
+                store=store,
+                sale_id=sale_id,
+                context_id=context_id,
+            )
 
         # Add products
         for p in products:
