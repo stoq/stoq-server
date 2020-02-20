@@ -24,18 +24,20 @@
 
 from contextlib import suppress
 from enum import Enum
+from typing import Dict
 import json
 import logging
-from typing import Dict
 
-from flask import request, Response
-from gevent.queue import Queue, Empty
+from flask import make_response, request, Response
 from gevent.event import Event
+from gevent.queue import Queue, Empty
+from psycopg2 import DataError
 
-from stoqlib.api import api
-from stoqserver.lib.baseresource import BaseResource
 from ..signals import TefCheckPendingEvent
 from ..utils import JsonEncoder
+from stoqlib.api import api
+from stoqlib.domain.station import BranchStation
+from stoqserver.lib.baseresource import BaseResource
 
 log = logging.getLogger(__name__)
 
@@ -194,3 +196,32 @@ class EventStream(BaseResource):
                                                   ' Favor reter o Cupom.')})
             EventStream.put(station, {'type': 'CLEAR_SALE'})
         return Response(self._loop(stream, station.id), mimetype="text/event-stream")
+
+    def post(self):
+        station_id = request.values.get('station_id')
+        data = request.json
+
+        if not station_id:
+            EventStream.put_all({
+                'type': 'EVENT_RECEIVED',
+                'data': data,
+            })
+            return ('event put in streams from all connected stations', 200)
+
+        try:
+            store = api.new_store()
+            station = store.get(BranchStation, station_id)
+        except DataError as err:
+            return make_response(str(err), 400)
+
+        if not station:
+            return make_response('station not found', 404)
+
+        try:
+            EventStream.put(station, {
+                'type': 'EVENT_RECEIVED',
+                'data': data,
+            })
+            return make_response('event put in stream from station %s' % station_id, 200)
+        except EventStreamUnconnectedStation as err:
+            return make_response(str(err), 400)
