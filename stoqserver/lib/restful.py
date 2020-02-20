@@ -928,7 +928,7 @@ class ImageResource(BaseResource):
             if image:
                 return send_file(io.BytesIO(image.image), mimetype='image/png')
             else:
-                response = make_response(base64.b64decode(TRANSPARENT_PIXEL))
+                response = make_response(base64.b64decode(TRANSPARENT_PIXEL), 404)
                 response.headers.set('Content-Type', 'image/jpeg')
                 return response
 
