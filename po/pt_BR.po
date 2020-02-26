@@ -86,3 +86,7 @@ msgstr "A NFC-e da venda {sale_identifier} foi rejeitada"
 #: ../stoqserver/lib/restful.py:1634
 msgid "bad request!"
 msgstr "requisição inválida!"
+
+#: ../stoqserver/lib/restful.py:930
+msgid "Image not found."
+msgstr "Imagem não encontrada."

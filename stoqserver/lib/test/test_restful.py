@@ -424,3 +424,8 @@ class TestImageResource(_TestFlask):
                 rv = self.client.get('/image/' + sellable.id)
                 self.assertEqual(rv.status_code, 200)
                 self.assertEqual(rv.data, b'foobar')
+
+                sellable2 = self.create_sellable()
+                rv = self.client.get('/image/' + sellable2.id)
+                self.assertEqual(rv.status_code, 404)
+                self.assertEqual(rv.data, b'Image not found.')

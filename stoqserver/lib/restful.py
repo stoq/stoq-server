@@ -22,7 +22,6 @@
 # Author(s): Stoq Team <stoq-devel@async.com.br>
 #
 
-import base64
 import datetime
 import decimal
 import functools
@@ -110,8 +109,6 @@ except ImportError:
         pass
 
 log = logging.getLogger(__name__)
-
-TRANSPARENT_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='  # noqa
 
 
 def override(column):
@@ -928,8 +925,7 @@ class ImageResource(BaseResource):
             if image:
                 return send_file(io.BytesIO(image.image), mimetype='image/png')
             else:
-                response = make_response(base64.b64decode(TRANSPARENT_PIXEL), 404)
-                response.headers.set('Content-Type', 'image/jpeg')
+                response = make_response(_("Image not found."), 404)
                 return response
 
 
