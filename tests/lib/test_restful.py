@@ -1,5 +1,6 @@
 import json
 import os
+import requests
 import tempfile
 from unittest import mock
 
@@ -7,6 +8,7 @@ import pytest
 from flask.testing import FlaskClient
 
 from kiwi.currency import currency
+from stoqifood.domain import IfoodOrder
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.till import Till
@@ -171,6 +173,11 @@ def passbook_client():
             'stamps_limit': 10
         }
     }
+
+
+@pytest.fixture
+def ifood_order(store):
+    return IfoodOrder(store, status='PLACED')
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -537,3 +544,31 @@ def test_till_get_closing_receipt_with_close_till(mock_get_receipt, client, clos
     assert response.status_code == 200
     assert response.json["id"] == close_till.id
     assert response.json["image"] == fake_image
+
+
+@mock.patch('stoqifood.ifoodui.IfoodClient.login')
+@mock.patch('stoqifood.ifoodui.IfoodClient.confirmation')
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_confirm_ifood_order(
+        mock_ifood_client_confirmation, mock_ifood_client_login, sale_payload,
+        ifood_order, client
+):
+    mock_ifood_client_login.return_value = {'access_token': 'test'}
+    mock_ifood_client_confirmation.return_value = requests.codes.accepted
+    sale_payload['ifood_order_id'] = ifood_order.id
+
+    response = client.post('/sale', json=sale_payload)
+
+    assert mock_ifood_client_login.call_count == 1
+    assert mock_ifood_client_confirmation.call_count == 1
+    assert ifood_order.status == 'CONFIRMED'
+    assert response.status_code == 200
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_confirm_ifood_order_without_order_id(client, sale_payload, ifood_order):
+
+    response = client.post('/sale', json=sale_payload)
+
+    assert ifood_order.status == 'PLACED'
+    assert response.status_code == 200

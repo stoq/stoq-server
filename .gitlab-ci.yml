@@ -29,6 +29,9 @@ before_script:
   - pip install pycairo
   - pip install -e stoq --no-deps
   - pip install -r requirements-test.txt
+  - pip install kiwi-gtk
+  - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/stoqtech/private/stoq-plugin-ifood.git
+  - pip install -e stoq-plugin-ifood --no-deps
   - pip freeze
 
 test:
