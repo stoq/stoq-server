@@ -243,6 +243,10 @@ class DataResource(BaseResource):
                 for item in ccp:
                     ccp_dict[item.category_id] = str(item.price)
 
+                has_image = False
+                if store.find(Image, sellable_id=s.id):
+                    has_image = True
+
                 products_list.append({
                     'id': s.id,
                     'code': s.code,
@@ -259,7 +263,8 @@ class DataResource(BaseResource):
                             for si in s.product.storable.get_stock_items()
                         }
                     ),
-                    'requires_kitchen_production': s.get_requires_kitchen_production(branch)
+                    'requires_kitchen_production': s.get_requires_kitchen_production(branch),
+                    'has_image': has_image,
                 })
 
             aux[c.id] = c_dict

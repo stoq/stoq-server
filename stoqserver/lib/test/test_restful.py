@@ -174,6 +174,10 @@ class TestDataResource(_TestFlask):
             s3.category = c3
             s4.category = c2
 
+            img = self.create_image()
+            img.image = b'foobar'
+            img.sellable_id = s1.id
+
             c_ids = [c1.id, c2.id, c3.id, c4.id]
 
             def adjust_categories(obj):
@@ -228,7 +232,8 @@ class TestDataResource(_TestFlask):
                                               'code': '',
                                               'barcode': '',
                                               'price': '10',
-                                              'requires_kitchen_production': False},
+                                              'requires_kitchen_production': False,
+                                              'has_image': False},
                                              {'availability': None,
                                               'order': '0',
                                               'category_prices': {},
@@ -237,7 +242,8 @@ class TestDataResource(_TestFlask):
                                               'barcode': '',
                                               'description': 's4',
                                               'price': '10',
-                                              'requires_kitchen_production': False}]}],
+                                              'requires_kitchen_production': False,
+                                              'has_image': False}]}],
                   'description': 'c1',
                   'products': [{'availability': {b.id: '10.000'},
                                 'order': '0',
@@ -247,7 +253,8 @@ class TestDataResource(_TestFlask):
                                 'code': '',
                                 'barcode': '',
                                 'price': '10',
-                                'requires_kitchen_production': False}]},
+                                'requires_kitchen_production': False,
+                                'has_image': True}]},
                  {'children': [],
                   'description': 'c3',
                   'products': [{'availability': {b.id: '30.000'},
@@ -258,7 +265,8 @@ class TestDataResource(_TestFlask):
                                 'code': '',
                                 'barcode': '',
                                 'price': '10',
-                                'requires_kitchen_production': False}]},
+                                'requires_kitchen_production': False,
+                                'has_image': False}]},
                  {'children': [], 'description': 'c4', 'products': []}]
             )
 
