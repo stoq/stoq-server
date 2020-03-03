@@ -584,3 +584,40 @@ def test_get_credit_providers_from_conf(get_config_mock, client, sale_payload):
 
     assert response.status_code == 200
     assert response.json['scrollable_list'] == credit_providers
+
+
+@mock.patch('stoqserver.lib.restful.get_config')
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_sale_hack_money_as_ifood(get_config_mock, client, sale_payload):
+    # Mocks the get method from config to mark the station as a hacked station
+    get_config_mock.return_value.get.return_value = client.station.name
+
+    # Money as payment method is ok
+    response = client.post('/sale', json=sale_payload)
+    assert response.status_code == 200
+    assert response.json is True
+
+    # Card as payment method is invalid
+    sale_payload['payments'][0]['method'] = 'card'
+    sale_payload['payments'][0]['card_type'] = 'credit'
+    sale_payload['payments'][0]['provider'] = 'VISA'
+    response = client.post('/sale', json=sale_payload)
+    assert response.status_code == 422
+    assert response.json['message'] == 'Payment method not allowed for this station'
+
+    # There's no payment method restriction for a not hacked station
+    get_config_mock.return_value.get.return_value = 'not_a_hacked_station'
+
+    sale_payload['payments'][0]['method'] = 'money'
+    sale_payload['payments'][0]['card_type'] = None
+    sale_payload['payments'][0]['provider'] = None
+    response = client.post('/sale', json=sale_payload)
+    assert response.status_code == 200
+    assert response.json is True
+
+    sale_payload['payments'][0]['method'] = 'card'
+    sale_payload['payments'][0]['card_type'] = 'credit'
+    sale_payload['payments'][0]['provider'] = 'VISA'
+    response = client.post('/sale', json=sale_payload)
+    assert response.status_code == 200
+    assert response.json is True

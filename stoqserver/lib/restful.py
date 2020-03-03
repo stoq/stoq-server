@@ -1240,6 +1240,17 @@ class SaleResource(BaseResource, SaleResourceMixin):
                 item.base_price = item.price
 
         # Add payments
+        config = get_config()
+        hacked_stations_list = config.get("Hacks", "money_as_ifood") or ''
+        if station.name in [i.strip() for i in hacked_stations_list.split(',')]:
+            for p in data['payments']:
+                if p['method'] != 'money':
+                    abort(422, 'Payment method not allowed for this station')
+
+                p['method'] = 'card'
+                p['card_type'] = 'credit'
+                p['provider'] = 'IFOOD'
+
         self._create_payments(store, group, branch, station,
                               sale.get_total_sale_amount(), data['payments'])
 
