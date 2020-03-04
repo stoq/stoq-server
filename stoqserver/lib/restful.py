@@ -253,6 +253,7 @@ class DataResource(BaseResource):
                     'code': s.code,
                     'barcode': s.barcode,
                     'description': s.description,
+                    'short_description': s.short_description,
                     'price': str(s.price),
                     'order': str(s.product.height),
                     'category_prices': ccp_dict,
@@ -338,6 +339,10 @@ class DataResource(BaseResource):
             })
         return sale_context_list
 
+    def _get_scrollable_items(self, config):
+        payments_list = config.get("Payments", "credit_providers") or ''
+        return [i.strip().replace('_', ' ').upper() for i in payments_list.split(',')]
+
     def get_data(self, store):
         """Returns all data the POS needs to run
 
@@ -401,6 +406,7 @@ class DataResource(BaseResource):
             categories=self._get_categories(store, station),
             payment_methods=self._get_payment_methods(store),
             providers=self._get_card_providers(store),
+            scrollable_list=self._get_scrollable_items(config),
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
             can_use_cnpj=self._can_use_cnpj(store, branch, plugins),

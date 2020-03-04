@@ -353,7 +353,7 @@ def test_data_resource_with_hotjar_config(get_config_mock, client):
     assert response.json['hotjar_id'] == 'hotjar-id'
     get_config_mock.assert_called_once_with()
     get_config_mock.return_value.get.assert_any_call('Hotjar', 'id')
-    assert get_config_mock.return_value.get.call_count == 3
+    assert get_config_mock.return_value.get.call_count == 4
 
 
 @mock.patch('stoqserver.lib.restful.api')
@@ -572,3 +572,15 @@ def test_confirm_ifood_order_without_order_id(client, sale_payload, ifood_order)
 
     assert ifood_order.status == 'PLACED'
     assert response.status_code == 200
+
+
+@mock.patch('stoqserver.lib.restful.get_config')
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_get_credit_providers_from_conf(get_config_mock, client, sale_payload):
+    get_config_mock.return_value.get.return_value = 'picpay, passbook, iti'
+
+    response = client.get('/data')
+    credit_providers = ['PICPAY', 'PASSBOOK', 'ITI']
+
+    assert response.status_code == 200
+    assert response.json['scrollable_list'] == credit_providers

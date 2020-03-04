@@ -158,6 +158,7 @@ class TestDataResource(_TestFlask):
             s1 = self.create_sellable(description='s1')
             self.create_storable(product=s1.product, stock=10, branch=b)
             s2 = self.create_sellable(description='s2')
+            s2.short_description = '2'
             self.create_storable(product=s2.product, stock=20, branch=b)
             s3 = self.create_sellable(description='s3')
             self.create_storable(product=s3.product, stock=30, branch=b)
@@ -229,6 +230,7 @@ class TestDataResource(_TestFlask):
                                               'category_prices': {},
                                               'color': '',
                                               'description': 's2',
+                                              'short_description': '2',
                                               'code': '',
                                               'barcode': '',
                                               'price': '10',
@@ -241,6 +243,7 @@ class TestDataResource(_TestFlask):
                                               'code': '',
                                               'barcode': '',
                                               'description': 's4',
+                                              'short_description': '',
                                               'price': '10',
                                               'requires_kitchen_production': False,
                                               'has_image': False}]}],
@@ -250,6 +253,7 @@ class TestDataResource(_TestFlask):
                                 'category_prices': {},
                                 'color': '',
                                 'description': 's1',
+                                'short_description': '',
                                 'code': '',
                                 'barcode': '',
                                 'price': '10',
@@ -262,6 +266,7 @@ class TestDataResource(_TestFlask):
                                 'category_prices': {},
                                 'color': '',
                                 'description': 's3',
+                                'short_description': '',
                                 'code': '',
                                 'barcode': '',
                                 'price': '10',
