@@ -78,8 +78,8 @@ def check_drawer_loop(station):
         if is_open != new_is_open:
             printer_status = None if new_is_open is None else True
 
-            EventStream.put_device_status_changed(station, DeviceType.DRAWER, new_is_open)
-            EventStream.put_device_status_changed(station, DeviceType.PRINTER, printer_status)
+            EventStream.add_event_device_status_changed(station, DeviceType.DRAWER, new_is_open)
+            EventStream.add_event_device_status_changed(station, DeviceType.PRINTER, printer_status)
 
             is_open = new_is_open
 
@@ -101,7 +101,7 @@ def check_sat_loop(station):
             new_sat_ok = sat_ok
 
         if sat_ok != new_sat_ok:
-            EventStream.put_device_status_changed(station, DeviceType.SAT, new_sat_ok)
+            EventStream.add_event_device_status_changed(station, DeviceType.SAT, new_sat_ok)
 
             sat_ok = new_sat_ok
 
@@ -120,7 +120,7 @@ def check_pinpad_loop(station):
             new_pinpad_ok = pinpad_ok
 
         if pinpad_ok != new_pinpad_ok:
-            EventStream.put_device_status_changed(station, DeviceType.PINPAD, new_pinpad_ok)
+            EventStream.add_event_device_status_changed(station, DeviceType.PINPAD, new_pinpad_ok)
 
             pinpad_ok = new_pinpad_ok
 

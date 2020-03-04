@@ -71,7 +71,7 @@ class EventStreamBrokenException(Exception):
 class EventStream(BaseResource):
     """A stream of events from this server to the application.
 
-    Callsites can use EventStream.put(event) to send a message from the server to the client
+    Callsites can use EventStream.add_event(event) to send a message from the server to the client
     asynchronously.
 
     Note that there should be only one client connected at a time. If more than one are connected,
@@ -91,16 +91,17 @@ class EventStream(BaseResource):
     routes = ['/stream']
 
     @classmethod
-    def put(cls, station, data):
-        """Put a event only on the client stream"""
-        if not station.id in cls._streams:
-            raise EventStreamUnconnectedStation
+    def add_event(cls, data, station=None):
+        """If station specified, put a event only on the client stream.
+        Otherwise, put it in all streams
+        """
 
-        cls._streams[station.id].put(data)
+        if station:
+            if not station.id in cls._streams:
+                raise EventStreamUnconnectedStation
 
-    @classmethod
-    def put_all(cls, data):
-        """Put a event in all streams"""
+            return cls._streams[station.id].put(data)
+
         for stream in cls._streams.values():
             stream.put(data)
 
@@ -108,10 +109,10 @@ class EventStream(BaseResource):
     def ask_question(cls, station, question):
         """Sends a question down the stream"""
         log.info('Asking %s question: %s', station.name, question)
-        cls.put(station, {
+        cls.add_event({
             'type': 'TEF_ASK_QUESTION',
             'data': question,
-        })
+        }, station=station)
 
         log.info('Waiting tef reply')
         cls._waiting_reply[station.id].set()
@@ -121,7 +122,7 @@ class EventStream(BaseResource):
         return reply
 
     @classmethod
-    def put_reply(cls, station_id, reply):
+    def add_event_reply(cls, station_id, reply):
         """Puts a reply from the frontend"""
         log.info('Got reply from %s: %s', station_id, reply)
         assert cls._replies[station_id].empty()
@@ -144,14 +145,14 @@ class EventStream(BaseResource):
             }
 
     @classmethod
-    def put_device_status_changed(cls, station, device_type: DeviceType, device_status: bool):
+    def add_event_device_status_changed(cls, station, device_type: DeviceType, device_status: bool):
         """Put a device status changed event in a station stream"""
         event = cls._get_event_for_device(device_type, device_status)
         if not event:
             return
 
         with suppress(EventStreamUnconnectedStation):
-            cls.put(station, event)
+            cls.add_event(event, station=station)
 
     def _loop(self, stream: Queue, station_id):
         while True:
@@ -191,10 +192,11 @@ class EventStream(BaseResource):
         # stabilished a connection with the backend (thats us).
         has_canceled = TefCheckPendingEvent.send()
         if has_canceled and has_canceled[0][1]:
-            EventStream.put(station, {'type': 'TEF_WARNING_MESSAGE',
-                                      'message': ('Última transação TEF não foi efetuada.'
-                                                  ' Favor reter o Cupom.')})
-            EventStream.put(station, {'type': 'CLEAR_SALE'})
+            EventStream.add_event({'type': 'TEF_WARNING_MESSAGE',
+                                   'message': ('Última transação TEF não foi efetuada.'
+                                               ' Favor reter o Cupom.')},
+                                  station=station)
+            EventStream.add_event({'type': 'CLEAR_SALE'}, station=station)
         return Response(self._loop(stream, station.id), mimetype="text/event-stream")
 
     def post(self):
@@ -202,7 +204,7 @@ class EventStream(BaseResource):
         data = request.json
 
         if not station_id:
-            EventStream.put_all({
+            EventStream.add_event({
                 'type': 'EVENT_RECEIVED',
                 'data': data,
             })
@@ -218,10 +220,7 @@ class EventStream(BaseResource):
             return make_response('station not found', 404)
 
         try:
-            EventStream.put(station, {
-                'type': 'EVENT_RECEIVED',
-                'data': data,
-            })
+            EventStream.add_event({'type': 'EVENT_RECEIVED', 'data': data}, station=station)
             return make_response('event put in stream from station %s' % station_id, 200)
         except EventStreamUnconnectedStation as err:
             return make_response(str(err), 400)

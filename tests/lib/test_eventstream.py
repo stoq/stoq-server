@@ -23,26 +23,26 @@ def connected_station(event_stream, current_station):
     return current_station
 
 
-def test_put_device_status_changed_wont_fail(event_stream, unconnected_station):
-    event_stream.put_device_status_changed(unconnected_station, DeviceType.PRINTER, True)
+def test_add_event_device_status_changed_wont_fail(event_stream, unconnected_station):
+    event_stream.add_event_device_status_changed(unconnected_station, DeviceType.PRINTER, True)
 
 
-def test_put_device_status_changed_with_opened_drawer(event_stream, connected_station):
-    event_stream.put_device_status_changed(connected_station, DeviceType.DRAWER, True)
+def test_add_event_device_status_changed_with_opened_drawer(event_stream, connected_station):
+    event_stream.add_event_device_status_changed(connected_station, DeviceType.DRAWER, True)
 
     station_stream = event_stream._streams[connected_station.id]
     assert station_stream.get() == {'type': 'DRAWER_ALERT_OPEN'}
 
 
-def test_put_device_status_changed_with_closed_drawer(event_stream, connected_station):
-    event_stream.put_device_status_changed(connected_station, DeviceType.DRAWER, False)
+def test_add_event_device_status_changed_with_closed_drawer(event_stream, connected_station):
+    event_stream.add_event_device_status_changed(connected_station, DeviceType.DRAWER, False)
 
     station_stream = event_stream._streams[connected_station.id]
     assert station_stream.get() == {'type': 'DRAWER_ALERT_CLOSE'}
 
 
-def test_put_device_status_changed_with_drawer_check_error(event_stream, connected_station):
-    event_stream.put_device_status_changed(connected_station, DeviceType.DRAWER, None)
+def test_add_event_device_status_changed_with_drawer_check_error(event_stream, connected_station):
+    event_stream.add_event_device_status_changed(connected_station, DeviceType.DRAWER, None)
 
     station_stream = event_stream._streams[connected_station.id]
     assert station_stream.get() == {'type': 'DRAWER_ALERT_ERROR'}
@@ -50,9 +50,9 @@ def test_put_device_status_changed_with_drawer_check_error(event_stream, connect
 
 @pytest.mark.parametrize('device_type', (DeviceType.PRINTER, DeviceType.SAT, DeviceType.PINPAD))
 @pytest.mark.parametrize('device_status', (True, False))
-def test_put_device_status_changed_succeeds(event_stream, connected_station,
-                                            device_type, device_status):
-    event_stream.put_device_status_changed(connected_station, device_type, device_status)
+def test_add_event_device_status_changed_succeeds(event_stream, connected_station,
+                                                  device_type, device_status):
+    event_stream.add_event_device_status_changed(connected_station, device_type, device_status)
 
     station_stream = event_stream._streams[connected_station.id]
     assert station_stream.get() == {

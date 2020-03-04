@@ -183,7 +183,7 @@ class DataResource(BaseResource):
                     message = message or table in DataResource.watch_tables
 
             if message:
-                EventStream.put_all({
+                EventStream.add_event({
                     'type': 'SERVER_UPDATE_DATA',
                     'data': DataResource.get_data(store)
                 })
@@ -826,11 +826,11 @@ class TefResource(BaseResource):
 
     def _message_callback(self, lib, message, can_abort=False):
         station = self.get_current_station(api.get_default_store())
-        EventStream.put(station, {
+        EventStream.add_event({
             'type': 'TEF_DISPLAY_MESSAGE',
             'message': message,
             'can_abort': can_abort,
-        })
+        }, station=station)
 
         # tef library (ntk/sitef) has some blocking calls (specially pinpad comunication).
         # Before returning, we need to briefly hint gevent to let the EventStream co-rotine run,
@@ -858,11 +858,11 @@ class TefResource(BaseResource):
                 with printer_lock:
                     self.ensure_printer(station)
         except Exception:
-            EventStream.put(station, {
+            EventStream.add_event({
                 'type': 'TEF_OPERATION_FINISHED',
                 'success': False,
                 'message': 'Erro comunicando com a impressora',
-            })
+            }, station=station)
             return
 
         # FIXME: If we fix sitef/ntk, we should be able to use only sender = station
@@ -904,11 +904,11 @@ class TefResource(BaseResource):
             else:
                 message = 'Falha na operação'
 
-        EventStream.put(station, {
+        EventStream.add_event({
             'type': 'TEF_OPERATION_FINISHED',
             'success': retval,
             'message': message,
-        })
+        }, station=station)
 
 
 class TefReplyResource(BaseResource):
@@ -918,7 +918,7 @@ class TefReplyResource(BaseResource):
     def post(self):
         data = self.get_json()
         station = self.get_current_station(api.get_default_store())
-        EventStream.put_reply(station.id, json.loads(data['value']))
+        EventStream.add_event_reply(station.id, json.loads(data['value']))
 
 
 class TefCancelCurrentOperation(BaseResource):
@@ -1134,15 +1134,17 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
     def _nfe_progress_event(self, message):
         station = self.get_current_station(api.get_default_store())
-        EventStream.put(station, {'type': 'NFE_PROGRESS', 'message': message})
+        EventStream.add_event({'type': 'NFE_PROGRESS', 'message': message}, station=station)
 
     def _nfe_warning_event(self, message, details):
         station = self.get_current_station(api.get_default_store())
-        EventStream.put(station, {'type': 'NFE_WARNING', 'message': message, 'details': details})
+        EventStream.add_event({'type': 'NFE_WARNING', 'message': message, 'details': details},
+                              station=station)
 
     def _nfe_success_event(self, message, details=None):
         station = self.get_current_station(api.get_default_store())
-        EventStream.put(station, {'type': 'NFE_SUCCESS', 'message': message, 'details': details})
+        EventStream.add_event({'type': 'NFE_SUCCESS', 'message': message, 'details': details},
+                              station=station)
 
     def _remove_passbook_stamps(self, store, passbook_client, sale_id):
         data = {
