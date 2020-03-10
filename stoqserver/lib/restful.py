@@ -254,7 +254,7 @@ class DataResource(BaseResource):
                     'barcode': s.barcode,
                     'description': s.description,
                     'short_description': s.short_description,
-                    'price': str(s.price),
+                    'price': str(s.get_price(branch)),
                     'order': str(s.product.height),
                     'category_prices': ccp_dict,
                     'color': s.product.part_number,

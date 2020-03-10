@@ -396,6 +396,35 @@ def test_data_resource_branch_override(api_mock, client, sellable, example_creat
     assert response.json['categories'][0]['products'][0]['id'] == sellable.id
 
 
+@pytest.mark.usefixtures('mock_get_default_store', 'mock_new_store')
+def test_data_resource_with_branch_price_table(client, sellable, example_creator, current_station):
+    sellable.category = example_creator.create_sellable_category()
+    response = client.get('/data')
+    cat = None
+    for cat in response.json['categories']:
+        if cat['id'] == sellable.category.id:
+            # 10 is the sellable default price
+            assert cat['products'][0]['price'] == '10'
+            break
+    else:
+        assert False, 'Sellable category is not present in the response'
+
+    # Now lets add a price table for the current branch and set a special price for this sellable in
+    # this table
+    client_category = example_creator.create_client_category()
+    branch = current_station.branch
+    branch.default_client_category = client_category
+    example_creator.create_client_category_price(category=client_category, sellable=sellable,
+                                                 price=20)
+    response = client.get('/data')
+    for cat in response.json['categories']:
+        if cat['id'] == sellable.category.id:
+            assert cat['products'][0]['price'] == '20'
+            break
+    else:
+        assert False, 'Sellable category is not present in the response'
+
+
 @pytest.mark.parametrize('query_string', ({}, {'partial_document': None}, {'partial_document': ''}))
 def test_passbook_users_get_missing_parameter(client, query_string):
     response = client.get('/passbook/users', query_string=query_string)
