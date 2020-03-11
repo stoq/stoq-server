@@ -33,7 +33,7 @@ from gevent.event import Event
 from gevent.queue import Queue, Empty
 from psycopg2 import DataError
 
-from ..signals import TefCheckPendingEvent
+from ..signals import EventStreamEstablishedEvent, TefCheckPendingEvent
 from ..utils import JsonEncoder
 from stoqlib.api import api
 from stoqlib.domain.station import BranchStation
@@ -187,6 +187,8 @@ class EventStream(BaseResource):
 
         # If we dont put one event, the event stream does not seem to get stabilished in the browser
         stream.put(json.dumps({}))
+
+        EventStreamEstablishedEvent.send(station)
 
         # This is the best time to check if there are pending transactions, since the frontend just
         # stabilished a connection with the backend (thats us).

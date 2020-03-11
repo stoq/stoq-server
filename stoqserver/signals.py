@@ -46,3 +46,5 @@ PrintKitchenCouponEvent = signal('PrintKitchenCouponEvent')
 
 StartPassbookSaleEvent = signal('StartPassbookSaleEvent')
 SearchForPassbookUsersByDocumentEvent = signal('SearchForPassbookUsersByDocumentEvent')
+
+EventStreamEstablishedEvent = signal('EventStreamEstablishedEvent')
