@@ -503,12 +503,14 @@ class TillResource(BaseResource):
     method_decorators = [login_required]
 
     def _handle_open_till(self, store, last_till, initial_cash_amount=0):
-        station = self.get_current_station(store)
         if not last_till or last_till.status != Till.STATUS_OPEN:
             # Create till and open
+            station = self.get_current_station(store)
             till = Till(store=store, station=station, branch=station.branch)
             till.open_till(self.get_current_user(store))
             till.initial_cash_amount = decimal.Decimal(initial_cash_amount)
+            return till
+        return last_till
 
     def _close_till(self, store, till, till_summaries):
         # Create TillSummaries
@@ -568,10 +570,9 @@ class TillResource(BaseResource):
                 'card_type': summary.card_type,
                 'system_value': str(summary.system_value),
             })
-
-        # XXX: We shouldn't create TIllSummaries since we are not closing the Till,
-        # so we must rollback.
-        store.rollback(close=False)
+            # XXX: We shouldn't create TIllSummaries since we are not closing the Till,
+            # so we must remove it from the database
+            store.remove(summary)
 
         return payment_data
 
@@ -612,14 +613,14 @@ class TillResource(BaseResource):
 
             # Provide responsible
             if data['operation'] == 'open_till':
-                self._handle_open_till(store, till, data['initial_cash_amount'])
+                till = self._handle_open_till(store, till, data['initial_cash_amount'])
             elif data['operation'] == 'close_till':
                 self._handle_close_till(store, till, data['till_summaries'],
                                         data['include_receipt_image'])
             elif data['operation'] in ['debit_entry', 'credit_entry']:
                 self._add_credit_or_debit_entry(store, till, data)
             else:
-                raise AssertionError('Unkown till operation %r', data['operation'])
+                raise AssertionError('Unkown till operation %r' % data['operation'])
 
             return self._get_till_data(store, till, data.get('include_receipt_image'))
 
