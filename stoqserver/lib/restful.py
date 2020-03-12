@@ -49,7 +49,7 @@ from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import LoginUser, Person, Client, ClientCategory, Individual
-from stoqlib.domain.product import Product
+from stoqlib.domain.product import Product, Storable
 from stoqlib.domain.purchase import PurchaseOrder
 from stoqlib.domain.sale import Sale, SaleContext, Context
 from stoqlib.domain.station import BranchStation
@@ -189,93 +189,89 @@ class DataResource(BaseResource):
                 })
                 message = False
 
-    def _get_categories(self, store, station):
-        categories_root = []
-        aux = {}
-        branch = self.get_current_branch(store)
+    def _get_sellable_data(self, store, station):
+        tables = [
+            Sellable,
+            Join(Product, Product.id == Sellable.id),
+            LeftJoin(Storable, Product.id == Storable.id),
+            LeftJoin(Image,
+                     And(Sellable.id == Image.sellable_id, Eq(Image.is_main, True))),
+            LeftJoin(SellableBranchOverride,
+                     And(SellableBranchOverride.sellable_id == Sellable.id,
+                         SellableBranchOverride.branch_id == station.branch.id))
+        ]
 
-        # SellableCategory and Sellable/Product data
-        # FIXME: Remove categories that have no products inside them
-        for c in store.find(SellableCategory).order_by(Desc('sort_order'), 'description'):
-            if c.category_id is None:
-                parent_list = categories_root
-            else:
-                parent_list = aux.setdefault(
-                    c.category_id, {}).setdefault('children', [])
-
-            c_dict = aux.setdefault(c.id, {})
-            parent_list.append(c_dict)
-
-            # Set/Update the data
-            c_dict.update({
-                'id': c.id,
-                'description': c.description,
-            })
-            c_dict.setdefault('children', [])
-            products_list = c_dict.setdefault('products', [])
-
-            tables = [Sellable, LeftJoin(Product, Product.id == Sellable.id)]
-
-            if api.sysparam.get_bool('REQUIRE_PRODUCT_BRANCH_OVERRIDE'):
-                # For now, only display products that have a fiscal configuration for the
-                # current branch. We should find a better way to ensure this in the future
-                tables.append(
-                    Join(ProductBranchOverride,
-                         And(ProductBranchOverride.product_id == Product.id,
-                             ProductBranchOverride.branch_id == branch.id,
-                             Ne(ProductBranchOverride.icms_template_id, None))))
-
+        if api.sysparam.get_bool('REQUIRE_PRODUCT_BRANCH_OVERRIDE'):
+            # For now, only display products that have a fiscal configuration for the
+            # current branch. We should find a better way to ensure this in the future
             tables.append(
-                LeftJoin(SellableBranchOverride,
-                         And(SellableBranchOverride.sellable_id == Sellable.id,
-                             SellableBranchOverride.branch_id == branch.id)))
-            query = And(Sellable.category == c,
-                        Eq(Coalesce(SellableBranchOverride.status, Sellable.status), "available"))
+                Join(ProductBranchOverride,
+                     And(ProductBranchOverride.product_id == Product.id,
+                         ProductBranchOverride.branch_id == station.branch.id,
+                         Ne(ProductBranchOverride.icms_template_id, None))))
 
-            # XXX: This should be modified for accepting generic keywords
-            if station.type and station.type.name == 'auto':
-                query = And(query, Sellable.keywords.like('%auto%'))
+        query = Eq(Coalesce(SellableBranchOverride.status, Sellable.status), "available")
+        # XXX: This should be modified for accepting generic keywords
+        if station.type and station.type.name == 'auto':
+            query = And(query, Sellable.keywords.like('%auto%'))
 
-            sellables = store.using(*tables).find(Sellable, query).order_by('height', 'description')
+        return store.using(*tables).find((Sellable, Product, Storable, Image.id),
+                                         query).order_by('height', 'description')
 
-            for s in sellables:
-                ccp = store.find(ClientCategoryPrice, sellable_id=s.id)
-                ccp_dict = {}
-                for item in ccp:
-                    ccp_dict[item.category_id] = str(item.price)
+    def _dump_sellable(self, category_prices, sellable, branch, image_id):
+        return {
+            'id': sellable.id,
+            'code': sellable.code,
+            'barcode': sellable.barcode,
+            'description': sellable.description,
+            'short_description': sellable.short_description,
+            'price': str(sellable.get_price(branch)),
+            'order': str(sellable.product.height),
+            'color': sellable.product.part_number,
+            'category_prices': category_prices,
+            'requires_kitchen_production': sellable.get_requires_kitchen_production(branch),
+            'has_image': image_id is not None,
+            'availability': (
+                sellable.product and sellable.product.storable and
+                {
+                    si.branch.id: str(si.quantity)
+                    for si in sellable.product.storable.get_stock_items()
+                }
+            ),
+        }
 
-                has_image = False
-                if store.find(Image, sellable_id=s.id):
-                    has_image = True
+    def _get_categories(self, store, station):
+        # Pre-create sellable category prices to avoid multiple queries inside the sellable loop
+        sellable_category_prices = {}
+        for item in store.find(ClientCategoryPrice):
+            cat_prices = sellable_category_prices.setdefault(item.sellable_id, {})
+            cat_prices[item.category_id] = str(item.price)
 
-                products_list.append({
-                    'id': s.id,
-                    'code': s.code,
-                    'barcode': s.barcode,
-                    'description': s.description,
-                    'short_description': s.short_description,
-                    'price': str(s.get_price(branch)),
-                    'order': str(s.product.height),
-                    'category_prices': ccp_dict,
-                    'color': s.product.part_number,
-                    'availability': (
-                        s.product and s.product.storable and
-                        {
-                            si.branch.id: str(si.quantity)
-                            for si in s.product.storable.get_stock_items()
-                        }
-                    ),
-                    'requires_kitchen_production': s.get_requires_kitchen_production(branch),
-                    'has_image': has_image,
-                })
+        categories_dict = {}  # type: Dict[str, Dict]
+        # Build list of products inside each category
+        for (sellable, product, storable, image) in self._get_sellable_data(store, station):
+            category_prices = sellable_category_prices.get(sellable.id, {})
 
-            aux[c.id] = c_dict
+            categories_dict.setdefault(sellable.category_id, {'children': [], 'products': []})
+            categories_dict[sellable.category_id]['products'].append(
+                self._dump_sellable(category_prices, sellable, station.branch, image))
+
+        # Build tree of categories
+        for c in store.find(SellableCategory).order_by(Desc('sort_order'), 'description'):
+            cat_dict = categories_dict.setdefault(c.id, {'children': [], 'products': []})
+            cat_dict.update({'id': c.id, 'description': c.description})
+
+            parent = categories_dict.setdefault(c.category_id, {'children': [], 'products': []})
+            parent['children'].append(cat_dict)
+
+        # Get any extra categories plugins might want to add
         responses = signal('GetAdvancePaymentCategoryEvent').send(station)
         for response in responses:
             if response[1]:
-                categories_root.append(response[1])
+                categories_dict[None]['children'].append(response[1])
 
-        return categories_root
+        # FIXME: Remove categories that have no products inside them
+        return categories_dict[None]['children']  # None is the root category
 
     def _get_payment_methods(self, store):
         # PaymentMethod data

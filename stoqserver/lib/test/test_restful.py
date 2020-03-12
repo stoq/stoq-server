@@ -178,6 +178,7 @@ class TestDataResource(_TestFlask):
             img = self.create_image()
             img.image = b'foobar'
             img.sellable_id = s1.id
+            img.is_main = True
 
             c_ids = [c1.id, c2.id, c3.id, c4.id]
 
