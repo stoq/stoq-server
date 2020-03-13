@@ -546,10 +546,10 @@ def test_confirm_ifood_order_without_order_id(client, sale_payload, ifood_order)
 @mock.patch('stoqserver.lib.restful.get_config')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_get_credit_providers_from_conf(get_config_mock, client, sale_payload):
-    get_config_mock.return_value.get.return_value = 'picpay, passbook, iti'
+    get_config_mock.return_value.get.return_value = 'PICPAY, PASSBOOK, ITI, UBER EATS'
 
     response = client.get('/data')
-    credit_providers = ['PICPAY', 'PASSBOOK', 'ITI']
+    credit_providers = ['PICPAY', 'PASSBOOK', 'ITI', 'UBER EATS']
 
     assert response.status_code == 200
     assert response.json['scrollable_list'] == credit_providers

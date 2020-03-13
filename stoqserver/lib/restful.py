@@ -337,7 +337,7 @@ class DataResource(BaseResource):
 
     def _get_scrollable_items(self, config):
         payments_list = config.get("Payments", "credit_providers") or ''
-        return [i.strip().replace('_', ' ').upper() for i in payments_list.split(',')]
+        return [i.strip() for i in payments_list.split(',')]
 
     def get_data(self, store):
         """Returns all data the POS needs to run
