@@ -31,6 +31,7 @@ import psycopg2
 import io
 import select
 import requests
+from typing import Dict
 
 import gevent
 from blinker import signal, ANY as ANY_SENDER
@@ -83,6 +84,9 @@ from ..signals import (ConfirmIfoodOrderEvent, GenerateAdvancePaymentReceiptPict
 
 # This needs to be imported to workaround a storm limitation
 PurchaseOrder, PaymentRenegotiation
+
+# Pyflakes
+Dict
 
 _ = functools.partial(dgettext, 'stoqserver')
 PDV_VERSION = None
@@ -1158,6 +1162,31 @@ class SaleResource(BaseResource, SaleResourceMixin):
         }
         StartPassbookSaleEvent.send(self.get_current_station(store), **data)
 
+    def _apply_ifood_discount_hack(self, store, data):
+        config = get_config()
+        discount = decimal.Decimal(config.get("Hacks", "ifood_promo_discount") or 0)
+        sale_value = decimal.Decimal(config.get("Hacks", "ifood_promo_sale_value") or 0)
+        if not discount or not sale_value:
+            # Not configured
+            return data
+
+        branches = config.get("Hacks", "ifood_promo_branches")
+        branch = self.get_current_branch(store)
+        if branches and branch.acronym not in [i.strip() for i in branches.split(',')]:
+            return data
+
+        for p in data['payments']:
+            payment_value = currency(p['value'])
+            if p.get('provider') == 'IFOOD' and payment_value >= sale_value:
+                p['value'] = str(payment_value - discount)
+                data['discount_value'] = discount
+                if 'passbook_client_info' in data:
+                    # Set client points to zero, so that we don't end removing the clients points.
+                    data['passbook_client_info']['points'] = 0
+                break
+
+        return data
+
     @lock_printer
     @lock_sat(block=True)
     def post(self, store):
@@ -1174,6 +1203,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         early_response = self._check_already_saved(store, Sale, sale_id, should_print_receipts)
         if early_response:
             return early_response
+
+        data = self._apply_ifood_discount_hack(store, data)
 
         # Print the receipts and confirm the transaction before anything else. If the sale fails
         # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts

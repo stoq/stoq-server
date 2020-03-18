@@ -559,7 +559,8 @@ def test_get_credit_providers_from_conf(get_config_mock, client, sale_payload):
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_sale_hack_money_as_ifood(get_config_mock, client, sale_payload):
     # Mocks the get method from config to mark the station as a hacked station
-    get_config_mock.return_value.get.return_value = client.station.name
+    get_config_mock().get.side_effect = lambda section, name: \
+        {'money_as_ifood': client.station.name}.get(name, None)
 
     # Money as payment method is ok
     response = client.post('/sale', json=sale_payload)
@@ -575,7 +576,8 @@ def test_sale_hack_money_as_ifood(get_config_mock, client, sale_payload):
     assert response.json['message'] == 'Payment method not allowed for this station'
 
     # There's no payment method restriction for a not hacked station
-    get_config_mock.return_value.get.return_value = 'not_a_hacked_station'
+    get_config_mock().get.side_effect = lambda section, name: \
+        {'money_as_ifood': 'not_a_hacked_station'}.get(name)
 
     sale_payload['payments'][0]['method'] = 'money'
     sale_payload['payments'][0]['card_type'] = None
