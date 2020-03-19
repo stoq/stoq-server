@@ -308,6 +308,7 @@ class DataResource(BaseResource):
             ('NFCE_CAN_SEND_DIGITAL_INVOICE', bool, 'nfce', False),
             ('NFE_SEFAZ_TIMEOUT', int, 'nfce', 10),
             ('PASSBOOK_FIDELITY', str, 'passbook', None),
+            ('AUTOMATIC_LOGOUT', int, None, 0),
         ]
 
         retval = {}

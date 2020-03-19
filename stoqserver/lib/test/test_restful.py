@@ -209,6 +209,7 @@ class TestDataResource(_TestFlask):
                 'NFE_SEFAZ_TIMEOUT': 10,
                 'PASSBOOK_FIDELITY': None,
                 'INCLUDE_CASH_FUND_ON_TILL_CLOSING': False,
+                'AUTOMATIC_LOGOUT': 0,
             })
             # Those are the default payment methods created by example data
             self.assertEqual(

@@ -281,6 +281,7 @@ def test_data_resource(client):
     assert response.json['parameters']['NFE_SEFAZ_TIMEOUT'] == 10
     assert response.json['parameters']['PASSBOOK_FIDELITY'] is None
     assert response.json['parameters']['INCLUDE_CASH_FUND_ON_TILL_CLOSING'] is False
+    assert response.json['parameters']['AUTOMATIC_LOGOUT'] == 0
 
 
 # TODO: find a better way to test configs without using mock
@@ -358,6 +359,22 @@ def test_data_resource_with_cash_fund_on_till_closing(api_mock, client):
     api_mock.sysparam.get.return_value = True
     response = client.get('/data')
     assert response.json['parameters']['INCLUDE_CASH_FUND_ON_TILL_CLOSING'] is True
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_without_automatic_logout(api_mock, client):
+    api_mock.sysparam.get.return_value = 0
+    response = client.get('/data')
+    assert response.json['parameters']['AUTOMATIC_LOGOUT'] == 0
+
+
+@mock.patch('stoqserver.lib.restful.api')
+@pytest.mark.usefixtures('mock_get_plugin_manager')
+def test_data_resource_with_automatic_logout(api_mock, client):
+    api_mock.sysparam.get.return_value = 10
+    response = client.get('/data')
+    assert response.json['parameters']['AUTOMATIC_LOGOUT'] == 10
 
 
 @mock.patch('stoqserver.lib.restful.api')
