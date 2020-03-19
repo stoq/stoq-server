@@ -1,3 +1,9 @@
+stoq-server (0.40.0~beta2) xenial; urgency=medium
+
+  * Release 0.40.0~beta2
+
+ -- Fabricio Zuardi <fcz@laptop40.localdomain>  Thu, 19 Mar 2020 14:42:38 -0300
+
 stoq-server (0.40.0~beta1) xenial; urgency=medium
 
   * Release 0.40.0~beta1
