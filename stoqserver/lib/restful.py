@@ -74,7 +74,7 @@ from .checks import check_drawer, check_pinpad, check_sat
 from .constants import PROVIDER_MAP
 from .lock import lock_pinpad, lock_printer, lock_sat, printer_lock, LockFailedException
 from ..api.decorators import login_required, store_provider
-from ..signals import (ConfirmIfoodOrderEvent, GenerateAdvancePaymentReceiptPictureEvent,
+from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        GenerateInvoicePictureEvent, GenerateTillClosingReceiptImageEvent,
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
                        PrintKitchenCouponEvent, ProcessExternalOrderEvent,
@@ -1295,12 +1295,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         external_order_id = data.get('external_order_id')
         if external_order_id:
+            log.info("emitting event ProcessExternalOrderEvent {}".format(external_order_id))
             ProcessExternalOrderEvent.send(sale, external_order_id=external_order_id)
-
-        ifood_order_id = data.get('ifood_order_id')
-        if ifood_order_id:
-            log.info("emitting event ConfirmIfoodOrderEvent {}".format(ifood_order_id))
-            ConfirmIfoodOrderEvent.send(sale, ifood_order_id=ifood_order_id)
 
         till = Till.get_last(store, station)
         if till.status != Till.STATUS_OPEN:

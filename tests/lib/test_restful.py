@@ -541,7 +541,7 @@ def test_confirm_ifood_order(
 ):
     mock_ifood_client_login.return_value = {'access_token': 'test'}
     mock_ifood_client_confirmation.return_value = requests.codes.accepted
-    sale_payload['ifood_order_id'] = ifood_order.id
+    sale_payload['external_order_id'] = ifood_order.id
 
     response = client.post('/sale', json=sale_payload)
 
