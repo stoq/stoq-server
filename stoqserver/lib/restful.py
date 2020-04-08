@@ -59,7 +59,7 @@ from stoqlib.domain.payment.renegotiation import PaymentRenegotiation
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
 from stoqlib.domain.till import Till, TillSummary
-from stoqlib.exceptions import LoginError, TillError
+from stoqlib.exceptions import LoginError, TillError, ExternalOrderConfirmationError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, localnow
 from stoqlib.lib.formatters import raw_document
@@ -1296,7 +1296,10 @@ class SaleResource(BaseResource, SaleResourceMixin):
         external_order_id = data.get('external_order_id')
         if external_order_id:
             log.info("emitting event ProcessExternalOrderEvent {}".format(external_order_id))
-            ProcessExternalOrderEvent.send(sale, external_order_id=external_order_id)
+            try:
+                ProcessExternalOrderEvent.send(sale, external_order_id=external_order_id)
+            except ExternalOrderConfirmationError as exc:
+                abort(409, exc.reason)
 
         till = Till.get_last(store, station)
         if till.status != Till.STATUS_OPEN:
