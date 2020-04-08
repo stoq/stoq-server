@@ -77,9 +77,9 @@ from ..api.decorators import login_required, store_provider
 from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        GenerateInvoicePictureEvent, GenerateTillClosingReceiptImageEvent,
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
-                       PrintKitchenCouponEvent, ProcessExternalOrderEvent,
+                       PrintKitchenCouponEvent, FinishExternalOrderEvent,
                        SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
-                       TefPrintReceiptsEvent)
+                       TefPrintReceiptsEvent, StartExternalOrderEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1295,9 +1295,9 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         external_order_id = data.get('external_order_id')
         if external_order_id:
-            log.info("emitting event ProcessExternalOrderEvent {}".format(external_order_id))
+            log.info("emitting event FinishExternalOrderEvent {}".format(external_order_id))
             try:
-                ProcessExternalOrderEvent.send(sale, external_order_id=external_order_id)
+                FinishExternalOrderEvent.send(sale, external_order_id=external_order_id)
             except ExternalOrderConfirmationError as exc:
                 abort(409, exc.reason)
 
@@ -1512,3 +1512,17 @@ class PassbookUsersResource(BaseResource):
                                                               partial_document=partial_doc)[0][1]
         except ValueError:
             abort(400, 'Invalid partial document')
+
+
+class ExternalOrderResource(BaseResource):
+    routes = ['/external_order/<external_order_id>/confirm']
+    method_decorators = [login_required, store_provider]
+
+    def post(self, store, external_order_id):
+        log.info("emitting event StartExternalOrderEvent %s", external_order_id)
+        try:
+            StartExternalOrderEvent.send(self.get_current_station(store),
+                                         external_order_id=external_order_id)
+        except ExternalOrderConfirmationError as exc:
+            abort(409, exc.reason)
+        return {"msg": 'External order confirmed'}, 201
