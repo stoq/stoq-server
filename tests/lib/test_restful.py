@@ -533,9 +533,9 @@ def test_till_get_closing_receipt_with_close_till(mock_get_receipt, client, clos
 
 
 @mock.patch('stoqifood.ifoodui.IfoodClient.login')
-@mock.patch('stoqifood.ifoodui.IfoodClient.confirmation')
+@mock.patch('stoqifood.ifoodui.IfoodClient.dispatch')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_confirm_ifood_order(
+def test_post_sale_with_ifood_order(
         mock_ifood_client_confirmation, mock_ifood_client_login, sale_payload,
         ifood_order, client
 ):
@@ -547,12 +547,12 @@ def test_confirm_ifood_order(
 
     assert mock_ifood_client_login.call_count == 1
     assert mock_ifood_client_confirmation.call_count == 1
-    assert ifood_order.status == 'CONFIRMED'
+    assert ifood_order.status == 'DISPATCHED'
     assert response.status_code == 200
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_confirm_ifood_order_without_order_id(client, sale_payload, ifood_order):
+def test_post_sale_ifood_order_without_order_id(client, sale_payload, ifood_order):
 
     response = client.post('/sale', json=sale_payload)
 

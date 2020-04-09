@@ -59,7 +59,7 @@ from stoqlib.domain.payment.renegotiation import PaymentRenegotiation
 from stoqlib.domain.sellable import (Sellable, SellableCategory,
                                      ClientCategoryPrice)
 from stoqlib.domain.till import Till, TillSummary
-from stoqlib.exceptions import LoginError, TillError, ExternalOrderConfirmationError
+from stoqlib.exceptions import LoginError, TillError, ExternalOrderError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, localnow
 from stoqlib.lib.formatters import raw_document
@@ -79,7 +79,7 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        GrantLoyaltyPointsEvent, PrintAdvancePaymentReceiptEvent,
                        PrintKitchenCouponEvent, FinishExternalOrderEvent,
                        SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
-                       TefPrintReceiptsEvent, StartExternalOrderEvent)
+                       TefPrintReceiptsEvent, StartExternalOrderEvent, CancelExternalOrderEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1298,7 +1298,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
             log.info("emitting event FinishExternalOrderEvent {}".format(external_order_id))
             try:
                 FinishExternalOrderEvent.send(sale, external_order_id=external_order_id)
-            except ExternalOrderConfirmationError as exc:
+            except ExternalOrderError as exc:
                 abort(409, exc.reason)
 
         till = Till.get_last(store, station)
@@ -1515,14 +1515,26 @@ class PassbookUsersResource(BaseResource):
 
 
 class ExternalOrderResource(BaseResource):
-    routes = ['/external_order/<external_order_id>/confirm']
     method_decorators = [login_required, store_provider]
+    routes = ['/external_order/<external_order_id>/<action>']
 
-    def post(self, store, external_order_id):
-        log.info("emitting event StartExternalOrderEvent %s", external_order_id)
+    def post(self, store, external_order_id, action):
+        data = self.get_json()
+        cancellation_code = data.get('code')
+        cancellation_details = data.get('reason')
         try:
-            StartExternalOrderEvent.send(self.get_current_station(store),
-                                         external_order_id=external_order_id)
-        except ExternalOrderConfirmationError as exc:
+            if action == 'confirm':
+                success_msg = 'External order confirmed'
+                log.info("emitting event StartExternalOrderEvent %s", external_order_id)
+                StartExternalOrderEvent.send(self.get_current_station(store),
+                                             external_order_id=external_order_id)
+            elif action == 'cancel':
+                success_msg = 'External order cancelled'
+                log.info("emitting event CancelExternalOrderEvent %s", external_order_id)
+                CancelExternalOrderEvent.send(self.get_current_station(store),
+                                              external_order_id=external_order_id,
+                                              cancellation_code=cancellation_code,
+                                              cancellation_details=cancellation_details)
+        except ExternalOrderError as exc:
             abort(409, exc.reason)
-        return {"msg": 'External order confirmed'}, 201
+        return {"msg": success_msg}, 201
