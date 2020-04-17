@@ -1518,24 +1518,30 @@ class ExternalOrderResource(BaseResource):
     method_decorators = [login_required, store_provider]
     routes = ['/external_order/<external_order_id>/<action>']
 
-    @lock_printer
-    def post(self, store, external_order_id, action):
+    def _confirm_order(self, store, external_order_id):
+        log.info("emitting event StartExternalOrderEvent %s", external_order_id)
+        StartExternalOrderEvent.send(self.get_current_station(store),
+                                     external_order_id=external_order_id)
+        return 'External order confirmed'
+
+    def _cancel_order(self, store, external_order_id):
         data = self.get_json()
         cancellation_code = data.get('code')
         cancellation_details = data.get('reason')
+        log.info("emitting event CancelExternalOrderEvent %s", external_order_id)
+        CancelExternalOrderEvent.send(self.get_current_station(store),
+                                      external_order_id=external_order_id,
+                                      cancellation_code=cancellation_code,
+                                      cancellation_details=cancellation_details)
+        return 'External order cancelled'
+
+    @lock_printer
+    def post(self, store, external_order_id, action):
         try:
             if action == 'confirm':
-                success_msg = 'External order confirmed'
-                log.info("emitting event StartExternalOrderEvent %s", external_order_id)
-                StartExternalOrderEvent.send(self.get_current_station(store),
-                                             external_order_id=external_order_id)
+                success_msg = self._confirm_order(store, external_order_id)
             elif action == 'cancel':
-                success_msg = 'External order cancelled'
-                log.info("emitting event CancelExternalOrderEvent %s", external_order_id)
-                CancelExternalOrderEvent.send(self.get_current_station(store),
-                                              external_order_id=external_order_id,
-                                              cancellation_code=cancellation_code,
-                                              cancellation_details=cancellation_details)
+                success_msg = self._cancel_order(store, external_order_id)
         except ExternalOrderError as exc:
             abort(409, exc.reason)
         return {"msg": success_msg}, 201
