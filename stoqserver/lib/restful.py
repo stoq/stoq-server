@@ -1518,6 +1518,7 @@ class ExternalOrderResource(BaseResource):
     method_decorators = [login_required, store_provider]
     routes = ['/external_order/<external_order_id>/<action>']
 
+    @lock_printer
     def post(self, store, external_order_id, action):
         data = self.get_json()
         cancellation_code = data.get('code')

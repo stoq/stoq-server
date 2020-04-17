@@ -58,8 +58,6 @@ def kps_station(current_station):
 
 @pytest.fixture
 def open_till(current_till, current_user):
-    from stoqlib.domain.till import Till
-
     if current_till.status != Till.STATUS_OPEN:
         current_till.open_till(current_user)
 
@@ -116,8 +114,103 @@ def passbook_client():
 
 
 @pytest.fixture
-def ifood_order(store):
-    return IfoodOrder(store, status='PLACED')
+def order_details():
+    return {
+        "id": "bb2ec7fe-5276-4078-9d2e-b362da9f81ab",
+        "reference": "1072170838351011",
+        "shortReference": "6027",
+        "createdAt": "2019-10-18T19:19:51.707Z",
+        "scheduled": False,
+        "merchant": {
+            "id": "a940f92d-ba60-486d-b558-acbb1fedd175",
+            "shortId": "314566",
+            "name": "Restaurante Teste",
+            "address": {
+                "formattedAddress": "R. TESTE",
+                "country": "BR",
+                "state": "AC",
+                "city": "BUJARI",
+                "neighborhood": "Outros",
+                "streetName": "R. TESTE",
+                "streetNumber": "221",
+                "postalCode": "69923000"}
+        },
+        "payments": [
+            {
+                "name": "DINHEIRO",
+                "code": "DIN",
+                "value": 3,
+                "prepaid": False,
+                "changeFor": 3}
+        ],
+        "customer": {
+            "id": "114235279",
+            "uuid": "6486f892-a849-4815-8de3-bc56e9fc236c",
+            "name": "PEDIDO DE TESTE",
+            "phone": "0800 + ID",
+            "ordersCountOnRestaurant": 1,
+            "taxPayerIdentificationNumber": "77788866655"},
+        "items": [
+            {
+                "id": "13e82618-e6c7-454e-938d-cd0540846d69",
+                "name": "Item 1",
+                "quantity": 1,
+                "price": 6.0,
+                "subItemsPrice": 0,
+                "totalPrice": 6.0,
+                "discount": 0.0,
+                "addition": 0.0,
+                "externalId": "35620604",
+                "index": 1},
+        ],
+        "subTotal": 16,
+        "totalPrice": 18,
+        "deliveryFee": 2,
+        "deliveryAddress": {
+            "formattedAddress": "PEDIDO DE TESTE - NÃO ENTREGAR - Ramal Bujari, 10",
+            "country": "BR",
+            "state": "AC",
+            "city": "Bujari",
+            "coordinates": {
+                "latitude": -9.821256,
+                "longitude": -67.948009
+            },
+            "neighborhood": "Bujari",
+            "streetName": "PEDIDO DE TESTE - NÃO ENTREGAR - Ramal Bujari",
+            "streetNumber": "10",
+            "postalCode": "69923000"
+        },
+        "deliveryDateTime": "2019-10-18T20:19:51.707Z",
+        "preparationStartDateTime": "2019-10-18T19:19:51.707Z",
+        "localizer": {
+            "id": "30943878"
+        },
+        "preparationTimeInSeconds": 1800,
+        "isTest": True,
+        "benefits": [
+            {
+                "value": 15,
+                "sponsorshipValues": {
+                    "IFOOD": 15,
+                    "MERCHANT": 0},
+                "target": "ITEM",
+                "targetId": "12345"
+            }
+        ],
+        "deliveryMethod": {
+            "id": "DEFAULT",
+            "value": 15.00,
+            "minTime": 20,
+            "maxTime": 30,
+            "mode": "DELIVERY",
+            "deliveredBy": "IFOOD"
+        }
+    }
+
+
+@pytest.fixture
+def ifood_order(store, order_details):
+    return IfoodOrder(store, status='PLACED', order_details=order_details)
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -533,21 +626,21 @@ def test_till_get_closing_receipt_with_close_till(mock_get_receipt, client, clos
 
 
 @mock.patch('stoqifood.ifoodui.IfoodClient.login')
-@mock.patch('stoqifood.ifoodui.IfoodClient.dispatch')
+@mock.patch('stoqifood.ifoodui.IfoodClient.ready_to_deliver')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_post_sale_with_ifood_order(
-        mock_ifood_client_confirmation, mock_ifood_client_login, sale_payload,
+        mock_ifood_client_ready_to_deliver, mock_ifood_client_login, sale_payload,
         ifood_order, client
 ):
     mock_ifood_client_login.return_value = {'access_token': 'test'}
-    mock_ifood_client_confirmation.return_value = requests.codes.accepted
+    mock_ifood_client_ready_to_deliver.return_value = requests.codes.accepted
     sale_payload['external_order_id'] = ifood_order.id
 
     response = client.post('/sale', json=sale_payload)
 
     assert mock_ifood_client_login.call_count == 1
-    assert mock_ifood_client_confirmation.call_count == 1
-    assert ifood_order.status == 'DISPATCHED'
+    assert mock_ifood_client_ready_to_deliver.call_count == 1
+    assert ifood_order.status == 'READY_TO_DELIVER'
     assert response.status_code == 200
 
 
