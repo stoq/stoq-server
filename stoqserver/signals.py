@@ -49,3 +49,5 @@ StartPassbookSaleEvent = signal('StartPassbookSaleEvent')
 SearchForPassbookUsersByDocumentEvent = signal('SearchForPassbookUsersByDocumentEvent')
 
 EventStreamEstablishedEvent = signal('EventStreamEstablishedEvent')
+
+ExternalOrderReceiptImageEvent = signal('GenerateExternalOrderReceiptImageEvent')

@@ -626,21 +626,21 @@ def test_till_get_closing_receipt_with_close_till(mock_get_receipt, client, clos
 
 
 @mock.patch('stoqifood.ifoodui.IfoodClient.login')
-@mock.patch('stoqifood.ifoodui.IfoodClient.ready_to_deliver')
+@mock.patch('stoqifood.ifoodui.IfoodClient.dispatch')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_post_sale_with_ifood_order(
-        mock_ifood_client_ready_to_deliver, mock_ifood_client_login, sale_payload,
+        mock_ifood_client_dispatch, mock_ifood_client_login, sale_payload,
         ifood_order, client
 ):
     mock_ifood_client_login.return_value = {'access_token': 'test'}
-    mock_ifood_client_ready_to_deliver.return_value = requests.codes.accepted
+    mock_ifood_client_dispatch.return_value = requests.codes.accepted
     sale_payload['external_order_id'] = ifood_order.id
 
     response = client.post('/sale', json=sale_payload)
 
     assert mock_ifood_client_login.call_count == 1
-    assert mock_ifood_client_ready_to_deliver.call_count == 1
-    assert ifood_order.status == 'READY_TO_DELIVER'
+    assert mock_ifood_client_dispatch.call_count == 1
+    assert ifood_order.status == 'DISPATCHED'
     assert response.status_code == 200
 
 
