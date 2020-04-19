@@ -80,7 +80,7 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        PrintKitchenCouponEvent, FinishExternalOrderEvent,
                        SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
                        TefPrintReceiptsEvent, StartExternalOrderEvent,
-                       CancelExternalOrderEvent, ExternalOrderReceiptImageEvent)
+                       CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1536,9 +1536,10 @@ class ExternalOrderResource(BaseResource):
                                       cancellation_details=cancellation_details)
         return 'External order cancelled'
 
-    def get_receipt_image(self, external_order_id):
-        station = self.get_current_station(api.get_current_store())
-        responses = ExternalOrderReceiptImageEvent.send(station, external_order_id)
+    def _get_receipt_image(self, store, external_order_id):
+        station = self.get_current_station(store)
+        responses = GenerateExternalOrderReceiptImageEvent.send(station,
+                                                                external_order_id=external_order_id)
         if len(responses) == 1:  # Only ifood plugin should answer this signal
             return responses[0][1]
 
@@ -1555,8 +1556,8 @@ class ExternalOrderResource(BaseResource):
             abort(409, exc.reason)
         return {"msg": success_msg}, 201
 
-    def get(self, external_order_id):
+    def get(self, store, external_order_id, action):
         return {
             'id': external_order_id,
-            'image': self._get_receipt_image(external_order_id)
+            'image': self._get_receipt_image(store, external_order_id)
         }
