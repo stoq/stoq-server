@@ -1325,7 +1325,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         except NfeRejectedException as e:
             return self._handle_nfe_coupon_rejected(sale, e.reason)
 
-        if not sale.station.has_kps_enabled or not sale.get_kitchen_items():
+        if (not sale.station.has_kps_enabled or not sale.get_kitchen_items()
+                or external_order_id):
             return True
 
         order_number = data.get('order_number')
