@@ -80,7 +80,8 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        PrintKitchenCouponEvent, FinishExternalOrderEvent,
                        SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
                        TefPrintReceiptsEvent, StartExternalOrderEvent,
-                       CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent)
+                       CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent,
+                       PrintExternalOrderEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1546,6 +1547,11 @@ class ExternalOrderResource(BaseResource):
 
         return None
 
+    def _print_external_order(self, store, external_order_id):
+        station = self.get_current_station(store)
+        PrintExternalOrderEvent.send(station, external_order_id)
+        return 'External order printed'
+
     @lock_printer
     def post(self, store, external_order_id, action):
         try:
@@ -1558,6 +1564,10 @@ class ExternalOrderResource(BaseResource):
         return {"msg": success_msg}, 201
 
     def get(self, store, external_order_id, action):
+        if action == 'print':
+            success_msg = self._print_external_order(store, external_order_id)
+            return {'msg', success_msg}
+
         return {
             'id': external_order_id,
             'image': self._get_receipt_image(store, external_order_id)

@@ -42,6 +42,7 @@ GenerateTillClosingReceiptImageEvent = signal('GenerateTillClosingReceiptImageEv
 FinishExternalOrderEvent = signal('FinishExternalOrderEvent')
 StartExternalOrderEvent = signal('StartExternalOrderEvent')
 CancelExternalOrderEvent = signal('CancelExternalOrderEvent')
+PrintExternalOrderEvent = signal('PrintExternalOrderEvent')
 
 PrintKitchenCouponEvent = signal('PrintKitchenCouponEvent')
 
