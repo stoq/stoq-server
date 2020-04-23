@@ -42,6 +42,7 @@ from flask import request, abort, send_file, make_response, jsonify
 
 from stoqlib.api import api
 from stoqlib.database.interfaces import ICurrentUser
+from stoqlib.domain.address import Address, CityLocation
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
 from stoqlib.domain.overrides import ProductBranchOverride, SellableBranchOverride
@@ -65,6 +66,7 @@ from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, loca
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager
+from stoqlib.lib.validators import validate_cpf
 from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
 
 from stoqserver.app import is_multiclient
@@ -648,6 +650,31 @@ class ClientResource(BaseResource):
     """Client RESTful resource."""
     routes = ['/client']
 
+    @classmethod
+    def _create_client(cls, store, name, cpf, city_location, address):
+        tables = [Client,
+                  Join(Person, Client.person_id == Person.id),
+                  Join(Individual, Individual.person_id == Person.id)]
+        existent_client = store.using(*tables).find(Individual, cpf=cpf).one()
+        if existent_client:
+            return
+
+        person = Person(name=name, store=store)
+        Individual(cpf=cpf, person=person, store=store)
+
+        Address(street=address['street'],
+                streetnumber=address['streetnumber'],
+                district=address['district'],
+                postal_code=address['postal_code'],
+                complement=address.get('complement'),
+                is_main_address=address['is_main_address'],
+                person=person,
+                city_location=city_location,
+                store=store)
+
+        client = Client(person=person, store=store)
+        return client
+
     def _dump_client(self, client):
         person = client.person
         birthdate = person.individual.birth_date if person.individual else None
@@ -705,7 +732,7 @@ class ClientResource(BaseResource):
             retval.append(self._dump_client(client))
         return retval
 
-    def post(self):
+    def get(self):
         data = self.get_json()
 
         with api.new_store() as store:
@@ -714,6 +741,46 @@ class ClientResource(BaseResource):
             elif data.get('category_name'):
                 return self._get_by_category(store, data['category_name'])
         return data
+
+    def post(self):
+        data = self.get_json()
+
+        client_name = data.get('client_name')
+        client_document = data.get('client_document')
+        city_location = data.get('city_location')
+        address = data.get('address')
+
+        if not client_name:
+            return {'message': 'no client_name provided'}, 400
+
+        if not client_document:
+            return {'message': 'no client_document provided'}, 400
+        if not validate_cpf(client_document):
+            return {'message': 'invalid client_document provided'}, 400
+
+        if not city_location:
+            return {'message': 'no city_location provided'}, 400
+
+        if not address:
+            return {'message': 'no address provided'}, 400
+
+        with api.new_store() as store:
+            city_location = CityLocation.get(
+                store,
+                country=city_location['country'],
+                city=city_location['city'],
+                state=city_location['state'],
+            )
+            if city_location is None:
+                return {'message': 'city location informed not found'}, 404
+
+            client = self._create_client(
+                store, client_name, client_document, city_location, address)
+            if not client:
+                return {'message': 'a client with CPF {} already exists'.format(
+                    client_document)}, 409
+
+            return {'message': 'client {} created'.format(client.id)}, 201
 
 
 class ExternalClientResource(BaseResource):
