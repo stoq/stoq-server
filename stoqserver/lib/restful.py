@@ -1566,7 +1566,7 @@ class ExternalOrderResource(BaseResource):
     def get(self, store, external_order_id, action):
         if action == 'print':
             success_msg = self._print_external_order(store, external_order_id)
-            return {'msg', success_msg}
+            return {'msg': success_msg}
 
         return {
             'id': external_order_id,
