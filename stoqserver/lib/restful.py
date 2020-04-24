@@ -633,31 +633,6 @@ class ClientResource(BaseResource):
     """Client RESTful resource."""
     routes = ['/client']
 
-    @classmethod
-    def _create_client(cls, store, name, cpf, city_location, address):
-        tables = [Client,
-                  Join(Person, Client.person_id == Person.id),
-                  Join(Individual, Individual.person_id == Person.id)]
-        existent_client = store.using(*tables).find(Individual, cpf=cpf).one()
-        if existent_client:
-            return
-
-        person = Person(name=name, store=store)
-        Individual(cpf=cpf, person=person, store=store)
-
-        Address(street=address['street'],
-                streetnumber=address['streetnumber'],
-                district=address['district'],
-                postal_code=address['postal_code'],
-                complement=address.get('complement'),
-                is_main_address=address['is_main_address'],
-                person=person,
-                city_location=city_location,
-                store=store)
-
-        client = Client(person=person, store=store)
-        return client
-
     def _dump_client(self, client):
         person = client.person
         birthdate = person.individual.birth_date if person.individual else None
@@ -727,6 +702,32 @@ class ClientResource(BaseResource):
                 return self._get_by_category(store, category_name)
         return {'doc': doc, 'name': name}
 
+    @classmethod
+    def create_client(cls, store, name, cpf, address=None, city_location=None):
+        tables = [Client,
+                  Join(Person, Client.person_id == Person.id),
+                  Join(Individual, Individual.person_id == Person.id)]
+        existent_client = store.using(*tables).find(Individual, cpf=cpf).one()
+        if existent_client:
+            return
+
+        person = Person(name=name, store=store)
+        Individual(cpf=cpf, person=person, store=store)
+
+        if address and city_location:
+            Address(street=address['street'],
+                    streetnumber=address['streetnumber'],
+                    district=address['district'],
+                    postal_code=address['postal_code'],
+                    complement=address.get('complement'),
+                    is_main_address=address['is_main_address'],
+                    person=person,
+                    city_location=city_location,
+                    store=store)
+
+        client = Client(person=person, store=store)
+        return client
+
     @login_required
     def post(self):
         data = self.get_json()
@@ -760,8 +761,8 @@ class ClientResource(BaseResource):
             if city_location is None:
                 return {'message': 'city location informed not found'}, 404
 
-            client = self._create_client(
-                store, client_name, client_document, city_location, address)
+            client = self.create_client(
+                store, client_name, client_document, address, city_location)
             if not client:
                 return {'message': 'a client with CPF {} already exists'.format(
                     client_document)}, 409
@@ -1034,14 +1035,6 @@ class SaleResourceMixin:
 
             raise AssertionError(_('Sale already saved'))
 
-    def _create_client(self, store, document, data):
-        # Use data to get name from passbook
-        name = data.get('client_name', _('No name'))
-        person = Person(store=store, name=name)
-        Individual(store=store, person=person, cpf=document)
-        client = Client(store=store, person=person)
-        return client
-
     def _get_client_and_document(self, store, data):
         client_id = data.get('client_id')
         # We remove the format of the document and then add it just
@@ -1243,6 +1236,15 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         return data
 
+    @staticmethod
+    def _print_kps(data, sale):
+        order_number = data.get('order_number')
+        if order_number in {'0', '', None}:
+            abort(400, "Invalid order number")
+
+        log.info('emitting event PrintKitchenCouponEvent {}'.format(order_number))
+        PrintKitchenCouponEvent.send(sale, order_number=order_number)
+
     @lock_printer
     @lock_sat(block=True)
     def post(self, store):
@@ -1254,6 +1256,20 @@ class SaleResource(BaseResource, SaleResourceMixin):
         postpone_emission = data.get('postpone_emission', False)
 
         client, client_document, coupon_document = self._get_client_and_document(store, data)
+
+        address = data.get('address')
+        client_name = data.get('client_name')
+        city_location = data.get('city_location')
+        if not client and client_document and client_name:
+            if city_location:
+                city_location = CityLocation.get(
+                    store,
+                    country=city_location['country'],
+                    city=city_location['city'],
+                    state=city_location['state'],
+                )
+            client = ClientResource.create_client(
+                store, client_name, client_document, address, city_location)
 
         sale_id = data.get('sale_id')
         early_response = self._check_already_saved(store, Sale, sale_id, should_print_receipts)
@@ -1381,17 +1397,10 @@ class SaleResource(BaseResource, SaleResourceMixin):
         except NfeRejectedException as e:
             return self._handle_nfe_coupon_rejected(sale, e.reason)
 
-        if (not sale.station.has_kps_enabled or not sale.get_kitchen_items()
-                or external_order_id):
-            return True
+        if sale.station.has_kps_enabled and sale.get_kitchen_items() and not external_order_id:
+            self._print_kps(data, sale)
 
-        order_number = data.get('order_number')
-        if order_number in {'0', '', None}:
-            abort(400, "Invalid order number")
-
-        log.info('emitting event PrintKitchenCouponEvent {}'.format(order_number))
-        PrintKitchenCouponEvent.send(sale, order_number=order_number)
-        return True
+        return {'sale_id': sale.id, 'client_id': client and client.id}, 201
 
     def get(self, store, sale_id):
         sale = store.get(Sale, sale_id)
@@ -1430,7 +1439,8 @@ class AdvancePaymentResource(BaseResource, SaleResourceMixin):
         data = self.get_json()
         client, client_document, coupon_document = self._get_client_and_document(store, data)
         if not client:
-            client = self._create_client(store, client_document, data)
+            client_name = data.get('client_name', _('No name'))
+            client = ClientResource.create_client(store, client_name, client_document)
 
         advance_id = data.get('sale_id')
         should_print_receipts = data.get('print_receipts', True)

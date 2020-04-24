@@ -7,6 +7,7 @@ from kiwi.currency import currency
 from stoqifood.domain import IfoodOrder
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.sale import Sale
+from stoqlib.domain.person import Individual
 from stoqlib.domain.till import Till
 from storm.expr import Desc
 
@@ -43,6 +44,46 @@ def sale_payload(sellable):
     }]
 
     return {
+        'products': products,
+        'payments': payments,
+        'order_number': 69,
+        'discount_value': 0,
+    }
+
+
+@pytest.fixture
+def sale_payload_new_client(sellable):
+    products = [{
+        'id': sellable.id,
+        'price': str(sellable.price),
+        'quantity': 1,
+    }]
+
+    payments = [{
+        'method': 'money',
+        'mode': None,
+        'provider': None,
+        'installments': 1,
+        'value': str(sellable.price),
+    }]
+    address = {
+        'street': 'Rua Aquidaban',
+        'streetnumber': 1,
+        'district': 'Centro',
+        'postal_code': '13560-120',
+        'is_main_address': True,
+    }
+    city_location = {
+        'country': 'Brazil',
+        'state': 'SP',
+        'city': 'São Carlos',
+    }
+
+    return {
+        'address': address,
+        'city_location': city_location,
+        'client_document': '111.111.111-11',
+        'client_name': 'José Silva',
         'products': products,
         'payments': payments,
         'order_number': 69,
@@ -234,7 +275,7 @@ def test_kps_sale_with_kps_station_disabled(mock_kps_event_send, client, sale_pa
     response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
-    assert response.status_code == 200
+    assert response.status_code == 201
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -243,7 +284,7 @@ def test_kps_sale_without_kitchen_items(mock_kps_event_send, client, sale_payloa
     response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
-    assert response.status_code == 200
+    assert response.status_code == 201
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -253,7 +294,7 @@ def test_kps_sale(mock_kps_event_send, client, sale_payload, sellable):
 
     response = client.post('/sale', json=sale_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert mock_kps_event_send.call_count == 1
     args, kwargs = mock_kps_event_send.call_args_list[0]
     assert len(args) == 1
@@ -272,7 +313,7 @@ def test_sale_with_discount(client, sale_payload, store):
 
     sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert sale.get_total_sale_amount() == currency('75')
     assert sale.discount_value == currency('25')
 
@@ -299,7 +340,7 @@ def test_remove_passbook_stamps(
     sale_payload['discount_value'] = 9
     response = client.post('/sale', json=sale_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     mock_passbook_send_event.assert_called_once_with(
         current_station, **data
     )
@@ -317,7 +358,7 @@ def test_dont_remove_passbook_stamps(
 
     response = client.post('/sale', json=sale_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert mock_passbook_send_event.send.call_count == 0
 
 
@@ -333,7 +374,7 @@ def test_dont_remove_passbook_stamps_if_type_points(
 
     response = client.post('/sale', json=sale_payload)
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert mock_passbook_send_event.send.call_count == 0
 
 
@@ -356,7 +397,7 @@ def test_sale_with_package(client, sale_payload, example_creator, store):
     response = client.post('/sale', json=sale_payload)
     sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert sale.get_total_sale_amount() == 15
 
     items = list(sale.get_items())
@@ -364,6 +405,18 @@ def test_sale_with_package(client, sale_payload, example_creator, store):
 
     sellables = set(i.sellable for i in items)
     assert sellables == {package.sellable, child1.sellable, child2.sellable}
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_sale_new_client(client, sale_payload_new_client, example_creator, store):
+    response = client.post('/sale', json=sale_payload_new_client)
+    sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
+    individual = store.find(Individual, cpf=sale_payload_new_client['client_document']).one()
+
+    assert response.status_code == 201
+    assert sale.id == response.json.get('sale_id')
+    assert sale.client_id == response.json.get('client_id')
+    assert sale.client.person == individual.person
 
 
 def test_data_resource(client):
@@ -641,7 +694,7 @@ def test_post_sale_with_ifood_order(
     assert mock_ifood_client_login.call_count == 1
     assert mock_ifood_client_dispatch.call_count == 1
     assert ifood_order.status == 'DISPATCHED'
-    assert response.status_code == 200
+    assert response.status_code == 201
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
@@ -650,7 +703,7 @@ def test_post_sale_ifood_order_without_order_id(client, sale_payload, ifood_orde
     response = client.post('/sale', json=sale_payload)
 
     assert ifood_order.status == 'PLACED'
-    assert response.status_code == 200
+    assert response.status_code == 201
 
 
 @mock.patch('stoqserver.lib.restful.get_config')
@@ -674,8 +727,9 @@ def test_sale_hack_money_as_ifood(get_config_mock, client, sale_payload):
 
     # Money as payment method is ok
     response = client.post('/sale', json=sale_payload)
-    assert response.status_code == 200
-    assert response.json is True
+    assert response.status_code == 201
+    assert 'sale_id' in response.json
+    assert 'client_id' in response.json
 
     # Card as payment method is invalid
     sale_payload['payments'][0]['method'] = 'card'
@@ -693,12 +747,14 @@ def test_sale_hack_money_as_ifood(get_config_mock, client, sale_payload):
     sale_payload['payments'][0]['card_type'] = None
     sale_payload['payments'][0]['provider'] = None
     response = client.post('/sale', json=sale_payload)
-    assert response.status_code == 200
-    assert response.json is True
+    assert response.status_code == 201
+    assert 'sale_id' in response.json
+    assert 'client_id' in response.json
 
     sale_payload['payments'][0]['method'] = 'card'
     sale_payload['payments'][0]['card_type'] = 'credit'
     sale_payload['payments'][0]['provider'] = 'VISA'
     response = client.post('/sale', json=sale_payload)
-    assert response.status_code == 200
-    assert response.json is True
+    assert response.status_code == 201
+    assert 'sale_id' in response.json
+    assert 'client_id' in response.json

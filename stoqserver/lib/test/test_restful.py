@@ -347,8 +347,12 @@ class TestSaleResource(_TestFlask):
                     }),
                 )
 
-                self.assertEqual(rv.status_code, 200)
-                self.assertEqual(json.loads(rv.data.decode()), True)
+                self.assertEqual(rv.status_code, 201)
+
+                reponse_data = json.loads(rv.data.decode())
+                self.assertIn('sale_id', reponse_data)
+                self.assertIn('client_id', reponse_data)
+                self.assertEqual(reponse_data['client_id'], None)
 
                 # This should be the sale made by the call above
                 sale = self.store.find(Sale).order_by(Desc(Sale.open_date)).first()
