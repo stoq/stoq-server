@@ -733,14 +733,16 @@ class ClientResource(BaseResource):
         return retval
 
     def get(self):
-        data = self.get_json()
+        doc = request.args.get('doc')
+        name = request.args.get('name')
+        category_name = request.args.get('category_name')
 
         with api.new_store() as store:
-            if data.get('doc'):
-                return self._get_by_doc(store, data, data['doc'])
-            elif data.get('category_name'):
-                return self._get_by_category(store, data['category_name'])
-        return data
+            if doc:
+                return self._get_by_doc(store, {'doc': doc, 'name': name}, doc)
+            elif category_name:
+                return self._get_by_category(store, category_name)
+        return {'doc': doc, 'name': name}
 
     def post(self):
         data = self.get_json()
