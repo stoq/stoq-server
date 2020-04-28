@@ -23,6 +23,7 @@
 #
 
 import datetime
+import decimal
 import json
 from hashlib import md5
 
@@ -30,9 +31,12 @@ from stoqlib.api import api
 
 
 class JsonEncoder(json.JSONEncoder):
+
     def default(self, obj):
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()
+        if isinstance(obj, decimal.Decimal):
+            return str(obj)
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
 
