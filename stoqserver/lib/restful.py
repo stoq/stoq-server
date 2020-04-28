@@ -727,6 +727,7 @@ class ClientResource(BaseResource):
                 return self._get_by_category(store, category_name)
         return {'doc': doc, 'name': name}
 
+    @login_required
     def post(self):
         data = self.get_json()
 
