@@ -1301,6 +1301,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         # Add products
         for p in products:
             sellable = store.get(Sellable, p['id'])
+            if sellable is None:
+                abort(400, 'Sellable {} doesn\'t exist'.format(p['id']))
             product = sellable.product
             if product and product.is_package:
                 parent = sale.add_sellable(sellable, price=0,
