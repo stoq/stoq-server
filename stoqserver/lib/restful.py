@@ -1645,3 +1645,33 @@ class ExternalOrderResource(BaseResource):
             'id': external_order_id,
             'image': self._get_receipt_image(store, external_order_id)
         }
+
+
+class LoackerResource(BaseResource):
+    method_decorators = [login_required]
+    routes = ['/locker']
+
+    def _open_locker(self, locker_number, locker_mac, timeout=1):
+        locker_data = {"mac": locker_mac, "output": locker_number, "timeout": timeout}
+
+        config = get_config()
+        api_key = config.get("Condlink", "api_key")
+        headers = {"x-api-key": api_key}
+        response = requests.post('https://onii.condlink.com.br/accessDevice/v1/comm5',
+                                 headers=headers, data=locker_data)
+        return response.text
+
+    @login_required
+    def post(self):
+        data = self.get_json()
+
+        locker_number = data.get('lockerNumber')
+        locker_mac = data.get('lockerMac')
+
+        if not locker_number:
+            return {'message': 'No locker_number provided'}, 400
+
+        if not locker_mac:
+            return {'message': 'No locker_mac provided'}, 400
+
+        return self._open_locker(locker_number, locker_mac)
