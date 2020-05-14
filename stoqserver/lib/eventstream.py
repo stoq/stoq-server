@@ -97,7 +97,9 @@ class EventStream(BaseResource):
         """
 
         if station:
-            if not station.id in cls._streams and not station.is_api:
+            if station.is_api:
+                return
+            if not station.id in cls._streams:
                 raise EventStreamUnconnectedStation
 
             return cls._streams[station.id].put(data)
