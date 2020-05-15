@@ -150,9 +150,8 @@ def run_flaskserver(port, debug=False, multiclient=False):
     http_server = WSGIServer(('0.0.0.0', port), app, spawn=gevent.spawn_raw, log=logger,
                              error_log=logger)
 
-    if is_developer_mode():
-        if debug:
-            gevent.spawn(_gtk_main_loop)
+    if debug:
+        gevent.spawn(_gtk_main_loop)
 
         @run_with_reloader
         def run_server():

@@ -83,7 +83,7 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
                        TefPrintReceiptsEvent, StartExternalOrderEvent,
                        CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent,
-                       PrintExternalOrderEvent)
+                       PrintExternalOrderEvent, ReadyToDeliverExternalOrderEvent)
 
 
 # This needs to be imported to workaround a storm limitation
@@ -1603,6 +1603,12 @@ class ExternalOrderResource(BaseResource):
                                       cancellation_details=cancellation_details)
         return 'External order cancelled'
 
+    def _ready_to_deliver(self, store, external_order_id):
+        log.info("emitting event ReadyToDeliverExternalOrderEvent %s", external_order_id)
+        ReadyToDeliverExternalOrderEvent.send(self.get_current_station(store),
+                                              external_order_id=external_order_id)
+        return 'External order ready to deliver'
+
     def _get_receipt_image(self, store, external_order_id):
         station = self.get_current_station(store)
         responses = GenerateExternalOrderReceiptImageEvent.send(station,
@@ -1624,6 +1630,8 @@ class ExternalOrderResource(BaseResource):
                 success_msg = self._confirm_order(store, external_order_id)
             elif action == 'cancel':
                 success_msg = self._cancel_order(store, external_order_id)
+            elif action == 'ready_to_deliver':
+                success_msg = self._ready_to_deliver(store, external_order_id)
         except ExternalOrderError as exc:
             abort(409, exc.reason)
         return {"msg": success_msg}, 201
