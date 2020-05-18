@@ -1,10 +1,10 @@
-import requests
+# import requests
 from unittest import mock
 
 import pytest
 
 from kiwi.currency import currency
-from stoqifood.domain import IfoodOrder
+# from stoqifood.domain import IfoodOrder
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.person import Individual
@@ -249,9 +249,9 @@ def order_details():
     }
 
 
-@pytest.fixture
-def ifood_order(store, order_details):
-    return IfoodOrder(store, status='PLACED', order_details=order_details)
+# @pytest.fixture
+# def ifood_order(store, order_details):
+#     return IfoodOrder(store, status='PLACED', order_details=order_details)
 
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
@@ -678,32 +678,32 @@ def test_till_get_closing_receipt_with_close_till(mock_get_receipt, client, clos
     assert response.json["image"] == fake_image
 
 
-@mock.patch('stoqifood.ifoodui.IfoodClient.login')
-@mock.patch('stoqifood.ifoodui.IfoodClient.dispatch')
-@pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_post_sale_with_ifood_order(
-        mock_ifood_client_dispatch, mock_ifood_client_login, sale_payload,
-        ifood_order, client
-):
-    mock_ifood_client_login.return_value = {'access_token': 'test'}
-    mock_ifood_client_dispatch.return_value = requests.codes.accepted
-    sale_payload['external_order_id'] = ifood_order.id
+# @mock.patch('stoqifood.ifoodui.IfoodClient.login')
+# @mock.patch('stoqifood.ifoodui.IfoodClient.dispatch')
+# @pytest.mark.usefixtures('open_till', 'mock_new_store')
+# def test_post_sale_with_ifood_order(
+#         mock_ifood_client_dispatch, mock_ifood_client_login, sale_payload,
+#         ifood_order, client
+# ):
+#     mock_ifood_client_login.return_value = {'access_token': 'test'}
+#     mock_ifood_client_dispatch.return_value = requests.codes.accepted
+#     sale_payload['external_order_id'] = ifood_order.id
+#
+#     response = client.post('/sale', json=sale_payload)
+#
+#     assert mock_ifood_client_login.call_count == 1
+#     assert mock_ifood_client_dispatch.call_count == 1
+#     assert ifood_order.status == 'DISPATCHED'
+#     assert response.status_code == 201
 
-    response = client.post('/sale', json=sale_payload)
 
-    assert mock_ifood_client_login.call_count == 1
-    assert mock_ifood_client_dispatch.call_count == 1
-    assert ifood_order.status == 'DISPATCHED'
-    assert response.status_code == 201
-
-
-@pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_post_sale_ifood_order_without_order_id(client, sale_payload, ifood_order):
-
-    response = client.post('/sale', json=sale_payload)
-
-    assert ifood_order.status == 'PLACED'
-    assert response.status_code == 201
+# @pytest.mark.usefixtures('open_till', 'mock_new_store')
+# def test_post_sale_ifood_order_without_order_id(client, sale_payload, ifood_order):
+#
+#     response = client.post('/sale', json=sale_payload)
+#
+#     assert ifood_order.status == 'PLACED'
+#     assert response.status_code == 201
 
 
 @mock.patch('stoqserver.lib.restful.get_config')

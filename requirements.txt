@@ -1,3 +1,4 @@
+service_identity
 Twisted >= 10.0.0
 flask >= 0.10.1, < 1
 flask-restful >= 0.3.4
