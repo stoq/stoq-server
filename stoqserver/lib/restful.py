@@ -1586,6 +1586,7 @@ class ExternalOrderResource(BaseResource):
     method_decorators = [login_required, store_provider]
     routes = ['/external_order/<external_order_id>/<action>']
 
+    @lock_printer
     def _confirm_order(self, store, external_order_id):
         log.info("emitting event StartExternalOrderEvent %s", external_order_id)
         StartExternalOrderEvent.send(self.get_current_station(store),
@@ -1623,7 +1624,6 @@ class ExternalOrderResource(BaseResource):
         PrintExternalOrderEvent.send(station, external_order_id=external_order_id)
         return 'External order printed'
 
-    @lock_printer
     def post(self, store, external_order_id, action):
         try:
             if action == 'confirm':
