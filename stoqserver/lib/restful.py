@@ -368,6 +368,12 @@ class DataResource(BaseResource):
         iti_discount = True if config.get("Discounts", "iti") == '1' else False
         hotjar_id = config.get("Hotjar", "id")
         plugins = get_plugin_manager().active_plugins_names
+        responses = signal('GetSettingsForFrontendEvent').send(station)
+
+        settings = {}
+        for response in responses:
+            settings.update(response[1])
+
         sat_status = pinpad_status = printer_status = True
         if not is_multiclient:
             try:
@@ -418,6 +424,7 @@ class DataResource(BaseResource):
             iti_discount=iti_discount,
             hotjar_id=hotjar_id,
             plugins=plugins,
+            settings=settings,
             # Device statuses
             sat_status=sat_status,
             pinpad_status=pinpad_status,
