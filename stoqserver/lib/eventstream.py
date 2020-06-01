@@ -159,12 +159,13 @@ class EventStream(BaseResource):
     def _loop(self, stream: Queue, station_id):
         while True:
             try:
-                data = stream.get(timeout=2)
+                data = stream.get(timeout=10)
             except Empty:
                 if self._streams[station_id] != stream:
                     log.info('Stream for station %s changed. Closing old stream', station_id)
                     break
 
+                yield "data: null\n\n"
                 continue
 
             yield "data: " + json.dumps(data, cls=JsonEncoder) + "\n\n"
