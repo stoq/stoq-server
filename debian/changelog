@@ -1,3 +1,9 @@
+stoq-server (1.1~beta0) xenial; urgency=medium
+
+  * Release 1.1~beta0
+
+ -- Ronaldo Maia <romaia@async.com.br>  Wed, 03 Jun 2020 09:52:34 -0300
+
 stoq-server (1.0~beta0) xenial; urgency=medium
 
   * Release 1.0~beta0
