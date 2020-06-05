@@ -745,17 +745,22 @@ class ClientResource(BaseResource):
         address = data.get('address')
 
         if not client_name:
+            log.error('no client_name provided: %s', data)
             return {'message': 'no client_name provided'}, 400
 
         if not client_document:
+            log.error('no client_document provided: %s', data)
             return {'message': 'no client_document provided'}, 400
         if not validate_cpf(client_document):
+            log.error('invalid client_document provided: %s', data)
             return {'message': 'invalid client_document provided'}, 400
 
         if not city_location:
+            log.error('no city_location provided: %s', data)
             return {'message': 'no city_location provided'}, 400
 
         if not address:
+            log.error('no address provided: %s', data)
             return {'message': 'no address provided'}, 400
 
         with api.new_store() as store:
@@ -771,6 +776,7 @@ class ClientResource(BaseResource):
             client = self.create_client(
                 store, client_name, client_document, address, city_location)
             if not client:
+                log.error('client with cpf %s already exists', client_document)
                 return {'message': 'a client with CPF {} already exists'.format(
                     client_document)}, 409
 
@@ -816,6 +822,7 @@ class LoginResource(BaseResource):
             user = LoginUser.authenticate(store, username, pw_hash, current_branch=None)
             provide_utility(ICurrentUser, user, replace=True)
         except LoginError as e:
+            log.error('Login failed for user %s', username)
             abort(403, str(e))
 
         token = AccessToken.get_or_create(store, user, station).token
@@ -1247,6 +1254,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
     def _print_kps(data, sale):
         order_number = data.get('order_number')
         if order_number in {'0', '', None}:
+            log.error('Invalid order number: %s', order_number)
             abort(400, "Invalid order number")
 
         log.info('emitting event PrintKitchenCouponEvent {}'.format(order_number))
@@ -1323,9 +1331,14 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         # Add products
         for p in products:
+            if not currency(p['price']):
+                continue
+
             sellable = store.get(Sellable, p['id'])
             if sellable is None:
+                log.error('Sellable %s does not exist', p)
                 abort(400, 'Sellable {} doesn\'t exist'.format(p['id']))
+
             product = sellable.product
             if product and product.is_package:
                 parent = sale.add_sellable(sellable, price=0,
@@ -1356,6 +1369,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
         if station.name in [i.strip() for i in hacked_stations_list.split(',')]:
             for p in data['payments']:
                 if p['method'] != 'money':
+                    log.error('Payment method not allowed for this station: %s', p)
                     abort(422, 'Payment method not allowed for this station')
 
                 p['method'] = 'card'
@@ -1375,10 +1389,11 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         external_order_id = data.get('external_order_id')
         if external_order_id:
-            log.info("emitting event FinishExternalOrderEvent {}".format(external_order_id))
+            log.info("emitting event FinishExternalOrderEvent %s", external_order_id)
             try:
                 FinishExternalOrderEvent.send(sale, external_order_id=external_order_id)
             except ExternalOrderError as exc:
+                log.error('Event failed: %s', exc.reason)
                 abort(409, exc.reason)
 
         till = Till.get_last(store, station)
