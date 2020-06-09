@@ -409,6 +409,66 @@ def test_sale_with_package(client, sale_payload, example_creator, store):
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_sale_with_package_discount_in_price(client, sale_payload, example_creator, store):
+    child1 = example_creator.create_product(price=88, description='child1', stock=5, code='98')
+    child2 = example_creator.create_product(price=8, description='child2', stock=5, code='99')
+
+    # But in a package, they have special prices
+    package = example_creator.create_product(price=15, description=u'package', is_package=True)
+    example_creator.create_product_component(product=package, component=child1, price=10)
+    example_creator.create_product_component(product=package, component=child2, price=5)
+
+    sale_payload['products'] = [{
+        'id': package.id,
+        'price': '10',  # the regular price is 15, but we are selling at discount
+        'quantity': 1,
+    }]
+
+    response = client.post('/sale', json=sale_payload)
+    sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
+
+    assert response.status_code == 201
+    assert sale.get_total_sale_amount() == 10
+
+    items = list(sale.get_items())
+    item1 = list(filter(lambda i: i.sellable == child1.sellable, items))[0]
+    item2 = list(filter(lambda i: i.sellable == child2.sellable, items))[0]
+    assert item1.price == currency('6.67')
+    assert item2.price == currency('3.33')
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_sale_with_package_surcharge_in_price(client, sale_payload, example_creator, store):
+    child1 = example_creator.create_product(price=88, description='child1', stock=5, code='98')
+    child2 = example_creator.create_product(price=8, description='child2', stock=5, code='99')
+
+    # But in a package, they have special prices
+    package = example_creator.create_product(price=20, description=u'package', is_package=True)
+    example_creator.create_product_component(product=package, component=child1, price=10)
+    example_creator.create_product_component(product=package, component=child2, price=5,
+                                             component_quantity=2)
+
+    sale_payload['products'] = [{
+        'id': package.id,
+        'price': '25',  # the regular price is 20, but we are selling at a surcharge
+        'quantity': 1,
+    }]
+
+    response = client.post('/sale', json=sale_payload)
+    sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
+
+    assert response.status_code == 201
+    assert sale.get_total_sale_amount() == 25
+
+    items = list(sale.get_items())
+    item1 = list(filter(lambda i: i.sellable == child1.sellable, items))[0]
+    item2 = list(filter(lambda i: i.sellable == child2.sellable, items))[0]
+    assert item1.price == currency('12.50')
+    assert item2.price == currency('6.25')
+    assert item2.quantity == 2
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_sale_new_client(client, sale_payload_new_client, example_creator, store):
     response = client.post('/sale', json=sale_payload_new_client)
     sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()

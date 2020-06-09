@@ -63,6 +63,7 @@ from stoqlib.domain.till import Till, TillSummary
 from stoqlib.exceptions import LoginError, TillError, ExternalOrderError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.dateutils import INTERVALTYPE_MONTH, create_date_interval, localnow
+from stoqlib.lib.defaults import quantize
 from stoqlib.lib.formatters import raw_document, format_document, format_cpf
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager
@@ -234,7 +235,7 @@ class DataResource(BaseResource):
             'description': sellable.description,
             'short_description': sellable.short_description,
             'price': str(sellable.get_price(branch)),
-            'order': str(sellable.product.height),
+            'order': str(sellable.product.height),  # TODO: There is a sort_order now in the domain
             'color': sellable.product.part_number,
             'category_prices': category_prices,
             'requires_kitchen_production': sellable.get_requires_kitchen_production(branch),
@@ -265,6 +266,8 @@ class DataResource(BaseResource):
                 self._dump_sellable(category_prices, sellable, station.branch, image))
 
         # Build tree of categories
+        # FIXME: there is no point in sorting here, since the frontend re-sorts the categories.
+        # TODO: Send category.sort_order as well.
         for c in store.find(SellableCategory).order_by(Desc('sort_order'), 'description'):
             cat_dict = categories_dict.setdefault(c.id, {'children': [], 'products': []})
             cat_dict.update({'id': c.id, 'description': c.description})
@@ -1341,14 +1344,21 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
             product = sellable.product
             if product and product.is_package:
+                # External orders might send a different price for a package, and we must adjust the
+                # children prices to make them match
+                diff = decimal.Decimal(p['price']) - sellable.price
+
                 parent = sale.add_sellable(sellable, price=0,
                                            quantity=decimal.Decimal(p['quantity']))
                 # XXX: Maybe this should be done in sale.add_sellable automatically, but this would
                 # require refactoring stoq as well.
-                # TODO: Tests will come in the next patchset
                 for child in product.get_components():
                     quantity = child.quantity * decimal.Decimal(p['quantity'])
-                    item = sale.add_sellable(child.component.sellable, price=child.price,
+                    price = child.price
+                    if diff:
+                        price = price + quantize(diff * price / sellable.price)
+
+                    item = sale.add_sellable(child.component.sellable, price=price,
                                              quantity=quantity, parent=parent)
                     # FIXME: The same comment bellow applies
                     item.base_price = item.price
