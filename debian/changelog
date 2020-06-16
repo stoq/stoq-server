@@ -1,3 +1,9 @@
+stoq-server (1.2.0~beta1) xenial; urgency=medium
+
+  * Release 1.2.0~beta1
+
+ -- Vinícius M Camillo <vmcamillo@vmcamillo.lenovo-ideapad-320-15IKB>  Tue, 16 Jun 2020 11:22:17 -0300
+
 stoq-server (1.2~beta0) xenial; urgency=medium
 
   * Release 1.2~beta0
