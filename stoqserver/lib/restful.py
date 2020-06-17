@@ -1181,7 +1181,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
     method_decorators = [login_required, store_provider]
 
     def _handle_nfe_coupon_rejected(self, sale, reason):
-        log.exception('NFC-e sale rejected')
+        log.exception('NFC-e sale rejected: {}'.format(sale))
         message = _("NFC-e of sale {sale_identifier} was rejected")
         return {
             'error_type': 'rejection',
@@ -1392,6 +1392,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         if (discount_value > 0 and passbook_client and 'stamps' in passbook_client.get('type', [])
                 and decimal.Decimal(passbook_client['points']) >= passbook_client['stamps_limit']):
             self._remove_passbook_stamps(store, passbook_client, sale_id)
+
+        log.info("Sale info: {}.".format(list(sale.get_items())))
 
         # Confirm the sale
         group.confirm()
