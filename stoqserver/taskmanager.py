@@ -43,7 +43,6 @@ from stoqlib.lib.webservice import WebService
 from stoqlib.net.socketutils import get_random_port
 
 from stoqserver.tasks import (backup_status, restore_database, backup_database,
-                              start_plugins_update_scheduler,
                               start_xmlrpc_server, start_server,
                               start_backup_scheduler, start_htsql)
 
@@ -603,8 +602,6 @@ class Worker(object):
             # This is not working nice when using NTK lib (maybe related to the multiprocess lib).
             # Must be executed as a separate process for now.
             #Task('_flask', start_flask_server),
-            Task('_updater', start_plugins_update_scheduler,
-                 self._updater_event, self._doing_backup),
             Task('_backup', start_backup_scheduler, self._doing_backup),
         ]
         # TODO: Make those work on windows

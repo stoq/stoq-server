@@ -35,16 +35,12 @@ import tempfile
 import time
 import urllib.parse
 
-import dateutil.parser
 from stoqlib.api import api
 from stoqlib.exceptions import DatabaseError
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.database.settings import db_settings
-from stoqlib.domain.plugin import PluginEgg
 from stoqlib.lib.configparser import get_config
-from stoqlib.lib.pluginmanager import get_plugin_manager
 from stoqlib.lib.process import Process
-from stoqlib.lib.settings import UserSettings
 
 from stoqserver import library
 from stoqserver.common import (APP_BACKUP_DIR, SERVER_XMLRPC_PORT,
@@ -209,54 +205,6 @@ def start_htsql(port):
     signal.signal(signal.SIGTERM, _sigterm_handler)
 
     popen.wait()
-
-
-def start_plugins_update_scheduler(event, doing_backup):
-    _setup_signal_termination()
-
-    if not api.sysparam.get_bool('ONLINE_SERVICES'):
-        logger.info("ONLINE_SERVICES not enabled. Not scheduling plugin updates...")
-        return
-
-    manager = get_plugin_manager()
-
-    while True:
-        last_check_str = UserSettings().get('last-plugins-update', None)
-        last_check = (dateutil.parser.parse(last_check_str)
-                      if last_check_str else datetime.datetime.min)
-
-        # Check for updates once per day
-        if last_check.date() == datetime.date.today():
-            time.sleep(24 * 60 * 60)
-            continue
-
-        logger.info("Checking for plugins updates...")
-        updated = False
-        default_store = get_default_store()
-        for egg in default_store.find(PluginEgg):
-            md5sum = egg.egg_md5sum
-            manager.download_plugin(egg.plugin_name)
-
-            # If download_plugin updated the plugin, autoreload will
-            # make egg. be reloaded from the database
-            if md5sum != egg.egg_md5sum:
-                updated = True
-
-        settings = UserSettings()
-        settings.set('last-plugins-update',
-                     datetime.datetime.now().isoformat())
-        settings.flush()
-
-        if updated:
-            # Wait until any running backup is finished and restart
-            while doing_backup.value:
-                time.sleep(60)
-
-            logger.info("Some plugins were updated. Restarting now "
-                        "to reflect the changes...")
-            event.set()
-        else:
-            logger.info("No update was found...")
 
 
 def start_backup_scheduler(doing_backup):
