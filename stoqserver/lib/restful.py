@@ -1409,7 +1409,12 @@ class SaleResource(BaseResource, SaleResourceMixin):
                 abort(409, exc.reason)
 
         till = Till.get_last(store, station)
-        if till.status != Till.STATUS_OPEN:
+        if station.is_api and not till:
+            # Some may access /sale endpoint outside our PDV. In this case we may not have a
+            # till to register the entry
+            till = Till(store=store, branch=branch)
+            till.open_till(user)
+        elif till.status != Till.STATUS_OPEN:
             raise TillError(_('There is no till open'))
 
         sale.confirm(user, till)
