@@ -643,6 +643,19 @@ class ClientResource(BaseResource):
     """Client RESTful resource."""
     routes = ['/client']
 
+    @classmethod
+    def create_address(cls, person, address, city_location):
+        if address and city_location:
+            Address(street=address['street'],
+                    streetnumber=address['streetnumber'],
+                    district=address['district'],
+                    postal_code=address['postal_code'],
+                    complement=address.get('complement'),
+                    is_main_address=address['is_main_address'],
+                    person=person,
+                    city_location=city_location,
+                    store=person.store)
+
     def _dump_client(self, client):
         person = client.person
         birthdate = person.individual.birth_date if person.individual else None
@@ -724,17 +737,7 @@ class ClientResource(BaseResource):
         person = Person(name=name, store=store)
         Individual(cpf=cpf, person=person, store=store)
 
-        if address and city_location:
-            Address(street=address['street'],
-                    streetnumber=address['streetnumber'],
-                    district=address['district'],
-                    postal_code=address['postal_code'],
-                    complement=address.get('complement'),
-                    is_main_address=address['is_main_address'],
-                    person=person,
-                    city_location=city_location,
-                    store=store)
-
+        cls.create_address(person, address, city_location)
         client = Client(person=person, store=store)
         return client
 
@@ -1063,6 +1066,7 @@ class SaleResourceMixin:
         if client_document:
             client_document = format_document(client_document)
 
+        client = None
         if client_id:
             client = store.get(Client, client_id)
         elif client_document:
@@ -1071,10 +1075,24 @@ class SaleResourceMixin:
                 client = person.client
             elif person and not person.client:
                 client = Client(store=store, person=person)
-            else:
-                client = None
-        else:
-            client = None
+
+        client_name = data.get('client_name')
+        address = data.get('address')
+        city_location = data.get('city_location')
+        if city_location:
+            city_location = CityLocation.get(
+                store,
+                country=city_location['country'],
+                city=city_location['city'],
+                state=city_location['state'],
+            )
+
+        if not client and client_document and client_name:
+            client = ClientResource.create_client(store, client_name, client_document, address,
+                                                  city_location)
+
+        if client and not client.person.address:
+            ClientResource.create_address(client.person, address, city_location)
 
         return client, client_document, coupon_document
 
@@ -1275,20 +1293,6 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         client, client_document, coupon_document = self._get_client_and_document(store, data)
 
-        address = data.get('address')
-        client_name = data.get('client_name')
-        city_location = data.get('city_location')
-        if not client and client_document and client_name:
-            if city_location:
-                city_location = CityLocation.get(
-                    store,
-                    country=city_location['country'],
-                    city=city_location['city'],
-                    state=city_location['state'],
-                )
-            client = ClientResource.create_client(
-                store, client_name, client_document, address, city_location)
-
         sale_id = data.get('sale_id')
         early_response = self._check_already_saved(store, Sale, sale_id, should_print_receipts)
         if early_response:
@@ -1477,9 +1481,6 @@ class AdvancePaymentResource(BaseResource, SaleResourceMixin):
         from stoqpassbook.domain import AdvancePayment
         data = self.get_json()
         client, client_document, coupon_document = self._get_client_and_document(store, data)
-        if not client:
-            client_name = data.get('client_name', _('No name'))
-            client = ClientResource.create_client(store, client_name, client_document)
 
         advance_id = data.get('sale_id')
         should_print_receipts = data.get('print_receipts', True)
