@@ -290,6 +290,7 @@ class TestSaleResource(_TestFlask):
             with self.fake_store() as es:
                 e = es.enter_context(
                     mock.patch('stoqserver.lib.restful.SaleConfirmedRemoteEvent.emit'))
+                e.return_value = {}
                 d = datetime.datetime(2018, 3, 6, 4, 20, 53)
                 restful_now = es.enter_context(mock.patch('stoqserver.lib.restful.localnow'))
                 restful_now.return_value = d

@@ -1326,6 +1326,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
             discount_value=discount_value,
         )
 
+        # TODO: Add transporter api.
+
         # Sale Context
         context_id = data.get('context_id')
         context = store.get(Context, context_id)
@@ -1433,8 +1435,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         # Fiscal plugins will connect to this event and "do their job"
         # It's their responsibility to raise an exception in case of any error
         try:
-            SaleConfirmedRemoteEvent.emit(sale, coupon_document,
-                                          should_print_receipts, postpone_emission)
+            invoice_data = SaleConfirmedRemoteEvent.emit(sale, coupon_document,
+                                                         should_print_receipts, postpone_emission)
         except (NfePrinterException, SatPrinterException):
             return self._handle_coupon_printing_fail(sale)
         except NfeRejectedException as e:
@@ -1443,14 +1445,19 @@ class SaleResource(BaseResource, SaleResourceMixin):
         if sale.station.has_kps_enabled and sale.get_kitchen_items() and not external_order_id:
             self._print_kps(data, sale)
 
-        return {'sale_id': sale.id, 'client_id': client and client.id}, 201
+        retval = {
+            'sale_id': sale.id,
+            'client_id': client and client.id,
+            'invoice_data': invoice_data
+        }
+        return retval, 201
 
     def get(self, store, sale_id):
         sale = store.get(Sale, sale_id)
         if not sale:
             abort(404)
-        transmitted = signal('CheckCouponTransmittedEvent').send(sale)
-        is_coupon_transmitted = transmitted[0][1] if transmitted else False
+        retval = signal('GetInvoiceDataEvent').send(sale)
+        invoice_data = retval[0][1] if retval else {}
         return {
             'id': sale.id,
             'confirm_date': str(sale.confirm_date),
@@ -1459,7 +1466,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
             'payments': self._encode_payments(sale.payments),
             'client': sale.get_client_name(),
             'status': sale.status_str,
-            'transmitted': is_coupon_transmitted,
+            'transmitted': invoice_data.get('transmitted', False),
+            'invoice_data': invoice_data,
         }, 200
 
     def delete(self, store, sale_id):
