@@ -31,7 +31,7 @@ import psycopg2
 import io
 import select
 import requests
-from typing import Dict
+from typing import Dict, Optional
 
 import gevent
 from blinker import signal, ANY as ANY_SENDER
@@ -50,10 +50,11 @@ from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
 from stoqlib.domain.payment.payment import Payment
-from stoqlib.domain.person import LoginUser, Person, Client, ClientCategory, Individual
+from stoqlib.domain.person import (LoginUser, Person, Client, ClientCategory, Individual, Company,
+                                   Transporter)
 from stoqlib.domain.product import Product, Storable
 from stoqlib.domain.purchase import PurchaseOrder
-from stoqlib.domain.sale import Sale, SaleContext, Context
+from stoqlib.domain.sale import Sale, SaleContext, Context, Delivery
 from stoqlib.domain.station import BranchStation
 from stoqlib.domain.token import AccessToken
 from stoqlib.domain.payment.renegotiation import PaymentRenegotiation
@@ -644,17 +645,30 @@ class ClientResource(BaseResource):
     routes = ['/client']
 
     @classmethod
-    def create_address(cls, person, address, city_location):
-        if address and city_location:
-            Address(street=address['street'],
-                    streetnumber=address['streetnumber'],
-                    district=address['district'],
-                    postal_code=address['postal_code'],
-                    complement=address.get('complement'),
-                    is_main_address=address['is_main_address'],
-                    person=person,
-                    city_location=city_location,
-                    store=person.store)
+    def create_address(cls, person, address):
+        if not address.get('city_location'):
+            log.error('Missing city location')
+            abort(400, "Missing city location")
+
+        city_location = CityLocation.get(
+            person.store,
+            country=address['city_location']['country'],
+            city=address['city_location']['city'],
+            state=address['city_location']['state'],
+        )
+        if not city_location:
+            log.error('Invalid city location: %s', address['city_location'])
+            abort(400, "Invalid city location")
+
+        Address(street=address['street'],
+                streetnumber=address['streetnumber'],
+                district=address['district'],
+                postal_code=address['postal_code'],
+                complement=address.get('complement'),
+                is_main_address=address['is_main_address'],
+                person=person,
+                city_location=city_location,
+                store=person.store)
 
     def _dump_client(self, client):
         person = client.person
@@ -714,7 +728,7 @@ class ClientResource(BaseResource):
         return retval
 
     @classmethod
-    def create_client(cls, store, name, cpf, address=None, city_location=None):
+    def create_client(cls, store, name, cpf, address=None):
         tables = [Client,
                   Join(Person, Client.person_id == Person.id),
                   Join(Individual, Individual.person_id == Person.id)]
@@ -722,10 +736,12 @@ class ClientResource(BaseResource):
         if existent_client:
             return
 
+        # TODO: Add phone number
         person = Person(name=name, store=store)
         Individual(cpf=cpf, person=person, store=store)
+        if address:
+            cls.create_address(person, address)
 
-        cls.create_address(person, address, city_location)
         client = Client(person=person, store=store)
         return client
 
@@ -738,7 +754,7 @@ class ClientResource(BaseResource):
         with api.new_store() as store:
             if doc:
                 return self._get_by_doc(store, {'doc': doc, 'name': name}, doc)
-            elif category_name:
+            if category_name:
                 return self._get_by_category(store, category_name)
         return {'doc': doc, 'name': name}
 
@@ -748,8 +764,10 @@ class ClientResource(BaseResource):
 
         client_name = data.get('client_name')
         client_document = data.get('client_document')
-        city_location = data.get('city_location')
         address = data.get('address')
+        # We should change the api callsite so that city_location is inside the address
+        if address:
+            address.setdefault('city_location', data.get('city_location'))
 
         if not client_name:
             log.error('no client_name provided: %s', data)
@@ -763,25 +781,12 @@ class ClientResource(BaseResource):
             return {'message': 'invalid client_document provided'}, 400
 
         if not address:
+            # Note that city location is validated when creating the address
             log.error('no address provided: %s', data)
             return {'message': 'no address provided'}, 400
 
-        if not city_location:
-            log.error('no city_location provided: %s', data)
-            return {'message': 'no city_location provided'}, 400
-
         with api.new_store() as store:
-            city_location = CityLocation.get(
-                store,
-                country=city_location['country'],
-                city=city_location['city'],
-                state=city_location['state'],
-            )
-            if city_location is None:
-                return {'message': 'city location informed not found'}, 404
-
-            client = self.create_client(
-                store, client_name, client_document, address, city_location)
+            client = self.create_client(store, client_name, client_document, address)
             if not client:
                 log.error('client with cpf %s already exists', client_document)
                 return {'message': 'a client with CPF {} already exists'.format(
@@ -1079,21 +1084,15 @@ class SaleResourceMixin:
 
         client_name = data.get('client_name')
         address = data.get('address')
-        city_location = data.get('city_location')
-        if city_location:
-            city_location = CityLocation.get(
-                store,
-                country=city_location['country'],
-                city=city_location['city'],
-                state=city_location['state'],
-            )
+        # We should change the api callsite so that city_location is inside the address
+        if address:
+            address.setdefault('city_location', data.get('city_location'))
 
         if not client and client_document and client_name:
-            client = ClientResource.create_client(store, client_name, client_document, address,
-                                                  city_location)
+            client = ClientResource.create_client(store, client_name, client_document, address)
 
-        if client and not client.person.address:
-            ClientResource.create_address(client.person, address, city_location)
+        if client and not client.person.address and address:
+            ClientResource.create_address(client.person, address)
 
         return client, client_document, coupon_document
 
@@ -1247,6 +1246,63 @@ class SaleResource(BaseResource, SaleResourceMixin):
         }
         StartPassbookSaleEvent.send(self.get_current_station(store), **data)
 
+    def _create_delivery(self, sale: Sale, client: Client, data) -> Optional[Delivery]:
+        '''
+        delivery: {
+            freight_type: [cif|fob|3rdparty|None]
+            price: 1.00,
+            transporter: {
+                cnpj: ''
+                name: '',
+                address: {
+                    ...
+                }
+            }
+            volumes: {
+                kind: 'Volumes',
+                quantity: 1.0,
+                gross_weight: 1.0,
+                net_weight: 1.0,
+            }
+        }
+        '''
+        if not data:
+            return None
+
+        transporter = None
+        if data.get('transporter'):
+            trans_data = data['transporter']
+            cnpj = format_document(trans_data['cnpj'])
+            person = Person.get_by_document(sale.store, cnpj)
+            if not person:
+                person = Person(store=sale.store, name=trans_data['name'])
+                Company(store=sale.store, cnpj=cnpj, person=person)
+                Transporter(store=sale.store, person=person)
+
+            transporter = person.transporter
+            if not transporter:
+                transporter = Transporter(store=sale.store, person=person)
+
+            if not transporter.person.address and 'address' in trans_data:
+                ClientResource.create_address(transporter.person, trans_data['address'])
+
+        delivery = Delivery(store=sale.store, transporter=transporter)
+        delivery.invoice = sale.invoice
+        delivery.address = client.person.address
+        delivery.freight_type = data.get('freight_type')  # This is optional
+        if data.get('volumes'):
+            delivery.volumes_kind = data['volumes'].get('kind')
+            delivery.volumes_quantity = data['volumes'].get('quantity')
+            delivery.volumes_gross_weight = data['volumes'].get('gross_weight')
+            delivery.volumes_net_weight = data['volumes'].get('net_weight')
+
+        # This is required by nfe, but we should fix that
+        sale.transporter = transporter
+
+        delivery_sellable = api.sysparam.get_object(sale.store, 'DELIVERY_SERVICE').sellable
+        sale.add_sellable(delivery_sellable, price=data['price'], quantity=1)
+        return delivery
+
     def _apply_ifood_discount_hack(self, store, data):
         config = get_config()
         discount = decimal.Decimal(config.get("Hacks", "ifood_promo_discount") or 0)
@@ -1327,7 +1383,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
             discount_value=discount_value,
         )
 
-        # TODO: Add transporter api.
+        delivery = self._create_delivery(sale, client, data.get('delivery'))
 
         # Sale Context
         context_id = data.get('context_id')
@@ -1357,6 +1413,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
                 parent = sale.add_sellable(sellable, price=0,
                                            quantity=decimal.Decimal(p['quantity']))
+                parent.delivery = delivery
                 # XXX: Maybe this should be done in sale.add_sellable automatically, but this would
                 # require refactoring stoq as well.
                 for child in product.get_components():
@@ -1369,9 +1426,11 @@ class SaleResource(BaseResource, SaleResourceMixin):
                                              quantity=quantity, parent=parent)
                     # FIXME: The same comment bellow applies
                     item.base_price = item.price
+                    item.delivery = delivery
             else:
                 item = sale.add_sellable(sellable, price=currency(p['price']),
                                          quantity=decimal.Decimal(p['quantity']))
+                item.delivery = delivery
 
                 # FIXME: There seems to be a parameter in the nfce plugin to handle exactly this. We
                 # should duplicate the behaviour for the sat plugin and remove this code

@@ -480,6 +480,85 @@ def test_sale_new_client(client, sale_payload_new_client, example_creator, store
     assert sale.client.person == individual.person
 
 
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_sale_with_delivery(client, sale_payload_new_client, example_creator, store):
+    sale_payload_new_client['delivery'] = {
+        'freight_type': 'cif',
+        'price': 15,
+        'transporter': {
+            'cnpj': '23335270000159',
+            'name': 'Stoq Tecnologia',
+            'address': {
+                'street': 'Rua Rui Barbosa',
+                'streetnumber': 2000,
+                'district': 'Centro',
+                'postal_code': '13560-120',
+                'is_main_address': True,
+                'city_location': {
+                    'country': 'Brazil',
+                    'state': 'SP',
+                    'city': 'São Carlos',
+                },
+            }
+        },
+        'volumes': {
+            'kind': 'Caixas',
+            'quantity': 1,
+            'net_weight': 2,
+            'gross_weight': 3,
+        }
+    }
+
+    response = client.post('/sale', json=sale_payload_new_client)
+    sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
+
+    assert response.status_code == 201
+    assert sale.get_total_sale_amount() == 25
+    assert len(list(sale.deliveries)) == 1
+    delivery = list(sale.deliveries)[0]
+
+    assert delivery.transporter == sale.transporter
+    assert delivery.transporter.person.company.cnpj == '23.335.270/0001-59'
+    assert delivery.transporter.person.name == 'Stoq Tecnologia'
+    assert delivery.transporter.person.address.street == 'Rua Rui Barbosa'
+    assert delivery.freight_type == 'cif'
+    assert delivery.address.street == 'Rua Aquidaban'
+    assert delivery.volumes_kind == 'Caixas'
+    assert delivery.volumes_quantity == 1
+    assert delivery.volumes_net_weight == 2
+    assert delivery.volumes_gross_weight == 3
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_sale_with_delivery_invalid_address(client, sale_payload_new_client, example_creator,
+                                            store):
+    sale_payload_new_client['delivery'] = {
+        'freight_type': 'cif',
+        'price': 15,
+        'transporter': {
+            'cnpj': '23335270000159',
+            'name': 'Stoq Tecnologia',
+            'address': {
+                'street': 'Rua Rui Barbosa',
+                'streetnumber': 2000,
+                'district': 'Centro',
+                'postal_code': '13560-120',
+                'is_main_address': True,
+                'city_location': {
+                    'country': 'Brazil',
+                    'state': 'SP',
+                    'city': 'Cafundó do brejo',
+                },
+            }
+        },
+    }
+
+    response = client.post('/sale', json=sale_payload_new_client)
+
+    assert response.status_code == 400
+    assert response.json['message'] == 'Invalid city location'
+
+
 def test_data_resource(client):
     response = client.get('/data')
 
@@ -854,7 +933,7 @@ def test_client_post(client):
     }
     response = client.post('/client', json=payload)
     assert response.status_code == 400
-    assert response.json['message'] == 'no city_location provided'
+    assert response.json['message'] == 'Missing city location'
 
     payload['city_location'] = {
         'country': 'Brazil',
@@ -862,9 +941,18 @@ def test_client_post(client):
         'city': 'Invalid',
     }
     response = client.post('/client', json=payload)
-    assert response.status_code == 404
-    assert response.json['message'] == 'city location informed not found'
+    assert response.status_code == 400
+    assert response.json['message'] == 'Invalid city location'
 
     payload['city_location']['city'] = 'São Carlos'
+    response = client.post('/client', json=payload)
+    assert response.status_code == 201
+
+    # The request also accests the city_location inside the address
+    payload['address']['city_location'] = payload.pop('city_location')
+    payload['client_document'] = '222.222.222-22'
+
+    assert 'city_location' not in payload
+    assert 'city_location' in payload['address']
     response = client.post('/client', json=payload)
     assert response.status_code == 201
