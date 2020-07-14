@@ -4,6 +4,10 @@
 *.pyc
 *~
 
+.mypy_cache
+.coverage
+coverage.xml
+
 data/eggs
 dist
 build

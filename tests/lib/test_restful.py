@@ -821,3 +821,50 @@ def test_sale_hack_money_as_ifood(get_config_mock, client, sale_payload):
     assert response.status_code == 201
     assert 'sale_id' in response.json
     assert 'client_id' in response.json
+
+
+@pytest.mark.usefixtures('open_till', 'mock_new_store')
+def test_client_post(client):
+    payload = {}
+    response = client.post('/client', json=payload)
+    assert response.status_code == 400
+    assert response.json['message'] == 'no client_name provided'
+
+    payload['client_name'] = 'Zeca'
+    response = client.post('/client', json=payload)
+    assert response.status_code == 400
+    assert response.json['message'] == 'no client_document provided'
+
+    payload['client_document'] = '111.111.111-12'
+    response = client.post('/client', json=payload)
+    assert response.status_code == 400
+    assert response.json['message'] == 'invalid client_document provided'
+
+    payload['client_document'] = '111.111.111-11'
+    response = client.post('/client', json=payload)
+    assert response.status_code == 400
+    assert response.json['message'] == 'no address provided'
+
+    payload['address'] = {
+        'street': 'Rua Aquidaban',
+        'streetnumber': 1,
+        'district': 'Centro',
+        'postal_code': '13560-120',
+        'is_main_address': True,
+    }
+    response = client.post('/client', json=payload)
+    assert response.status_code == 400
+    assert response.json['message'] == 'no city_location provided'
+
+    payload['city_location'] = {
+        'country': 'Brazil',
+        'state': 'SP',
+        'city': 'Invalid',
+    }
+    response = client.post('/client', json=payload)
+    assert response.status_code == 404
+    assert response.json['message'] == 'city location informed not found'
+
+    payload['city_location']['city'] = 'São Carlos'
+    response = client.post('/client', json=payload)
+    assert response.status_code == 201

@@ -713,18 +713,6 @@ class ClientResource(BaseResource):
             retval.append(self._dump_client(client))
         return retval
 
-    def get(self):
-        doc = request.args.get('doc')
-        name = request.args.get('name')
-        category_name = request.args.get('category_name')
-
-        with api.new_store() as store:
-            if doc:
-                return self._get_by_doc(store, {'doc': doc, 'name': name}, doc)
-            elif category_name:
-                return self._get_by_category(store, category_name)
-        return {'doc': doc, 'name': name}
-
     @classmethod
     def create_client(cls, store, name, cpf, address=None, city_location=None):
         tables = [Client,
@@ -740,6 +728,19 @@ class ClientResource(BaseResource):
         cls.create_address(person, address, city_location)
         client = Client(person=person, store=store)
         return client
+
+    @login_required
+    def get(self):
+        doc = request.args.get('doc')
+        name = request.args.get('name')
+        category_name = request.args.get('category_name')
+
+        with api.new_store() as store:
+            if doc:
+                return self._get_by_doc(store, {'doc': doc, 'name': name}, doc)
+            elif category_name:
+                return self._get_by_category(store, category_name)
+        return {'doc': doc, 'name': name}
 
     @login_required
     def post(self):
@@ -761,13 +762,13 @@ class ClientResource(BaseResource):
             log.error('invalid client_document provided: %s', data)
             return {'message': 'invalid client_document provided'}, 400
 
-        if not city_location:
-            log.error('no city_location provided: %s', data)
-            return {'message': 'no city_location provided'}, 400
-
         if not address:
             log.error('no address provided: %s', data)
             return {'message': 'no address provided'}, 400
+
+        if not city_location:
+            log.error('no city_location provided: %s', data)
+            return {'message': 'no city_location provided'}, 400
 
         with api.new_store() as store:
             city_location = CityLocation.get(
