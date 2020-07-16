@@ -1478,7 +1478,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
         if station.is_api and not till:
             # Some may access /sale endpoint outside our PDV. In this case we may not have a
             # till to register the entry
-            till = Till(store=store, branch=branch)
+            till = Till(store=store, branch=branch, station=station)
             till.open_till(user)
         elif till.status != Till.STATUS_OPEN:
             raise TillError(_('There is no till open'))
