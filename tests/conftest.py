@@ -44,6 +44,11 @@ class StoqTestClient(FlaskClient):
             kwargs['data'] = json.dumps(kwargs.pop('json'))
         return self._request('post', *args, **kwargs)
 
+    def put(self, *args, **kwargs):
+        if 'json' in kwargs:
+            kwargs['data'] = json.dumps(kwargs.pop('json'))
+        return self._request('put', *args, **kwargs)
+
 
 # This is flask test client according to boilerplate:
 # https://flask.palletsprojects.com/en/1.0.x/testing/

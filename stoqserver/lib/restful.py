@@ -87,12 +87,17 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent,
                        PrintExternalOrderEvent, ReadyToDeliverExternalOrderEvent)
 
+from stoqserver.api.resources.sellable import SellableResource
+
 
 # This needs to be imported to workaround a storm limitation
 PurchaseOrder, PaymentRenegotiation
 
 # Pyflakes
 Dict
+
+# Resources
+SellableResource
 
 _ = functools.partial(dgettext, 'stoqserver')
 PDV_VERSION = None
@@ -1755,7 +1760,7 @@ class ExternalOrderResource(BaseResource):
         }
 
 
-class LoackerResource(BaseResource):
+class LockerResource(BaseResource):
     method_decorators = [login_required]
     routes = ['/locker']
 

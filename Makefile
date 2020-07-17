@@ -7,7 +7,8 @@ check: check-source-all
 coverage: check-source-all
 	./runtests.py stoqserver/lib/test --with-xcoverage --with-xunit \
 	              --cover-package=$(PACKAGE) --cover-erase
-	pytest -vvv tests --cov=stoqserver --cov-report=term-missing --quick
+	pytest -vvv tests --cov=stoqserver --cov-report=term-missing --quick --cov-append && \
+	coverage xml --omit "/tests/api/resources/*.py"
 	utils/validatecoverage.py coverage.xml && \
 	git show|utils/diff-coverage coverage.xml
 
