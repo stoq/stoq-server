@@ -89,7 +89,6 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
 
 from stoqserver.api.resources.sellable import SellableResource
 
-
 # This needs to be imported to workaround a storm limitation
 PurchaseOrder, PaymentRenegotiation
 

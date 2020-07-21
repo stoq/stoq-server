@@ -3,70 +3,117 @@ import logging
 from decimal import Decimal, DecimalException
 from flask import abort, make_response, jsonify
 
-from stoqlib.api import api
 from stoqlib.domain.overrides import SellableBranchOverride
 from stoqlib.domain.person import Branch
+from stoqlib.domain.product import Product
 from stoqlib.domain.sellable import Sellable
 
 from stoqserver.lib.baseresource import BaseResource
 
-from stoqserver.api.decorators import login_required
+from stoqserver.api.decorators import login_required, store_provider
 
 log = logging.getLogger(__name__)
 
 
 class SellableResource(BaseResource):
-    method_decorators = [login_required]
-    routes = ['/sellable/<uuid:sellable_id>/override/<uuid:branch_id>']
+    method_decorators = [login_required, store_provider]
+    routes = ['/sellable', '/sellable/<uuid:sellable_id>/override/<uuid:branch_id>']
 
-    def put(self, sellable_id, branch_id):
-        with api.new_store() as store:
-            data = self.get_json()
-            status = data.get('status')
-            try:
-                base_price = Decimal(data.get('base_price', 0))
-            except (ValueError, DecimalException):
-                message = 'Price with incorrect format'
-                log.error(message)
-                abort(400, message)
+    def _price_validation(self, data):
+        try:
+            base_price = Decimal(data.get('base_price', 0))
+        except (ValueError, DecimalException):
+            message = 'Price with incorrect format'
+            log.error(message)
+            abort(400, message)
 
-            if status and status not in [Sellable.STATUS_AVAILABLE, Sellable.STATUS_CLOSED]:
-                message = 'Status must be: {} or {}'.format(Sellable.STATUS_AVAILABLE,
-                                                            Sellable.STATUS_CLOSED)
-                log.error(message)
-                abort(400, message)
+        if base_price and base_price < 0:
+            message = 'Price must be greater than 0'
+            log.error(message)
+            abort(400, message)
 
-            if base_price and base_price < 0:
-                message = 'Price must be greater than 0'
-                log.error(message)
-                abort(400, message)
+        return base_price
 
-            sellable = store.get(Sellable, sellable_id)
-            if not sellable:
-                message = 'Sellable with ID = {} not found'.format(sellable_id)
-                log.error(message)
-                abort(404, message)
+    def post(self, store):
+        data = self.get_json()
 
-            branch = store.get(Branch, branch_id)
-            if not branch:
-                message = 'Branch with ID = {} not found'.format(branch_id)
-                log.error(message)
-                abort(404, message)
+        if 'product' not in data:
+            abort(400, 'There is no product data on payload')
 
-            sbo = SellableBranchOverride.find_by_sellable(branch=branch, sellable=sellable)
-            if not sbo:
-                sbo = SellableBranchOverride(store=store,
-                                             branch=branch,
-                                             sellable=sellable)
-            sbo.status = status or sbo.status or Sellable.STATUS_AVAILABLE
-            sbo.base_price = base_price or sbo.base_price
+        sellable_id = data.get('sellable_id')
+        barcode = data.get('barcode')
+        description = data.get('description')
+        base_price = self._price_validation(data)
 
-            return make_response(jsonify({
-                'message': 'Product updated',
-                'data': {
-                    'sellable_id': sellable_id,
-                    'base_price': str(sbo.base_price),
-                    'status': sbo.status,
-                    'branch_id': branch_id
-                }
-            }), 200)
+        if sellable_id and store.get(Sellable, sellable_id):
+            abort(400, 'Product with this id already exists')
+
+        if barcode and store.find(Sellable, barcode=barcode):
+            abort(400, 'Product with this barcode already exists')
+
+        sellable = Sellable(store=store)
+        if sellable_id:
+            sellable.id = sellable_id
+        sellable.code = barcode
+        sellable.barcode = barcode
+        sellable.description = description
+        # FIXME The sellable is created with STATUS_CLOSED because we need the taxes info
+        # to start selling so this is just a temporary sellable just to save it on the
+        # database so the override can be created
+        sellable.status = Sellable.STATUS_CLOSED
+        sellable.base_price = base_price
+
+        product_data = data.get('product')
+        product = Product(store=store, sellable=sellable)
+        product.manage_stock = product_data.get('manage_stock', False)
+
+        return make_response(jsonify({
+            'message': 'Product created',
+            'data': {
+                'id': sellable.id,
+                'barcode': sellable.barcode,
+                'description': sellable.description,
+                'status': sellable.status,
+            }
+        }), 201)
+
+    def put(self, store, sellable_id, branch_id):
+        data = self.get_json()
+        status = data.get('status')
+        base_price = self._price_validation(data)
+
+        if status and status not in [Sellable.STATUS_AVAILABLE, Sellable.STATUS_CLOSED]:
+            message = 'Status must be: {} or {}'.format(Sellable.STATUS_AVAILABLE,
+                                                        Sellable.STATUS_CLOSED)
+            log.error(message)
+            abort(400, message)
+
+        sellable = store.get(Sellable, sellable_id)
+        if not sellable:
+            message = 'Sellable with ID = {} not found'.format(sellable_id)
+            log.error(message)
+            abort(404, message)
+
+        branch = store.get(Branch, branch_id)
+        if not branch:
+            message = 'Branch with ID = {} not found'.format(branch_id)
+            log.error(message)
+            abort(404, message)
+
+        sbo = SellableBranchOverride.find_by_sellable(branch=branch, sellable=sellable)
+        if not sbo:
+            sbo = SellableBranchOverride(store=store,
+                                         branch=branch,
+                                         sellable=sellable)
+        sbo.status = status or sbo.status or Sellable.STATUS_AVAILABLE
+        sbo.base_price = base_price or sbo.base_price
+
+        return make_response(jsonify({
+            'message': 'Product updated',
+            'data': {
+                'sellable_id': sellable_id,
+                'base_price': str(sbo.base_price),
+                'status': sbo.status,
+                'branch_id': branch_id
+            }
+        }), 200)
