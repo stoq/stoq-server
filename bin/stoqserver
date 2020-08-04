@@ -7,8 +7,11 @@ if 'flask' in sys.argv:
     # This needs to be done ASAP, before any other imports.
     from gevent import monkey
     monkey.patch_all()
-    from psycogreen.gevent import patch_psycopg
-    patch_psycopg()
+    if '--multiclient' in sys.argv:
+        # Only patch psycopg if running in multiclient mode, since single client mode should not
+        # make concurrent requests
+        from psycogreen.gevent import patch_psycopg
+        patch_psycopg()
 
 import multiprocessing
 import os
