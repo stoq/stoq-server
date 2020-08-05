@@ -670,33 +670,40 @@ def test_data_resource_branch_override(api_mock, client, sellable, example_creat
     # Mock necessary in order to execute the _get_parameters_ correctly
     api_mock.sysparam.get.return_value = False
 
-    # Insert a category with high priority so that it appears first in our list
     category = example_creator.create_sellable_category()
-    category.sort_order = 1000
     sellable.category = category
+
+    def find_category_in_response(response):
+        for cat in response.json['categories']:
+            if cat['id'] == category.id:
+                return cat
 
     # Sellable should be in the response when not forcing override
     api_mock.sysparam.get_bool.return_value = False
     response = client.get('/data')
-    assert len(response.json['categories'][0]['products']) == 1
-    assert response.json['categories'][0]['products'][0]['id'] == sellable.id
+    response_category = find_category_in_response(response)
+    assert len(response_category['products']) == 1
+    assert response_category['products'][0]['id'] == sellable.id
 
     # Now force branch override. Since this sellable does not have one, it should not be in the list
     api_mock.sysparam.get_bool.return_value = True
     response = client.get('/data')
-    assert response.json['categories'][0]['products'] == []
+    response_category = find_category_in_response(response)
+    assert response_category['products'] == []
 
     # Creating an override is not enought to make the sellable appear...
     override = ProductBranchOverride(store=sellable.store, product=sellable.product,
                                      branch=current_station.branch)
     response = client.get('/data')
-    assert response.json['categories'][0]['products'] == []
+    response_category = find_category_in_response(response)
+    assert response_category['products'] == []
 
     # .. it should also have an icms template to show up again
     override.icms_template = example_creator.create_product_icms_template()
     response = client.get('/data')
-    assert len(response.json['categories'][0]['products']) == 1
-    assert response.json['categories'][0]['products'][0]['id'] == sellable.id
+    response_category = find_category_in_response(response)
+    assert len(response_category['products']) == 1
+    assert response_category['products'][0]['id'] == sellable.id
 
 
 @pytest.mark.usefixtures('mock_get_default_store', 'mock_new_store')

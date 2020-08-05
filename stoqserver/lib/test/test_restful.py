@@ -227,6 +227,7 @@ class TestDataResource(_TestFlask):
                 adjust_categories(retval['categories']),
                 [{'children': [{'children': [],
                                 'description': 'c2',
+                                'order': 0,
                                 'products': [{'availability': {b.id: '20.000'},
                                               'order': '0',
                                               'category_prices': {},
@@ -250,6 +251,7 @@ class TestDataResource(_TestFlask):
                                               'requires_kitchen_production': False,
                                               'has_image': False}]}],
                   'description': 'c1',
+                  'order': 0,
                   'products': [{'availability': {b.id: '10.000'},
                                 'order': '0',
                                 'category_prices': {},
@@ -263,6 +265,7 @@ class TestDataResource(_TestFlask):
                                 'has_image': True}]},
                  {'children': [],
                   'description': 'c3',
+                  'order': 0,
                   'products': [{'availability': {b.id: '30.000'},
                                 'order': '0',
                                 'category_prices': {},
@@ -274,7 +277,7 @@ class TestDataResource(_TestFlask):
                                 'price': '10',
                                 'requires_kitchen_production': False,
                                 'has_image': False}]},
-                 {'children': [], 'description': 'c4', 'products': []}]
+                 {'children': [], 'description': 'c4', 'order': 0, 'products': []}]
             )
 
 

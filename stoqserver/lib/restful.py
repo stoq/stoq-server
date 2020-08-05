@@ -230,8 +230,7 @@ class DataResource(BaseResource):
         if station.type and station.type.name == 'auto':
             query = And(query, Sellable.keywords.like('%auto%'))
 
-        return store.using(*tables).find((Sellable, Product, Storable, Image.id),
-                                         query).order_by('height', 'description')
+        return store.using(*tables).find((Sellable, Product, Storable, Image.id), query)
 
     def _dump_sellable(self, category_prices, sellable, branch, image_id):
         return {
@@ -272,11 +271,9 @@ class DataResource(BaseResource):
                 self._dump_sellable(category_prices, sellable, station.branch, image))
 
         # Build tree of categories
-        # FIXME: there is no point in sorting here, since the frontend re-sorts the categories.
-        # TODO: Send category.sort_order as well.
-        for c in store.find(SellableCategory).order_by(Desc('sort_order'), 'description'):
+        for c in store.find(SellableCategory):
             cat_dict = categories_dict.setdefault(c.id, {'children': [], 'products': []})
-            cat_dict.update({'id': c.id, 'description': c.description})
+            cat_dict.update({'id': c.id, 'description': c.description, 'order': c.sort_order})
 
             parent = categories_dict.setdefault(c.category_id, {'children': [], 'products': []})
             parent['children'].append(cat_dict)
