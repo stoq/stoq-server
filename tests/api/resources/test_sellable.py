@@ -194,3 +194,43 @@ def test_sellable_post_with_existing_barcode(client, example_creator):
     res = json.loads(response.data.decode('utf-8'))
     assert response.status_code == 400
     assert res['message'] == 'Product with this barcode already exists'
+
+
+@pytest.mark.usefixtures('mock_new_store')
+def test_sellable_get_by_id(client, example_creator):
+    sellable = example_creator.create_sellable(description='Sellable Test')
+    sellable.barcode = '7896045504831'
+    sellable.notes = 'this is a sellable test'
+    img = example_creator.create_image()
+    img.image = "foobar".encode('ascii')
+    img.sellable_id = sellable.id
+
+    response = client.get('/sellable/' + sellable.id)
+    res = json.loads(response.data.decode('utf-8'))
+    assert response.status_code == 200
+    assert res['data'] == {
+        'id': sellable.id,
+        'description': sellable.description,
+        'barcode': sellable.barcode,
+        'notes': sellable.notes,
+        'image_id': img.id
+    }
+
+
+@pytest.mark.usefixtures('mock_new_store')
+def test_sellable_get_by_id_not_found(client, example_creator):
+    response = client.get('/sellable/4265221a-d8de-11ea-b34e-40b89ae8d341')
+    assert response.status_code == 404
+
+
+@pytest.mark.usefixtures('mock_new_store')
+def test_sellable_get_all(client, example_creator):
+    example_creator.create_sellable(description="S1")
+    example_creator.create_sellable(description="S2")
+    example_creator.create_sellable(description="S3")
+
+    response = client.get('/sellable')
+    res = json.loads(response.data.decode('utf-8'))
+    assert response.status_code == 200
+    assert len(res['data']) >= 3
+    assert set(("description", "id", "image_id", "barcode", "notes")) == res['data'][0].keys()

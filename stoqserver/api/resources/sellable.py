@@ -3,6 +3,7 @@ import logging
 from decimal import Decimal, DecimalException
 from flask import abort, make_response, jsonify
 
+from stoqlib.domain.image import Image
 from stoqlib.domain.overrides import SellableBranchOverride
 from stoqlib.domain.person import Branch
 from stoqlib.domain.product import Product
@@ -17,7 +18,11 @@ log = logging.getLogger(__name__)
 
 class SellableResource(BaseResource):
     method_decorators = [login_required, store_provider]
-    routes = ['/sellable', '/sellable/<uuid:sellable_id>/override/<uuid:branch_id>']
+    routes = [
+        '/sellable',
+        '/sellable/<uuid:sellable_id>',
+        '/sellable/<uuid:sellable_id>/override/<uuid:branch_id>'
+    ]
 
     def _price_validation(self, data):
         try:
@@ -33,6 +38,15 @@ class SellableResource(BaseResource):
             abort(400, message)
 
         return base_price
+
+    def _create_sellable_dict(self, sellable, image):
+        return {
+            'id': sellable.id,
+            'barcode': sellable.barcode,
+            'description': sellable.description,
+            'notes': sellable.notes,
+            'image_id': image.id if image else None
+        }
 
     def post(self, store):
         data = self.get_json()
@@ -117,3 +131,25 @@ class SellableResource(BaseResource):
                 'branch_id': branch_id
             }
         }), 200)
+
+    def get(self, store, sellable_id=None):
+        if sellable_id:
+            sellable = store.get(Sellable, sellable_id)
+            if not sellable:
+                message = 'Sellable with ID = {} not found'.format(sellable_id)
+                log.error(message)
+                abort(404, message)
+
+            image = store.find(Image, sellable_id=sellable.id).any()
+
+            return make_response(jsonify({
+                "data": self._create_sellable_dict(sellable, image)
+            }), 200)
+
+        sellables = []
+        for sellable in store.find(Sellable):
+            image = store.find(Image, sellable_id=sellable.id).one()
+            sellables.append(self._create_sellable_dict(sellable, image))
+
+        # TODO: Maybe add pagination
+        return make_response(jsonify({'data': sellables}), 200)
