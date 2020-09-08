@@ -73,11 +73,14 @@ def sentry_report(exctype, value, tb, **tags):
         'version': stoqserver.version_str,
         'stoq_version': stoq.version,
         'architecture': platform.architecture(),
-        'distribution': platform.dist(),
         'python_version': tuple(sys.version_info),
         'system': platform.system(),
         'uname': platform.uname(),
     })
+    # python as deprecated platform.dist in python3.5 and removed it in 3.7
+    if hasattr(platform, 'dist'):
+        tags['distribution'] = platform.dist()
+
     # Those are inside a try/except because thy require database access.
     # If the database access is not working, we won't be able to get them
     try:

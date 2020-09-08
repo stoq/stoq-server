@@ -135,7 +135,6 @@ def post_ping_request(station):
     from .lib.restful import PDV_VERSION
     target = 'https://app.stoq.link:9000/api/ping'
     time_format = '%d-%m-%Y %H:%M:%S%Z'
-    store = api.get_default_store()
     plugin_manager = get_plugin_manager()
     boot_time = datetime.datetime.fromtimestamp(psutil.boot_time()).strftime(time_format)
 
@@ -175,7 +174,7 @@ def post_ping_request(station):
                         'system': platform.system(),
                         'uname': platform.uname(),
                         'python_version': platform.python_version_tuple(),
-                        'postgresql_version': get_database_version(store)
+                        'postgresql_version': get_database_version(station.store)
                     },
                     'system': {
                         'boot_time': boot_time,

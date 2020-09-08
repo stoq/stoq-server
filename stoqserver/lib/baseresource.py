@@ -23,10 +23,10 @@
 #
 
 import decimal
-import gevent
 import json
 import logging
 
+import gevent
 from flask import request
 from flask_restful import Resource
 from serial.serialutil import SerialException
@@ -90,8 +90,7 @@ class BaseResource(Resource):
 
         assert printer_lock.locked()
 
-        store = api.get_default_store()
-        device = DeviceSettings.get_by_station_and_type(store, station,
+        device = DeviceSettings.get_by_station_and_type(station.store, station,
                                                         DeviceSettings.NON_FISCAL_PRINTER_DEVICE)
         if not device:
             # If we have no printer configured, there's nothing to ensure
@@ -109,7 +108,7 @@ class BaseResource(Resource):
                 printer._port.close()
             api.device_manager._printer = None
             for i in range(retries):
-                log.info('Printer check failed. Reopening')
+                log.info('Printer check failed. Reopening: %s', i)
                 try:
                     printer = api.device_manager.printer
                     printer.is_drawer_open()

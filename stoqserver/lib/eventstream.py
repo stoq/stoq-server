@@ -33,11 +33,11 @@ from gevent.event import Event
 from gevent.queue import Queue, Empty
 from psycopg2 import DataError
 
-from ..signals import EventStreamEstablishedEvent, TefCheckPendingEvent
-from ..utils import JsonEncoder
 from stoqlib.api import api
 from stoqlib.domain.station import BranchStation
 from stoqserver.lib.baseresource import BaseResource
+from ..signals import EventStreamEstablishedEvent, TefCheckPendingEvent
+from ..utils import JsonEncoder
 
 log = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class EventStream(BaseResource):
         if station:
             if station.is_api:
                 return
-            if not station.id in cls._streams:
+            if station.id not in cls._streams:
                 raise EventStreamUnconnectedStation
 
             return cls._streams[station.id].put(data)
@@ -173,7 +173,8 @@ class EventStream(BaseResource):
 
     def get(self):
         stream = Queue()
-        station = self.get_current_station(api.get_default_store(), token=request.args['token'])
+        store = api.new_store()
+        station = self.get_current_station(store, token=request.args['token'])
         log.info('Estabilished event stream for %s', station.id)
         self._streams[station.id] = stream
 
@@ -202,7 +203,9 @@ class EventStream(BaseResource):
                                                ' Favor reter o Cupom.')},
                                   station=station)
             EventStream.add_event({'type': 'CLEAR_SALE'}, station=station)
-        return Response(self._loop(stream, station.id), mimetype="text/event-stream")
+        station_id = station.id
+        store.close()
+        return Response(self._loop(stream, station_id), mimetype="text/event-stream")
 
     def post(self):
         station_id = request.values.get('station_id')
@@ -215,17 +218,17 @@ class EventStream(BaseResource):
             })
             return ('event put in streams from all connected stations', 200)
 
-        try:
-            store = api.new_store()
-            station = store.get(BranchStation, station_id)
-        except DataError as err:
-            return make_response(str(err), 400)
+        with api.new_store() as store:
+            try:
+                station = store.get(BranchStation, station_id)
+            except DataError as err:
+                return make_response(str(err), 400)
 
-        if not station:
-            return make_response('station not found', 404)
+            if not station:
+                return make_response('station not found', 404)
 
-        try:
-            EventStream.add_event({'type': 'EVENT_RECEIVED', 'data': data}, station=station)
-            return make_response('event put in stream from station %s' % station_id, 200)
-        except EventStreamUnconnectedStation as err:
-            return make_response(str(err), 400)
+            try:
+                EventStream.add_event({'type': 'EVENT_RECEIVED', 'data': data}, station=station)
+                return make_response('event put in stream from station %s' % station_id, 200)
+            except EventStreamUnconnectedStation as err:
+                return make_response(str(err), 400)

@@ -106,15 +106,15 @@ def test_get_event_stream_does_not_replace_replies(
     mock_loop.assert_called_once_with(stream, connected_station.id)
 
 
-@mock.patch('stoqserver.lib.eventstream.api.get_default_store')
+@mock.patch('stoqserver.lib.eventstream.api.new_store')
 @mock.patch('stoqserver.lib.eventstream.EventStream._loop')
 @mock.patch('stoqserver.lib.eventstream.EventStreamEstablishedEvent', autospec=True)
 def test_get_event_stream(
-    mock_event_stream_established_event, mock_loop, mock_get_default_store,
+    mock_event_stream_established_event, mock_loop, mock_new_store,
     event_stream, connected_station, client,
     stream_token, store
 ):
-    mock_get_default_store.return_value = store
+    mock_new_store.return_value = store
     mock_loop.return_value = json.dumps({})
 
     response = client.get('/stream', query_string={'token': stream_token})

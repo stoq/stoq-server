@@ -32,10 +32,10 @@ from .lock import lock_pinpad, lock_printer, lock_sat
 
 
 @lock_printer
-def check_drawer():
+def check_drawer(store=None):
     from .restful import DrawerResource
     try:
-        return DrawerResource.ensure_printer(get_current_station(), retries=1)
+        return DrawerResource.ensure_printer(get_current_station(store), retries=1)
     except (SerialException, InvalidReplyException):
         return None
 

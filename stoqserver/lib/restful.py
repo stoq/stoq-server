@@ -27,14 +27,14 @@ import decimal
 import functools
 import json
 import logging
-import psycopg2
 import io
 import select
-import requests
 from typing import Dict, Optional
 
-import gevent
 from blinker import signal, ANY as ANY_SENDER
+import gevent
+import psycopg2
+import requests
 
 from kiwi.component import provide_utility
 from kiwi.currency import currency
@@ -393,7 +393,7 @@ class DataResource(BaseResource):
             except LockFailedException:
                 pinpad_status = True
 
-            printer_status = None if check_drawer() is None else True
+            printer_status = None if check_drawer(store) is None else True
 
         # Current branch data
         retval = dict(
@@ -477,7 +477,7 @@ class PingResource(BaseResource):
 
 class TillClosingReceiptResource(BaseResource):
     routes = ['/till/<uuid:till_id>/closing_receipt']
-    method_decorators = [login_required]
+    method_decorators = [login_required, store_provider]
 
     @classmethod
     def get_till_closing_receipt_image(cls, till):
@@ -488,8 +488,8 @@ class TillClosingReceiptResource(BaseResource):
 
         return image
 
-    def get(self, till_id):
-        till = api.get_default_store().get(Till, till_id)
+    def get(self, store, till_id):
+        till = store.get(Till, till_id)
 
         if not till:
             abort(404)
@@ -801,10 +801,11 @@ class ClientResource(BaseResource):
 class ExternalClientResource(BaseResource):
     """Information about a client from external services, such as Passbook"""
     routes = ['/extra_client_info/<doc>']
+    method_decorators = [login_required, store_provider]
 
-    def get(self, doc):
+    def get(self, store, doc):
         # Extra precaution in case we ever send the cpf already formatted
-        station = self.get_current_station(api.get_default_store())
+        station = self.get_current_station(store)
         doc = format_cpf(raw_document(doc))
         responses = signal('GetClientInfoEvent').send(station, document=doc)
 
@@ -912,12 +913,13 @@ class TefResource(BaseResource):
             printer.cut_paper()
 
     def _message_callback(self, lib, message, can_abort=False):
-        station = self.get_current_station(api.get_default_store())
-        EventStream.add_event({
-            'type': 'TEF_DISPLAY_MESSAGE',
-            'message': message,
-            'can_abort': can_abort,
-        }, station=station)
+        with api.new_store() as store:
+            station = self.get_current_station(store)
+            EventStream.add_event({
+                'type': 'TEF_DISPLAY_MESSAGE',
+                'message': message,
+                'can_abort': can_abort,
+            }, station=station)
 
         # tef library (ntk/sitef) has some blocking calls (specially pinpad comunication).
         # Before returning, we need to briefly hint gevent to let the EventStream co-rotine run,
@@ -925,8 +927,10 @@ class TefResource(BaseResource):
         gevent.sleep(0.001)
 
     def _question_callback(self, lib, question):
-        station = self.get_current_station(api.get_default_store())
-        reply = EventStream.ask_question(station, question)
+        with api.new_store() as store:
+            station = self.get_current_station(store)
+            reply = EventStream.ask_question(station, question)
+
         if reply is EventStreamBrokenException:
             raise EventStreamBrokenException()
         return reply
@@ -1000,11 +1004,11 @@ class TefResource(BaseResource):
 
 class TefReplyResource(BaseResource):
     routes = ['/tef/reply']
-    method_decorators = [login_required]
+    method_decorators = [login_required, store_provider]
 
-    def post(self):
+    def post(self, store):
         data = self.get_json()
-        station = self.get_current_station(api.get_default_store())
+        station = self.get_current_station(store)
         EventStream.add_event_reply(station.id, json.loads(data['value']))
 
 
@@ -1221,18 +1225,21 @@ class SaleResource(BaseResource, SaleResourceMixin):
                  'description': i.get_description()} for i in items]
 
     def _nfe_progress_event(self, message):
-        station = self.get_current_station(api.get_default_store())
-        EventStream.add_event({'type': 'NFE_PROGRESS', 'message': message}, station=station)
+        with api.new_store() as store:
+            station = self.get_current_station(store)
+            EventStream.add_event({'type': 'NFE_PROGRESS', 'message': message}, station=station)
 
     def _nfe_warning_event(self, message, details):
-        station = self.get_current_station(api.get_default_store())
-        EventStream.add_event({'type': 'NFE_WARNING', 'message': message, 'details': details},
-                              station=station)
+        with api.new_store() as store:
+            station = self.get_current_station(store)
+            EventStream.add_event({'type': 'NFE_WARNING', 'message': message, 'details': details},
+                                  station=station)
 
     def _nfe_success_event(self, message, details=None):
-        station = self.get_current_station(api.get_default_store())
-        EventStream.add_event({'type': 'NFE_SUCCESS', 'message': message, 'details': details},
-                              station=station)
+        with api.new_store() as store:
+            station = self.get_current_station(store)
+            EventStream.add_event({'type': 'NFE_SUCCESS', 'message': message, 'details': details},
+                                  station=station)
 
     def _remove_passbook_stamps(self, store, passbook_client, sale_id):
         data = {
@@ -1461,8 +1468,6 @@ class SaleResource(BaseResource, SaleResourceMixin):
         if (discount_value > 0 and passbook_client and 'stamps' in passbook_client.get('type', [])
                 and decimal.Decimal(passbook_client['points']) >= passbook_client['stamps_limit']):
             self._remove_passbook_stamps(store, passbook_client, sale_id)
-
-        log.info("Sale info: {}.".format(list(sale.get_items())))
 
         # Confirm the sale
         group.confirm()
