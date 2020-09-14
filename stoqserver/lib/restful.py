@@ -85,8 +85,9 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent,
                        PrintExternalOrderEvent, ReadyToDeliverExternalOrderEvent)
 
-from stoqserver.api.resources.sellable import SellableResource
 from stoqserver.api.resources.branch import BranchResource
+from stoqserver.api.resources.inventory import InventoryResource
+from stoqserver.api.resources.sellable import SellableResource
 
 # This needs to be imported to workaround a storm limitation
 PurchaseOrder, PaymentRenegotiation
@@ -95,8 +96,9 @@ PurchaseOrder, PaymentRenegotiation
 Dict
 
 # Resources
-SellableResource
 BranchResource
+InventoryResource
+SellableResource
 
 _ = functools.partial(dgettext, 'stoqserver')
 PDV_VERSION = None
