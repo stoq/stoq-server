@@ -9,4 +9,3 @@ psycogreen
 raven
 requests >= 2.2
 tzlocal >= 1.2.2
-twisted >= 10.0.0

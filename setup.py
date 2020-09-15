@@ -2,7 +2,7 @@
 # vi:si:et:sw=4:sts=4:ts=4
 
 #
-# Copyright (C) 2015 Async Open Source <http://www.async.com.br>
+# Copyright (C) 2020 Stoq Tecnologia <http://www.stoq.com.br>
 # All rights reserved
 #
 # This program is free software; you can redistribute it and/or
@@ -19,7 +19,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., or visit: http://www.gnu.org/.
 #
-# Author(s): Stoq Team <stoq-devel@async.com.br>
+# Author(s): Stoq Team <dev@stoq.com.br>
 #
 
 import os
@@ -44,7 +44,7 @@ if 'bdist_egg' not in sys.argv and platform.system() != "Windows":
 setup(
     name='stoqserver',
     author="Stoq Team",
-    author_email="stoq-devel@async.com.br",
+    author_email="dev@stoq.com.br",
     description="Stoq server",
     url="http://www.stoq.com.br",
     license="GNU LGPL 2.1 (see COPYING)",
