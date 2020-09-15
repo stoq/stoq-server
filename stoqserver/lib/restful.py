@@ -1377,7 +1377,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
         station = self.get_current_station(store)
         user = self.get_current_user(store)
         group = PaymentGroup(store=store)
-        discount_value = data.get('discount_value', 0)
+        discount_value = data.get('discount_value', 0) or 0
         passbook_client = data.get('passbook_client_info')
         sale = Sale(
             store=store,
