@@ -1,11 +1,12 @@
-Twisted >= 10.0.0
+#stoq >= 1.10
+babel
 flask >= 0.10.1, < 1
 flask-restful >= 0.3.4
-requests >= 2.2
-#stoq >= 1.10
-netifaces
 gevent >= 1.1.0
-raven
+netifaces
 psutil >= 3.4.2
-tzlocal >= 1.2.2
 psycogreen
+raven
+requests >= 2.2
+tzlocal >= 1.2.2
+twisted >= 10.0.0

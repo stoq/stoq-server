@@ -3,6 +3,7 @@
 #*#
 *.pyc
 *~
+*.mo
 
 .mypy_cache
 .coverage
@@ -14,5 +15,4 @@ build
 stoqserver.egg-info
 stoqserver/data/eggs
 venv
-locale
 settings.json

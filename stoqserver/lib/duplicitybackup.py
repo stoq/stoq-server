@@ -22,10 +22,10 @@
 # Author(s): Stoq Team <stoq-devel@async.com.br>
 #
 
+import pkg_resources
+
 from stoqlib.lib.process import Process, PIPE
 from stoqlib.lib.threadutils import threadit
-
-from stoqserver import library
 
 
 def _watch_fd(fd):
@@ -34,8 +34,7 @@ def _watch_fd(fd):
 
 
 def _run(cmd, *args):
-    script = library.get_resource_filename('stoqserver', 'scripts',
-                                           'duplicitybackup.py')
+    script = pkg_resources.resource_filename('stoqserver', 'scripts/duplicitybackup.py')
     p = Process(['python2', script, cmd] + list(args), stdout=PIPE, stderr=PIPE)
     threadit(_watch_fd, p.stdout)
     threadit(_watch_fd, p.stderr)

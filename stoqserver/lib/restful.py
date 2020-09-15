@@ -25,10 +25,11 @@
 import datetime
 import decimal
 import functools
+import io
 import json
 import logging
-import io
 import select
+from decimal import Decimal
 from typing import Dict, Optional
 
 from blinker import signal, ANY as ANY_SENDER
@@ -36,8 +37,7 @@ import gevent
 import psycopg2
 import requests
 
-from kiwi.component import provide_utility
-from kiwi.currency import currency
+from stoqlib.lib.component import provide_utility
 from flask import request, abort, send_file, make_response, jsonify
 
 from stoqlib.api import api
@@ -1154,7 +1154,7 @@ class SaleResourceMixin:
                 start_date=localnow(),
                 count=installments))
 
-            payment_value = currency(p['value'])
+            payment_value = Decimal(p['value'])
             payments_total += payment_value
 
             p_list = method.create_payments(
@@ -1327,7 +1327,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
             return data
 
         for p in data['payments']:
-            payment_value = currency(p['value'])
+            payment_value = Decimal(p['value'])
             if p.get('provider') == 'IFOOD' and payment_value >= sale_value:
                 p['value'] = str(payment_value - discount)
                 data['discount_value'] = discount
@@ -1407,7 +1407,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         # Add products
         for p in products:
-            if not currency(p['price']):
+            if not Decimal(p['price']):
                 continue
 
             sellable = store.get(Sellable, p['id'])
@@ -1438,7 +1438,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
                     item.base_price = item.price
                     item.delivery = delivery
             else:
-                item = sale.add_sellable(sellable, price=currency(p['price']),
+                item = sale.add_sellable(sellable, price=Decimal(p['price']),
                                          quantity=decimal.Decimal(p['quantity']))
                 item.delivery = delivery
 
@@ -1567,7 +1567,7 @@ class AdvancePaymentResource(BaseResource, SaleResourceMixin):
 
         total = 0
         for p in data['products']:
-            total += currency(p['price']) * decimal.Decimal(p['quantity'])
+            total += Decimal(p['price']) * decimal.Decimal(p['quantity'])
 
         # Print the receipts and confirm the transaction before anything else. If the sale fails
         # (either by a sat device error or a nfce conectivity/rejection issue), the tef receipts

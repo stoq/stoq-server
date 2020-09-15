@@ -38,7 +38,7 @@ APP_CONF_FILE = os.path.join(APP_DIR, 'stoq.conf')
 APP_BACKUP_DIR = os.path.join(APP_DIR, 'scripts')
 
 SERVER_NAME = _('Stoq Server')
-SERVER_EGGS = ['kiwi.egg', 'stoqdrivers.egg', 'stoq.egg']
+SERVER_EGGS = ['stoqdrivers.egg', 'stoq.egg']
 # FIXME: Windows
 SERVER_EGGS = []
 SERVER_EXECUTABLE_EGG = 'stoq.egg'

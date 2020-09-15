@@ -35,6 +35,8 @@ import tempfile
 import time
 import urllib.parse
 
+import pkg_resources
+
 from stoqlib.api import api
 from stoqlib.exceptions import DatabaseError
 from stoqlib.database.runtime import get_default_store, set_default_store
@@ -42,9 +44,7 @@ from stoqlib.database.settings import db_settings
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.process import Process
 
-from stoqserver import library
-from stoqserver.common import (APP_BACKUP_DIR, SERVER_XMLRPC_PORT,
-                               SERVER_FLASK_PORT)
+from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT, SERVER_FLASK_PORT
 from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
 from stoqserver.server import StoqServer
 
@@ -191,7 +191,7 @@ def start_htsql(port):
         db_settings.username, password,
         db_settings.address, db_settings.port, db_settings.dbname)
 
-    config = library.get_resource_filename('stoqserver', 'htsql', 'config.yml')
+    config = pkg_resources.resource_filename('stoqserver', 'htsql/config.yml')
 
     popen = Process(['htsql-ctl', 'server', '-C', config, uri,
                      '--host', '127.0.0.1', '--port', port])

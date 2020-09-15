@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 # vi:si:et:sw=4:sts=4:ts=4
 
-##
-## Copyright (C) 2015 Async Open Source <http://www.async.com.br>
-## All rights reserved
-##
-## This program is free software; you can redistribute it and/or
-## modify it under the terms of the GNU Lesser General Public License
-## as published by the Free Software Foundation; either version 2
-## of the License, or (at your option) any later version.
-##
-## This program is distributed in the hope that it will be useful,
-## but WITHOUT ANY WARRANTY; without even the implied warranty of
-## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-## GNU Lesser General Public License for more details.
-##
-## You should have received a copy of the GNU Lesser General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., or visit: http://www.gnu.org/.
-##
-## Author(s): Stoq Team <stoq-devel@async.com.br>
-##
+#
+# Copyright (C) 2015 Async Open Source <http://www.async.com.br>
+# All rights reserved
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., or visit: http://www.gnu.org/.
+#
+# Author(s): Stoq Team <stoq-devel@async.com.br>
+#
 
 import atexit
 import base64
@@ -37,20 +37,20 @@ import logging
 import os
 import tempfile
 
+import pkg_resources
+
 from stoqlib.api import api
 from stoqlib.domain.person import LoginUser
 from stoqlib.exceptions import LoginError
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.fileutils import md5sum_for_filename
 
-from stoqserver import library
 from stoqserver.common import (AVAHI_DOMAIN, AVAHI_HOST, AVAHI_STYPE,
                                SERVER_NAME, SERVER_AVAHI_PORT,
                                SERVER_EGGS, APP_CONF_FILE)
 
-_ = lambda s: s
 try:
-    _eggs_path = library.get_resource_filename('stoqserver', 'eggs')
+    _eggs_path = pkg_resources.resource_filename('stoqserver', 'eggs')
 except KeyError:
     # FIXME: Windows
     _eggs_path = ''
@@ -117,8 +117,7 @@ class StoqServer(object):
 
     def __init__(self):
         config = get_config()
-        self._port = int(config.get('General', 'serveravahiport') or
-                         SERVER_AVAHI_PORT)
+        self._port = int(config.get('General', 'serveravahiport') or SERVER_AVAHI_PORT)
 
     #
     #  Public API

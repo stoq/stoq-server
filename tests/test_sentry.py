@@ -13,11 +13,11 @@ class CustomException(Exception):
     pass
 
 
-@mock.patch('stoqserver.sentry.stoqserver')
+@mock.patch('stoqserver.sentry.importlib')
 @mock.patch('stoqserver.sentry.raven_client', spec=('user_context', 'captureException'))
-def test_sentry_report(raven_client_mock, stoqserver_mock):
+def test_sentry_report(raven_client_mock, importlib_mock):
     traceback = mock.Mock()
-    stoqserver_mock.library.uninstalled = False
+    importlib_mock.util.find_spec.return_value = True
 
     sentry_report(CustomException, 69, traceback)
 
@@ -25,11 +25,11 @@ def test_sentry_report(raven_client_mock, stoqserver_mock):
     assert raven_client_mock.captureException.call_count == 1
 
 
-@mock.patch('stoqserver.sentry.stoqserver')
+@mock.patch('stoqserver.sentry.importlib')
 @mock.patch('stoqserver.sentry.raven_client', spec=('user_context', 'captureException'))
-def test_sentry_report_without_user_context(raven_client_mock, stoqserver_mock):
+def test_sentry_report_without_user_context(raven_client_mock, importlib_mock):
     traceback = mock.Mock()
-    stoqserver_mock.library.uninstalled = False
+    importlib_mock.util.find_spec.return_value = True
     del raven_client_mock.user_context
 
     sentry_report(CustomException, 69, traceback)
@@ -37,11 +37,11 @@ def test_sentry_report_without_user_context(raven_client_mock, stoqserver_mock):
     assert raven_client_mock.captureException.call_count == 1
 
 
-@mock.patch('stoqserver.sentry.stoqserver')
+@mock.patch('stoqserver.sentry.importlib')
 @mock.patch('stoqserver.sentry.raven_client', spec=('user_context', 'captureException'))
-def test_sentry_report_developer_mode(raven_client_mock, stoqserver_mock):
+def test_sentry_report_developer_mode(raven_client_mock, importlib_mock):
     traceback = mock.Mock()
-    stoqserver_mock.library.uninstalled = True
+    importlib_mock.util.find_spec.return_value = False
 
     sentry_report(CustomException, 69, traceback)
 

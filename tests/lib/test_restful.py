@@ -1,9 +1,9 @@
 import requests
+from decimal import Decimal
 from unittest import mock
 
 import pytest
 
-from kiwi.currency import currency
 from stoqifood.domain import ExternalOrder
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.sale import Sale
@@ -315,8 +315,8 @@ def test_sale_with_discount(client, sale_payload, store):
     sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
 
     assert response.status_code == 201
-    assert sale.get_total_sale_amount() == currency('75')
-    assert sale.discount_value == currency('25')
+    assert sale.get_total_sale_amount() == Decimal('75')
+    assert sale.discount_value == Decimal('25')
 
 
 @mock.patch('stoqserver.lib.restful.StartPassbookSaleEvent.send')
@@ -433,8 +433,8 @@ def test_sale_with_package_discount_in_price(client, sale_payload, example_creat
     items = list(sale.get_items())
     item1 = list(filter(lambda i: i.sellable == child1.sellable, items))[0]
     item2 = list(filter(lambda i: i.sellable == child2.sellable, items))[0]
-    assert item1.price == currency('6.67')
-    assert item2.price == currency('3.33')
+    assert item1.price == Decimal('6.67')
+    assert item2.price == Decimal('3.33')
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
@@ -463,8 +463,8 @@ def test_sale_with_package_surcharge_in_price(client, sale_payload, example_crea
     items = list(sale.get_items())
     item1 = list(filter(lambda i: i.sellable == child1.sellable, items))[0]
     item2 = list(filter(lambda i: i.sellable == child2.sellable, items))[0]
-    assert item1.price == currency('12.50')
-    assert item2.price == currency('6.25')
+    assert item1.price == Decimal('12.50')
+    assert item2.price == Decimal('6.25')
     assert item2.quantity == 2
 
 

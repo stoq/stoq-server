@@ -26,9 +26,9 @@ import datetime
 import contextlib
 import hashlib
 import json
+from decimal import Decimal
 from unittest import mock
 
-from kiwi.currency import currency
 from stoqlib.api import api
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.test.domaintest import DomainTest
@@ -308,7 +308,7 @@ class TestSaleResource(_TestFlask):
                 p1.manage_stock = False
                 s1 = p1.sellable
 
-                p2 = self.create_product(price=currency('20.5'))
+                p2 = self.create_product(price=Decimal('20.5'))
                 p2.manage_stock = False
                 s2 = p2.sellable
 
@@ -360,7 +360,7 @@ class TestSaleResource(_TestFlask):
 
                 # This should be the sale made by the call above
                 sale = self.store.find(Sale).order_by(Desc(Sale.open_date)).first()
-                self.assertEqual(sale.get_total_sale_amount(), currency('40.5'))
+                self.assertEqual(sale.get_total_sale_amount(), Decimal('40.5'))
                 self.assertEqual(sale.open_date, d)
                 self.assertEqual(sale.confirm_date, d)
                 self.assertEqual(
@@ -370,9 +370,9 @@ class TestSaleResource(_TestFlask):
                 self.assertEqual(
                     {(p.method.method_name, p.due_date, p.value)
                      for p in sale.group.get_items()},
-                    {('card', d, currency('15')),
-                     ('card', datetime.datetime(2018, 4, 6, 4, 20, 53), currency('15')),
-                     ('money', d, currency('10.5'))}
+                    {('card', d, Decimal('15')),
+                     ('card', datetime.datetime(2018, 4, 6, 4, 20, 53), Decimal('15')),
+                     ('money', d, Decimal('10.5'))}
                 )
 
                 self.assertEqual(e.call_count, 1)

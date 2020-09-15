@@ -36,7 +36,7 @@ import time
 import xmlrpc.client
 
 import stoq
-from kiwi.component import provide_utility
+from stoqlib.lib.component import provide_utility
 from stoq.lib.options import get_option_parser
 from stoq.lib.startup import setup
 from stoqlib.api import api
@@ -103,8 +103,6 @@ def setup_stoq(register_station=False, name='stoqserver',
 
 
 def setup_logging(app_name='stoq-server'):
-    # Note that kiwi creates another StreamHandler. If there is any indirect import from kiwi.log,
-    # some lines will be duplicated.
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     formatter = logging.Formatter(

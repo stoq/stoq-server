@@ -3,7 +3,7 @@ Section: python
 Priority: optional
 Maintainer: Stoq Team <stoq-devel@async.com.br>
 Build-Depends: debhelper (>= 8.0.0), python3-all (>= 3.4),
- python3-setuptools, python3-kiwi (>= 3.0), python3-mock
+ python3-setuptools, python3-mock
 Homepage: http://www.stoq.com.br/
 Vcs-Git: https://github.com/stoq/stoq-server.git
 Vcs-Browser: https://github.com/stoq/stoq-server/

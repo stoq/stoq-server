@@ -24,7 +24,7 @@
 
 import functools
 
-from kiwi.component import provide_utility
+from stoqlib.lib.component import provide_utility
 from flask import abort, request
 
 from stoqlib.api import api

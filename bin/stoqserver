@@ -22,7 +22,7 @@ if __name__ == '__main__':
         # We're using py2exe:
         # By default, when using py2exe, there is only one item in PYTHONPATH, and
         # thats the library.zip it created. We are also adding some eggs (including
-        # stoq, kiwi and stoqdrivers), so make sure those are also in the path
+        # stoq and stoqdrivers), so make sure those are also in the path
         multiprocessing.freeze_support()
 
         stoq_dir = os.path.join(os.environ['ALLUSERSPROFILE'], 'stoq')

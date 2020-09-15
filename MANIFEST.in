@@ -1,5 +1,5 @@
 recursive-include stoqserver *.py
-recursive-include po *.po *.pot POTFILES.list
+recursive-include * *.po *.mo *.pot POTFILES.list
 include data/sudoers.d/stoqserver
 include data/supervisor/stoqserver.conf
 include data/scripts/duplicitybackup.py

@@ -23,6 +23,7 @@
 #
 
 import functools
+import importlib
 import logging
 import platform
 import sys
@@ -64,7 +65,7 @@ class SilentTransport(ThreadedHTTPTransport):
 
 
 def sentry_report(exctype, value, tb, **tags):
-    developer_mode = stoqserver.library.uninstalled
+    developer_mode = not importlib.util.find_spec("stoqdrivers")
     if raven_client is None or developer_mode:
         # Disable send sentry log if we are on developer mode.
         return
@@ -77,7 +78,7 @@ def sentry_report(exctype, value, tb, **tags):
         'system': platform.system(),
         'uname': platform.uname(),
     })
-    # python as deprecated platform.dist in python3.5 and removed it in 3.7
+    # python deprecated platform.dist in python3.5 and removed it in 3.7
     if hasattr(platform, 'dist'):
         tags['distribution'] = platform.dist()
 
