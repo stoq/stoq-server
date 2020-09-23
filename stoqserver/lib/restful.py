@@ -1346,7 +1346,9 @@ class SaleResource(BaseResource, SaleResourceMixin):
             abort(400, "Invalid order number")
 
         log.info('emitting event PrintKitchenCouponEvent {}'.format(order_number))
-        PrintKitchenCouponEvent.send(sale, order_number=order_number)
+        responses = PrintKitchenCouponEvent.send(sale, order_number=order_number)
+        kps_image = responses[0][1] if len(responses) == 1 else None
+        return kps_image
 
     @lock_printer
     @lock_sat(block=True)
@@ -1510,13 +1512,15 @@ class SaleResource(BaseResource, SaleResourceMixin):
         except NfeRejectedException as e:
             return self._handle_nfe_coupon_rejected(sale, e.reason)
 
+        kps_image = None
         if sale.station.has_kps_enabled and sale.get_kitchen_items() and not external_order_id:
-            self._print_kps(data, sale)
+            kps_image = self._print_kps(data, sale)
 
         retval = {
             'sale_id': sale.id,
             'client_id': client and client.id,
-            'invoice_data': invoice_data
+            'invoice_data': invoice_data,
+            'kps_image': kps_image
         }
         return retval, 201
 
