@@ -1,5 +1,6 @@
 {
   "stoqserver/api/decorators.py": 93.1,
+  "stoqserver/api/resources/client.py": 94.23,
   "stoqserver/app.py": 53.57,
   "stoqserver/client.py": 0.0,
   "stoqserver/lib/baseresource.py": 59.74,

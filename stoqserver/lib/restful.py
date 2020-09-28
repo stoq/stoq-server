@@ -41,7 +41,6 @@ from flask import request, abort, send_file, make_response, jsonify
 
 from stoqlib.api import api
 from stoqlib.database.interfaces import ICurrentUser
-from stoqlib.domain.address import Address, CityLocation
 from stoqlib.domain.events import SaleConfirmedRemoteEvent
 from stoqlib.domain.image import Image
 from stoqlib.domain.overrides import ProductBranchOverride, SellableBranchOverride
@@ -49,7 +48,7 @@ from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaymentDevice
 from stoqlib.domain.payment.payment import Payment
-from stoqlib.domain.person import (LoginUser, Person, Client, ClientCategory, Individual, Company,
+from stoqlib.domain.person import (LoginUser, Person, Client, ClientCategory, Company,
                                    Transporter)
 from stoqlib.domain.product import Product, Storable, ProductStockItem
 from stoqlib.domain.purchase import PurchaseOrder
@@ -67,8 +66,7 @@ from stoqlib.lib.defaults import quantize
 from stoqlib.lib.formatters import raw_document, format_document, format_cpf
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager
-from stoqlib.lib.validators import validate_cpf
-from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce, Sum
+from storm.expr import LeftJoin, Join, And, Eq, Ne, Coalesce, Sum
 
 from stoqserver.app import is_multiclient
 from stoqserver.lib.baseresource import BaseResource
@@ -87,6 +85,7 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        PrintExternalOrderEvent, ReadyToDeliverExternalOrderEvent)
 
 from stoqserver.api.resources.branch import BranchResource
+from stoqserver.api.resources.client import ClientResource
 from stoqserver.api.resources.inventory import InventoryResource
 from stoqserver.api.resources.sellable import SellableResource
 
@@ -98,6 +97,7 @@ Dict
 
 # Resources
 BranchResource
+ClientResource
 InventoryResource
 SellableResource
 
@@ -618,161 +618,6 @@ class TillResource(BaseResource):
                 abort(404)
 
             return self._get_till_data(store, till)
-
-
-class ClientResource(BaseResource):
-    """Client RESTful resource."""
-    routes = ['/client']
-
-    @classmethod
-    def create_address(cls, person, address):
-        if not address.get('city_location'):
-            log.error('Missing city location')
-            abort(400, "Missing city location")
-
-        city_location = CityLocation.get(
-            person.store,
-            country=address['city_location']['country'],
-            city=address['city_location']['city'],
-            state=address['city_location']['state'],
-        )
-        if not city_location:
-            log.error('Invalid city location: %s', address['city_location'])
-            abort(400, "Invalid city location")
-
-        Address(street=address['street'],
-                streetnumber=address['streetnumber'],
-                district=address['district'],
-                postal_code=address['postal_code'],
-                complement=address.get('complement'),
-                is_main_address=address['is_main_address'],
-                person=person,
-                city_location=city_location,
-                store=person.store)
-
-    def _dump_client(self, client):
-        person = client.person
-        birthdate = person.individual.birth_date if person.individual else None
-
-        saleviews = person.client.get_client_sales().order_by(Desc('confirm_date'))
-        last_items = {}
-        for saleview in saleviews:
-            for item in saleview.sale.get_items():
-                last_items[item.sellable_id] = item.sellable.description
-                # Just the last 3 products the client bought
-                if len(last_items) == 3:
-                    break
-
-        if person.company:
-            doc = person.company.cnpj
-        else:
-            doc = person.individual.cpf
-
-        category_name = client.category.name if client.category else ""
-
-        data = dict(
-            id=client.id,
-            category=client.category_id,
-            doc=doc,
-            last_items=last_items,
-            name=person.name,
-            birthdate=birthdate,
-            category_name=category_name,
-        )
-
-        return data
-
-    def _get_by_doc(self, store, data, doc):
-        # Extra precaution in case we ever send the cpf already formatted
-        document = format_cpf(raw_document(doc))
-
-        person = Person.get_by_document(store, document)
-        if person and person.client:
-            data = self._dump_client(person.client)
-
-        # Plugins that listen to this signal will return extra fields
-        # to be added to the response
-        responses = signal('CheckRewardsPermissionsEvent').send(doc)
-        for response in responses:
-            data.update(response[1])
-
-        return data
-
-    def _get_by_category(self, store, category_name):
-        tables = [Client,
-                  Join(ClientCategory, Client.category_id == ClientCategory.id)]
-        clients = store.using(*tables).find(Client, ClientCategory.name == category_name)
-        retval = []
-        for client in clients:
-            retval.append(self._dump_client(client))
-        return retval
-
-    @classmethod
-    def create_client(cls, store, name, cpf, address=None):
-        tables = [Client,
-                  Join(Person, Client.person_id == Person.id),
-                  Join(Individual, Individual.person_id == Person.id)]
-        existent_client = store.using(*tables).find(Individual, cpf=cpf).one()
-        if existent_client:
-            return
-
-        # TODO: Add phone number
-        person = Person(name=name, store=store)
-        Individual(cpf=cpf, person=person, store=store)
-        if address:
-            cls.create_address(person, address)
-
-        client = Client(person=person, store=store)
-        return client
-
-    @login_required
-    def get(self):
-        doc = request.args.get('doc')
-        name = request.args.get('name')
-        category_name = request.args.get('category_name')
-
-        with api.new_store() as store:
-            if doc:
-                return self._get_by_doc(store, {'doc': doc, 'name': name}, doc)
-            if category_name:
-                return self._get_by_category(store, category_name)
-        return {'doc': doc, 'name': name}
-
-    @login_required
-    def post(self):
-        data = self.get_json()
-
-        client_name = data.get('client_name')
-        client_document = data.get('client_document')
-        address = data.get('address')
-        # We should change the api callsite so that city_location is inside the address
-        if address:
-            address.setdefault('city_location', data.get('city_location'))
-
-        if not client_name:
-            log.error('no client_name provided: %s', data)
-            return {'message': 'no client_name provided'}, 400
-
-        if not client_document:
-            log.error('no client_document provided: %s', data)
-            return {'message': 'no client_document provided'}, 400
-        if not validate_cpf(client_document):
-            log.error('invalid client_document provided: %s', data)
-            return {'message': 'invalid client_document provided'}, 400
-
-        if not address:
-            # Note that city location is validated when creating the address
-            log.error('no address provided: %s', data)
-            return {'message': 'no address provided'}, 400
-
-        with api.new_store() as store:
-            client = self.create_client(store, client_name, client_document, address)
-            if not client:
-                log.error('client with cpf %s already exists', client_document)
-                return {'message': 'a client with CPF {} already exists'.format(
-                    client_document)}, 409
-
-            return {'message': 'client {} created'.format(client.id)}, 201
 
 
 class ExternalClientResource(BaseResource):
