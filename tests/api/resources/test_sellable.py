@@ -175,8 +175,8 @@ def test_sellable_post_with_existing_sellable(client, example_creator):
     }
     response = client.post('/sellable', json=payload)
     res = json.loads(response.data.decode('utf-8'))
-    assert response.status_code == 400
-    assert res['message'] == 'Product with this id already exists'
+    assert response.status_code == 200
+    assert res['message'] == 'Product with id {} already exists'.format(sellable.id)
 
 
 @pytest.mark.usefixtures('mock_new_store')
@@ -192,8 +192,8 @@ def test_sellable_post_with_existing_barcode(client, example_creator):
     }
     response = client.post('/sellable', json=payload)
     res = json.loads(response.data.decode('utf-8'))
-    assert response.status_code == 400
-    assert res['message'] == 'Product with this barcode already exists'
+    assert response.status_code == 200
+    assert res['message'] == 'Product with barcode {} already exists'.format(sellable.barcode)
 
 
 @pytest.mark.usefixtures('mock_new_store')

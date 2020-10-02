@@ -60,10 +60,18 @@ class SellableResource(BaseResource):
         base_price = self._price_validation(data)
 
         if sellable_id and store.get(Sellable, sellable_id):
-            abort(400, 'Product with this id already exists')
+            message = 'Product with id {} already exists'.format(sellable_id)
+            log.warning(message)
+            return make_response(jsonify({
+                'message': message,
+            }), 200)
 
         if barcode and store.find(Sellable, barcode=barcode):
-            abort(400, 'Product with this barcode already exists')
+            message = 'Product with barcode {} already exists'.format(barcode)
+            log.warning(message)
+            return make_response(jsonify({
+                'message': message,
+            }), 200)
 
         sellable = Sellable(store=store)
         if sellable_id:
