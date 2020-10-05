@@ -1,8 +1,11 @@
 import json
 import pytest
+from decimal import Decimal
 
 from stoqlib.domain.product import Product
 from stoqlib.domain.sellable import Sellable
+
+from stoqserver.api.resources.sellable import SellableResource
 
 
 @pytest.fixture
@@ -234,3 +237,18 @@ def test_sellable_get_all(client, example_creator):
     assert response.status_code == 200
     assert len(res['data']) >= 3
     assert set(("description", "id", "image_id", "barcode", "notes")) == res['data'][0].keys()
+
+
+def test_price_validation():
+    res = SellableResource()._price_validation({
+        'base_price': 10.00
+    })
+    assert res == Decimal("10.00")
+
+    res = SellableResource()._price_validation({})
+    assert res == Decimal("0.01")
+
+    res = SellableResource()._price_validation({
+        'base_price': 0
+    })
+    assert res == Decimal("0.01")

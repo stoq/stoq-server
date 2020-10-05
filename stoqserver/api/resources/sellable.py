@@ -26,7 +26,7 @@ class SellableResource(BaseResource):
 
     def _price_validation(self, data):
         try:
-            base_price = Decimal(data.get('base_price', 0))
+            base_price = Decimal(data.get('base_price', "0.01") or '0.01')
         except (ValueError, DecimalException):
             message = 'Price with incorrect format'
             log.error(message)
