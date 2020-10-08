@@ -52,7 +52,7 @@ from stoqlib.domain.payment.card import CreditCardData, CreditProvider, CardPaym
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import (LoginUser, Person, Client, ClientCategory, Individual, Company,
                                    Transporter)
-from stoqlib.domain.product import Product, Storable
+from stoqlib.domain.product import Product, Storable, ProductStockItem
 from stoqlib.domain.purchase import PurchaseOrder
 from stoqlib.domain.sale import Sale, SaleContext, Context, Delivery
 from stoqlib.domain.station import BranchStation
@@ -69,7 +69,7 @@ from stoqlib.lib.formatters import raw_document, format_document, format_cpf
 from stoqlib.lib.translation import dgettext
 from stoqlib.lib.pluginmanager import get_plugin_manager
 from stoqlib.lib.validators import validate_cpf
-from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce
+from storm.expr import Desc, LeftJoin, Join, And, Eq, Ne, Coalesce, Sum
 
 from stoqserver.app import is_multiclient
 from stoqserver.lib.baseresource import BaseResource
@@ -214,7 +214,10 @@ class DataResource(BaseResource):
                      And(Sellable.id == Image.sellable_id, Eq(Image.is_main, True))),
             LeftJoin(SellableBranchOverride,
                      And(SellableBranchOverride.sellable_id == Sellable.id,
-                         SellableBranchOverride.branch_id == station.branch.id))
+                         SellableBranchOverride.branch_id == station.branch.id)),
+            LeftJoin(ProductStockItem,
+                     And(ProductStockItem.storable_id == Sellable.id,
+                         ProductStockItem.branch_id == station.branch.id))
         ]
 
         if api.sysparam.get_bool('REQUIRE_PRODUCT_BRANCH_OVERRIDE'):
@@ -231,9 +234,12 @@ class DataResource(BaseResource):
         if station.type and station.type.name == 'auto':
             query = And(query, Sellable.keywords.like('%auto%'))
 
-        return store.using(*tables).find((Sellable, Product, Storable, Image.id), query)
+        return store.using(*tables).find(
+            (Sellable, Product, Storable, Image.id,
+             SellableBranchOverride, Sum(ProductStockItem.quantity)), query).group_by(
+            Sellable.id, Product.id, Storable.id, Image.id, SellableBranchOverride.id)
 
-    def _dump_sellable(self, category_prices, sellable, branch, image_id):
+    def _dump_sellable(self, category_prices, sellable, branch, image_id, storable, sbo, psi_qty):
         return {
             'id': sellable.id,
             'code': sellable.code,
@@ -244,15 +250,10 @@ class DataResource(BaseResource):
             'order': str(sellable.product.height),  # TODO: There is a sort_order now in the domain
             'color': sellable.product.part_number,
             'category_prices': category_prices,
-            'requires_kitchen_production': sellable.get_requires_kitchen_production(branch),
+            'requires_kitchen_production': sellable.requires_kitchen_production
+            if sbo is None else sbo.requires_kitchen_production,
             'has_image': image_id is not None,
-            'availability': (
-                sellable.product and sellable.product.storable and
-                {
-                    si.branch.id: str(si.quantity)
-                    for si in sellable.product.storable.get_stock_items()
-                }
-            ),
+            'availability': {branch.id: str(psi_qty)} if storable else None,
         }
 
     def _get_categories(self, store, station):
@@ -263,13 +264,16 @@ class DataResource(BaseResource):
             cat_prices[item.category_id] = str(item.price)
 
         categories_dict = {}  # type: Dict[str, Dict]
+        sellable_data = self._get_sellable_data(store, station)
         # Build list of products inside each category
-        for (sellable, product, storable, image) in self._get_sellable_data(store, station):
+        for (sellable, product, storable, image, sbo, psi_qty) in sellable_data:
             category_prices = sellable_category_prices.get(sellable.id, {})
 
             categories_dict.setdefault(sellable.category_id, {'children': [], 'products': []})
+
             categories_dict[sellable.category_id]['products'].append(
-                self._dump_sellable(category_prices, sellable, station.branch, image))
+                self._dump_sellable(category_prices, sellable, station.branch,
+                                    image, storable, sbo, psi_qty))
 
         # Build tree of categories
         for c in store.find(SellableCategory):
