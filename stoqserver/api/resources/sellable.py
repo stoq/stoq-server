@@ -6,7 +6,7 @@ from flask import abort, make_response, jsonify
 from stoqlib.domain.image import Image
 from stoqlib.domain.overrides import SellableBranchOverride
 from stoqlib.domain.person import Branch
-from stoqlib.domain.product import Product, StockTransactionHistory, Storable
+from stoqlib.domain.product import Product, Storable
 from stoqlib.domain.sellable import Sellable
 
 from stoqserver.lib.baseresource import BaseResource
@@ -90,30 +90,9 @@ class SellableResource(BaseResource):
         product.manage_stock = product_data.get('manage_stock', False)
 
         # For clients that will control their inventory, we have to create a Storable
-        # for each Product and a StockTransactionHistory initial for each Storable
-        if product.manage_stock:
-            storable = store.get(Storable, product.id)
-
-            if not storable:
-                storable = Storable(store=store, product=product)
-                storable.maximum_quantity = 1000
-
-            for branch in store.find(Branch):
-                stock = store.find(
-                    StockTransactionHistory, storable=storable, branch_id=branch.id)
-                if stock.is_empty():
-                    user = self.get_current_user(store)
-                    # FIXME This is necessary because in places that allows negative
-                    # stock the sale can be done without making the first entry informing
-                    # the initial quantity so we need to create this initial history
-                    # so the sale_item is created
-                    StockTransactionHistory(store=store,
-                                            branch=branch,
-                                            storable=storable,
-                                            responsible=user,
-                                            quantity=0,
-                                            type=StockTransactionHistory.TYPE_INITIAL,
-                                            unit_cost=sellable.cost)
+        if product.manage_stock and not store.get(Storable, product.id):
+            storable = Storable(store=store, product=product)
+            storable.maximum_quantity = 1000
 
         return make_response(jsonify({
             'message': 'Product created',
