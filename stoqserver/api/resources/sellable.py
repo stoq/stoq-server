@@ -132,7 +132,8 @@ class SellableResource(BaseResource):
             sbo = SellableBranchOverride(store=store,
                                          branch=branch,
                                          sellable=sellable)
-        sbo.status = status or sbo.status or Sellable.STATUS_AVAILABLE
+        if status:
+            sbo.status = status
         sbo.base_price = base_price or sbo.base_price
 
         return make_response(jsonify({

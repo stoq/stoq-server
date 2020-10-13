@@ -18,8 +18,7 @@ def sellable(example_creator):
 
 @pytest.mark.parametrize('status, expected_status',
                          [(Sellable.STATUS_AVAILABLE, Sellable.STATUS_AVAILABLE),
-                          (Sellable.STATUS_CLOSED, Sellable.STATUS_CLOSED),
-                          (None, Sellable.STATUS_AVAILABLE)])
+                          (Sellable.STATUS_CLOSED, Sellable.STATUS_CLOSED)])
 @pytest.mark.parametrize('base_price', (5.3, 9.4))
 @pytest.mark.usefixtures('mock_new_store')
 def test_sellable_put(client, sellable, current_station,
