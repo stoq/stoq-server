@@ -28,13 +28,11 @@ import functools
 import io
 import json
 import logging
-import select
 from decimal import Decimal
 from typing import Dict, Optional
 
 from blinker import signal, ANY as ANY_SENDER
 import gevent
-import psycopg2
 import requests
 
 from stoqlib.lib.component import provide_utility
@@ -174,36 +172,6 @@ class DataResource(BaseResource):
 
     routes = ['/data']
     method_decorators = [login_required, store_provider]
-
-    # All the tables get_data uses (directly or indirectly)
-    watch_tables = ['sellable', 'product', 'storable', 'product_stock_item', 'branch_station',
-                    'branch', 'login_user', 'sellable_category', 'client_category_price',
-                    'payment_method', 'credit_provider']
-
-    # Disabled @worker for now while testing gevent instead of threads
-    def _postgres_listen(station):
-        store = api.new_store()
-        conn = store._connection._raw_connection
-        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-        cursor = store._connection.build_raw_cursor()
-        cursor.execute("LISTEN update_te;")
-
-        message = False
-        while True:
-            if select.select([conn], [], [], 5) != ([], [], []):
-                conn.poll()
-                while conn.notifies:
-                    notify = conn.notifies.pop(0)
-                    te_id, table = notify.payload.split(',')
-                    # Update the data the client has when one of those changes
-                    message = message or table in DataResource.watch_tables
-
-            if message:
-                EventStream.add_event({
-                    'type': 'SERVER_UPDATE_DATA',
-                    'data': DataResource.get_data(store)
-                })
-                message = False
 
     def _get_sellable_data(self, store, station):
         tables = [
