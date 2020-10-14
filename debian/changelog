@@ -1,3 +1,9 @@
+stoq-server (1.5.0~beta0) xenial; urgency=medium
+
+  * Release 1.5.0~beta0
+
+ -- Vinícius M Camillo <vmcamillo@vmcamillo-HP-260-G1-DM>  Wed, 14 Oct 2020 11:31:28 -0300
+
 stoq-server (1.4.0) xenial; urgency=medium
 
   * Release 1.4.0
