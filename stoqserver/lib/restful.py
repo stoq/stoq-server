@@ -198,9 +198,11 @@ class DataResource(BaseResource):
                          Ne(ProductBranchOverride.icms_template_id, None))))
 
         query = Eq(Coalesce(SellableBranchOverride.status, Sellable.status), "available")
-        # XXX: This should be modified for accepting generic keywords
-        if station.type and station.type.name == 'auto':
-            query = And(query, Sellable.keywords.like('%auto%'))
+        if station.type:
+            # FIXME: We should be carefull since some keywords might overlap and that might lead to
+            # false positives (like a product that has a `smart-pos` keyword, but the station type
+            # is `pos`)
+            query = And(query, Sellable.keywords.like('%{}%'.format(station.type.name)))
 
         return store.using(*tables).find(
             (Sellable, Product, Storable, Image.id,
