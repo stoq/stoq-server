@@ -212,6 +212,10 @@ class DataResource(BaseResource):
             Sellable.id, Product.id, Storable.id, Image.id, SellableBranchOverride.id)
 
     def _dump_sellable(self, category_prices, sellable, branch, image_id, storable, sbo, psi_qty):
+        requires_kitchen_production = sbo and sbo.requires_kitchen_production
+        if requires_kitchen_production is None:
+            requires_kitchen_production = sellable.requires_kitchen_production
+
         return {
             'id': sellable.id,
             'code': sellable.code,
@@ -222,8 +226,7 @@ class DataResource(BaseResource):
             'order': str(sellable.product.height),  # TODO: There is a sort_order now in the domain
             'color': sellable.product.part_number,
             'category_prices': category_prices,
-            'requires_kitchen_production': sellable.requires_kitchen_production
-            if sbo is None else sbo.requires_kitchen_production,
+            'requires_kitchen_production': requires_kitchen_production,
             'has_image': image_id is not None,
             'availability': {branch.id: str(psi_qty)} if storable else None,
         }
