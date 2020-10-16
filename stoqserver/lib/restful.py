@@ -22,6 +22,7 @@
 # Author(s): Stoq Team <dev@stoq.com.br>
 #
 
+import base64
 import datetime
 import decimal
 import functools
@@ -1630,10 +1631,24 @@ class SaleCouponImageResource(BaseResource):
             abort(400)
 
         responses = GenerateInvoicePictureEvent.send(sale)
+        try:
+            image, mimetype = responses[0][1]
+        except TypeError:
+            image = responses[0][1]
+            mimetype = None
+
+        if request.args.get('download'):
+            return self._get_danfe(image, mimetype)
+
         assert len(responses) >= 0
         return {
-            'image': responses[0][1],
+            'image': image,
+            'mimetype': mimetype,
         }, 200
+
+    def _get_danfe(self, image, mimetype):
+        image_decoded = base64.b64decode(image)
+        return send_file(io.BytesIO(image_decoded), mimetype=mimetype)
 
 
 class SmsResource(BaseResource):
