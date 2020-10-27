@@ -549,16 +549,13 @@ class TillResource(BaseResource):
 
     def _get_till_summary(self, store, till):
         payment_data = []
-        for summary in till.get_day_summary():
+        for (method, provider, card_type), value in till.get_day_summary_data().items():
             payment_data.append({
-                'method': summary.method.method_name,
-                'provider': summary.provider.short_name if summary.provider else None,
-                'card_type': summary.card_type,
-                'system_value': str(summary.system_value),
+                'method': method.method_name,
+                'provider': provider.short_name if provider else None,
+                'card_type': card_type,
+                'system_value': str(value),
             })
-            # XXX: We shouldn't create TIllSummaries since we are not closing the Till,
-            # so we must remove it from the database
-            store.remove(summary)
 
         return payment_data
 
