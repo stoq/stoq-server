@@ -53,3 +53,5 @@ SearchForPassbookUsersByDocumentEvent = signal('SearchForPassbookUsersByDocument
 EventStreamEstablishedEvent = signal('EventStreamEstablishedEvent')
 
 GenerateExternalOrderReceiptImageEvent = signal('GenerateExternalOrderReceiptImageEvent')
+
+WebhookEvent = signal('WebhookEvent')

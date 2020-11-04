@@ -24,11 +24,12 @@ before_script:
   - apt update
   - apt --yes install libcairo2-dev python3-pip
   - git clone https://github.com/stoq/stoq.git --depth 1
+  - mv stoq/setup_old.py stoq/setup.py
   - python3 -m pip install -U setuptools pip
   - python3 -m pip install pycairo
+  - python3 -m pip install kiwi-gtk
   - python3 -m pip install -e stoq --no-deps
   - python3 -m pip install -r requirements-test.txt
-  - python3 -m pip install kiwi-gtk
   - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/stoqtech/private/stoq-plugin-ifood.git
   - python3 -m pip install -e stoq-plugin-ifood --no-deps
   - python3 -m pip freeze

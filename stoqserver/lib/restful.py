@@ -88,6 +88,7 @@ from stoqserver.api.resources.branch import BranchResource
 from stoqserver.api.resources.client import ClientResource
 from stoqserver.api.resources.inventory import InventoryResource
 from stoqserver.api.resources.sellable import SellableResource
+from stoqserver.api.resources.webhook import WebhookEvent
 
 # This needs to be imported to workaround a storm limitation
 PurchaseOrder, PaymentRenegotiation
@@ -100,6 +101,7 @@ BranchResource
 ClientResource
 InventoryResource
 SellableResource
+WebhookEvent
 
 _ = functools.partial(dgettext, 'stoqserver')
 PDV_VERSION = None
