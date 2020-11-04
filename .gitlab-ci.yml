@@ -19,35 +19,37 @@ stages:
   - test
   - build
 
-before_script:
-  # Install stoqlib from master.
-  - apt update
-  - apt --yes install libcairo2-dev python3-pip
-  - git clone https://github.com/stoq/stoq.git --depth 1
-  - mv stoq/setup_old.py stoq/setup.py
-  - python3 -m pip install -U setuptools pip
-  - python3 -m pip install pycairo
-  - python3 -m pip install kiwi-gtk
-  - python3 -m pip install -e stoq --no-deps
-  - python3 -m pip install -r requirements-test.txt
-  - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/stoqtech/private/stoq-plugin-ifood.git
-  - python3 -m pip install -e stoq-plugin-ifood --no-deps
-  - python3 -m pip freeze
-
 test:
   stage: test
+  before_script:
+    # Install stoqlib from master.
+    - apt update
+    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev
+    - export LC_ALL=pt_BR.UTF-8
+    - python3 -m venv env
+    - source env/bin/activate
+    - pip install -U setuptools pip poetry wheel
+    - poetry install
+    - poetry shell
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/stoqtech/private/stoq-plugin-ifood.git
+    - pip install -e stoq-plugin-ifood --no-deps --no-build-isolation
+    - python3 -V
+    - poetry show
   script:
     - make coverage
 
 .create_deb:
   stage: build
-  script:
-    # Install tools to create debian packages
+  before_script:
     - apt update
     - python --version
     - python2 --version
-    - apt --yes install devscripts debhelper python3-all
+    # Install tools to create debian packages
+    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev devscripts debhelper python3-all
+    - export LC_ALL=pt_BR.UTF-8
     - rm -rf dist
+    - cp setup_old.py setup.py
+  script:
     - make deb
   artifacts:
     paths:
@@ -60,4 +62,5 @@ create_deb_master:
 
 create_deb_manual:
   extends: .create_deb
+  stage: test
   when: manual

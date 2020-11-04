@@ -14,7 +14,7 @@
   "stoqserver/lib/xmlrpcresource.py": 43.94,
   "stoqserver/main.py": 0.0,
   "stoqserver/sentry.py": 96.61,
-  "stoqserver/server.py": 37.5,
+  "stoqserver/server.py": 35.63,
   "stoqserver/taskmanager.py": 33.43,
   "stoqserver/tasks.py": 22.64,
   "stoqserver/utils.py": 64.29,

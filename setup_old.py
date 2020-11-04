@@ -30,9 +30,18 @@ from setuptools import find_packages, setup
 
 import stoqserver
 
-with open('requirements.txt') as f:
-    install_requires = [line.strip() for line in f.readlines()
-                        if line.strip() and not line.startswith('#')]
+install_requires = [
+    "babel",
+    "flask >= 0.10.1, < 1",
+    "flask-restful >= 0.3.4",
+    "gevent >= 1.1.0",
+    "netifaces",
+    "psutil >= 3.4.2",
+    "psycogreen",
+    "raven",
+    "requests >= 2.2",
+    "tzlocal >= 1.2.2",
+]
 
 data_files = []
 if 'bdist_egg' not in sys.argv and platform.system() != "Windows":
