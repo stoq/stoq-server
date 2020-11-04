@@ -27,6 +27,8 @@ import pytest
 
 from stoqlib.domain.inventory import Inventory
 
+pytestmark = pytest.mark.usefixtures('mock_new_store')
+
 
 @pytest.fixture
 def branch(example_creator):
@@ -40,7 +42,6 @@ def inventory(example_creator):
     return inventory
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post(client, store, example_creator, branch):
     product = example_creator.create_product(branch=branch, description='Product 1',
                                              stock=1, storable=True)
@@ -86,7 +87,6 @@ def test_inventory_post(client, store, example_creator, branch):
     ]
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post_with_code(client, store, example_creator, branch):
     product = example_creator.create_product(branch=branch, description='Product 1',
                                              stock=2, storable=True)
@@ -132,7 +132,6 @@ def test_inventory_post_with_code(client, store, example_creator, branch):
     ]
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post_empty_barcode(client, store, branch):
     empty_barcode = ''
     count = {
@@ -150,7 +149,6 @@ def test_inventory_post_empty_barcode(client, store, branch):
                               'It should be a not empty string.').format(empty_barcode)
 
 
-@pytest.mark.usefixtures('mock_new_store')
 @pytest.mark.parametrize('invalid_quantity', (-3, 'dois', '2', '1.2', '1,2', [2], {}, '', None))
 def test_inventory_post_invalid_quantity(client, store, example_creator, branch, invalid_quantity):
     count = {
@@ -168,7 +166,6 @@ def test_inventory_post_invalid_quantity(client, store, example_creator, branch,
                               'It should be a not negative number.').format(invalid_quantity)
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post_no_count(client, store, example_creator, branch):
     payload = {
         'branch_id': branch.id
@@ -179,7 +176,6 @@ def test_inventory_post_no_count(client, store, example_creator, branch):
     assert res['message'] == 'No count provided'
 
 
-@pytest.mark.usefixtures('mock_new_store')
 @pytest.mark.parametrize('invalid_count', (('7894900531008', 7), ['7894900531008', 7],
                          '7894900531008:7'))
 def test_inventory_post_invalid_count(client, store, example_creator, branch, invalid_count):
@@ -194,7 +190,6 @@ def test_inventory_post_invalid_count(client, store, example_creator, branch, in
                               'and counted quantities as values')
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post_no_branch_id(client, store):
     payload = {
         'count': {
@@ -207,7 +202,6 @@ def test_inventory_post_no_branch_id(client, store):
     assert res['message'] == 'No branch_id provided'
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post_branch_not_found(client, store):
     branch_id = 'b218ad4a-cebd-44ca-838e-ead9c62cd895'
     count = {
@@ -221,13 +215,10 @@ def test_inventory_post_branch_not_found(client, store):
     response = client.post('/inventory', json=payload)
     res = json.loads(response.data.decode('utf-8'))
     assert response.status_code == 404
-    assert res['message'] == (
-        'Branch {} not found. You have requested this URI [/inventory] but '
-        'did you mean /inventory or /inventory/<uuid:inventory_id> ?'
-    ).format(branch_id)
+    msg = 'Branch {} not found'.format(branch_id)
+    assert msg in res['message']
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post_sellable_not_found(client, store, branch):
     count = {
         '123': 12,
@@ -256,7 +247,6 @@ def test_inventory_post_sellable_not_found(client, store, branch):
     assert res['items'] == []
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_post_stock_not_managed(client, store, example_creator, branch):
     product = example_creator.create_product(branch=branch, description='Product')
     product.sellable.barcode = '7891910000197'
@@ -298,7 +288,6 @@ def test_inventory_post_stock_not_managed(client, store, example_creator, branch
     assert res['items'] == []
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_cancelled(client, inventory):
     assert inventory.status == Inventory.STATUS_OPEN
 
@@ -312,7 +301,6 @@ def test_inventory_put_cancelled(client, inventory):
     assert res['status'] == inventory.status == Inventory.STATUS_CANCELLED
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_closed(client, inventory):
     assert inventory.status == Inventory.STATUS_OPEN
 
@@ -326,7 +314,6 @@ def test_inventory_put_closed(client, inventory):
     assert res['status'] == inventory.status == Inventory.STATUS_CLOSED
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_closed_with_adjustment(client, example_creator, inventory):
     inventory_item = example_creator.create_inventory_item(inventory=inventory)
     inventory_item.counted_quantity = 6
@@ -345,7 +332,6 @@ def test_inventory_put_closed_with_adjustment(client, example_creator, inventory
     assert inventory.get_items_for_adjustment().count() == 0
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_no_status(client, inventory):
     response = client.put('/inventory/{}'.format(inventory.id))
     res = json.loads(response.data.decode('utf-8'))
@@ -354,7 +340,6 @@ def test_inventory_put_no_status(client, inventory):
     assert res['message'] == 'No status provided'
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_invalid_status(client, inventory):
     payload = {'status': 'invalid_status'}
     response = client.put('/inventory/{}'.format(inventory.id), json=payload)
@@ -365,7 +350,6 @@ def test_inventory_put_invalid_status(client, inventory):
         Inventory.STATUS_CLOSED, Inventory.STATUS_CANCELLED)
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_not_found(client):
     payload = {'status': 'closed'}
     inventory_id = 'b218ad4a-cebd-44ca-838e-ead9c62cd895'
@@ -377,7 +361,6 @@ def test_inventory_put_not_found(client):
     assert res['message'] == 'Inventory with ID = {} not found'.format(inventory_id)
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_already_cancelled(client, inventory):
     inventory.status = Inventory.STATUS_CANCELLED
 
@@ -389,7 +372,6 @@ def test_inventory_put_already_cancelled(client, inventory):
     assert res['message'] == 'You can\'t cancel an inventory that is not opened!'
 
 
-@pytest.mark.usefixtures('mock_new_store')
 def test_inventory_put_already_closed(client, inventory):
     inventory.status = Inventory.STATUS_CANCELLED
 
