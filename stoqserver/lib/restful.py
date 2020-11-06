@@ -268,7 +268,7 @@ class DataResource(BaseResource):
                 categories_dict[None]['children'].append(response[1])
 
         # FIXME: Remove categories that have no products inside them
-        return categories_dict[None]['children']  # None is the root category
+        return categories_dict.get(None, {}).get('children', [])  # None is the root category
 
     def _get_payment_methods(self, store):
         # PaymentMethod data

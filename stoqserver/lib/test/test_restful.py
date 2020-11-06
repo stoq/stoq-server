@@ -30,7 +30,15 @@ from decimal import Decimal
 from unittest import mock
 
 from stoqlib.api import api
-from stoqlib.domain.sale import Sale
+from stoqlib.domain.sale import Sale, SaleItem
+from stoqlib.domain.transfer import TransferOrderItem
+from stoqlib.domain.receiving import ReceivingOrderItem
+from stoqlib.domain.purchase import PurchaseItem
+from stoqlib.domain.service import Service
+from stoqlib.domain.product import (Product, Storable, ProductStockItem, StockTransactionHistory,
+                                    ProductSupplierInfo, ProductHistory)
+from stoqlib.domain.sellable import Sellable, SellableCategory
+from stoqlib.domain.commission import CommissionSource
 from stoqlib.domain.test.domaintest import DomainTest
 from stoqlib.lib.configparser import register_config, StoqConfig
 from storm.expr import Desc
@@ -150,6 +158,22 @@ class TestDataResource(_TestFlask):
 
     resource_class = DataResource
 
+    def test_get_without_sellables(self):
+        # We must remove every thing that references sellable in order to remove all sellables
+        self.clean_domain([Service, StockTransactionHistory, ProductStockItem, ProductHistory,
+                           SaleItem, ReceivingOrderItem, PurchaseItem, TransferOrderItem,
+                           ProductSupplierInfo, Storable, Product, Sellable, CommissionSource,
+                           SellableCategory])
+
+        with self.fake_store():
+            # Close all sellables
+            token = self.login()
+            rv = self.client.get('/data', headers={'Authorization': token})
+            self.assertEqual(rv.status_code, 200)
+
+            retval = json.loads(rv.data.decode())
+            self.assertEqual(retval['categories'], [])
+
     def test_get(self):
         with self.fake_store():
             token = self.login()
@@ -223,6 +247,8 @@ class TestDataResource(_TestFlask):
                  {'name': 'multiple', 'max_installments': 12},
                  {'name': 'store_credit', 'max_installments': 1}]
             )
+
+            self.assertTrue(isinstance(retval['categories'], list))
             self.assertEqual(
                 adjust_categories(retval['categories']),
                 [{'children': [{'children': [],
