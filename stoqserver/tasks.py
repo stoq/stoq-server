@@ -46,7 +46,6 @@ from stoqlib.lib.process import Process
 
 from stoqserver.common import APP_BACKUP_DIR, SERVER_XMLRPC_PORT, SERVER_FLASK_PORT
 from stoqserver.lib.xmlrpcresource import run_xmlrpcserver
-from stoqserver.server import StoqServer
 
 if platform.system() != 'Windows':
     from stoqserver.lib import duplicitybackup as backup
@@ -165,14 +164,6 @@ def start_flask_server(debug=False, multiclient=False):
     port = int(config.get('General', 'flaskport') or SERVER_FLASK_PORT)
 
     run_flaskserver(port, debug, multiclient)
-
-
-def start_server():
-    _setup_signal_termination()
-    logger.info("Starting stoq server")
-
-    stoq_server = StoqServer()
-    stoq_server.run()
 
 
 def start_htsql(port):

@@ -43,8 +43,7 @@ from stoqlib.lib.webservice import WebService
 from stoqlib.net.socketutils import get_random_port
 
 from stoqserver.tasks import (backup_status, restore_database, backup_database,
-                              start_xmlrpc_server, start_server,
-                              start_backup_scheduler, start_htsql)
+                              start_xmlrpc_server, start_backup_scheduler, start_htsql)
 
 logger = logging.getLogger(__name__)
 _executable = os.path.realpath(os.path.abspath(sys.executable))
@@ -608,7 +607,6 @@ class Worker(object):
         if not _is_windows:
             tasks.extend([
                 Task('_htsql', start_htsql, self._htsql_port),
-                Task('_server', start_server),
             ])
 
         store = get_default_store()

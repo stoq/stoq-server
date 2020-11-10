@@ -59,7 +59,7 @@ _LOGGING_FORMAT = '%(asctime)-15s %(name)-35s %(levelname)-8s %(message)s'
 _LOGGING_DATE_FORMAT = '%y-%m-%d %H:%M:%S'
 
 
-class _Tee(object):
+class _Tee:
 
     def __init__(self, *files):
         self._files = files
@@ -139,7 +139,7 @@ def setup_logging(app_name='stoq-server'):
         root.addHandler(hdlr)
 
 
-class StoqServerCmdHandler(object):
+class StoqServerCmdHandler:
 
     #
     #  Public API
