@@ -26,12 +26,12 @@ import logging
 
 from blinker import signal
 from flask import abort, request
+from storm.expr import Join, LeftJoin
 
 from stoqlib.domain.address import Address, CityLocation
-from stoqlib.domain.person import Person, Client, ClientCategory, Individual
+from stoqlib.domain.person import Person, Client, ClientCategory, Individual, Company
 from stoqlib.lib.formatters import raw_document, format_cpf
 from stoqlib.lib.validators import validate_cpf
-from storm.expr import Desc, Join
 
 from stoqserver.lib.baseresource import BaseResource
 from stoqserver.api.decorators import login_required, store_provider
@@ -92,14 +92,16 @@ class ClientResource(BaseResource):
         person = client.person
         birthdate = person.individual.birth_date if person.individual else None
 
-        saleviews = person.client.get_client_sales().order_by(Desc('confirm_date'))
         last_items = {}
-        for saleview in saleviews:
-            for item in saleview.sale.get_items():
-                last_items[item.sellable_id] = item.sellable.description
-                # Just the last 3 products the client bought
-                if len(last_items) == 3:
-                    break
+        # Disable this for now, since this query is taking way to long to process and no one really
+        # uses this.
+        # saleviews = person.client.get_client_sales().order_by(Desc('confirm_date'))
+        # for saleview in saleviews:
+        #     for item in saleview.sale.get_items():
+        #         last_items[item.sellable_id] = item.sellable.description
+        #         # Just the last 3 products the client bought
+        #         if len(last_items) == 3:
+        #             break
 
         if person.company:
             doc = person.company.cnpj
@@ -137,12 +139,17 @@ class ClientResource(BaseResource):
         return data
 
     def _get_by_category(self, store, category_name):
+        # Pre-fetch person and Individual as they will be used down the line by _dump_client
         tables = [Client,
+                  Join(Person, Person.id == Client.person_id),
+                  LeftJoin(Individual, Person.id == Individual.person_id),
+                  LeftJoin(Company, Person.id == Company.person_id),
                   Join(ClientCategory, Client.category_id == ClientCategory.id)]
-        clients = store.using(*tables).find(Client, ClientCategory.name == category_name)
+        clients = store.using(*tables).find((Client, Person, Individual, ClientCategory),
+                                            ClientCategory.name == category_name)
         retval = []
-        for client in clients:
-            retval.append(self._dump_client(client))
+        for data in clients:
+            retval.append(self._dump_client(data[0]))
         return retval
 
     def get(self, store):
