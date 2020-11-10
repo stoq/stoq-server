@@ -33,9 +33,6 @@ import signal
 import sys
 import tempfile
 import time
-import urllib.parse
-
-import pkg_resources
 
 from stoqlib.api import api
 from stoqlib.exceptions import DatabaseError
@@ -164,38 +161,6 @@ def start_flask_server(debug=False, multiclient=False):
     port = int(config.get('General', 'flaskport') or SERVER_FLASK_PORT)
 
     run_flaskserver(port, debug, multiclient)
-
-
-def start_htsql(port):
-    config = get_config()
-    if config.get('General', 'disable_htsql'):
-        logger.info("Not starting htsql as requested in config file.")
-        return
-
-    logger.info("Starting htsql server")
-
-    if db_settings.password:
-        password = ':' + urllib.parse.quote_plus(db_settings.password)
-    else:
-        password = ''
-    uri = 'pgsql://{}{}@{}:{}/{}'.format(
-        db_settings.username, password,
-        db_settings.address, db_settings.port, db_settings.dbname)
-
-    config = pkg_resources.resource_filename('stoqserver', 'htsql/config.yml')
-
-    popen = Process(['htsql-ctl', 'server', '-C', config, uri,
-                     '--host', '127.0.0.1', '--port', port])
-
-    def _sigterm_handler(_signal, _stack_frame):
-        popen.poll()
-        if popen.returncode is None:
-            popen.terminate()
-        os._exit(0)
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    signal.signal(signal.SIGTERM, _sigterm_handler)
-
-    popen.wait()
 
 
 def start_backup_scheduler(doing_backup):

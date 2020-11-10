@@ -40,10 +40,9 @@ from stoqlib.api import api
 from stoqlib.database.runtime import get_default_store, set_default_store
 from stoqlib.lib.pluginmanager import PluginError, get_plugin_manager
 from stoqlib.lib.webservice import WebService
-from stoqlib.net.socketutils import get_random_port
 
 from stoqserver.tasks import (backup_status, restore_database, backup_database,
-                              start_xmlrpc_server, start_backup_scheduler, start_htsql)
+                              start_xmlrpc_server, start_backup_scheduler)
 
 logger = logging.getLogger(__name__)
 _executable = os.path.realpath(os.path.abspath(sys.executable))
@@ -357,7 +356,6 @@ class Worker(object):
         # Indicates if we are doing a backup. This uses a piece of shared memory
         # so forked processes will all see the same value when updated
         self._doing_backup = multiprocessing.Value('i', 0)
-        self._htsql_port = str(get_random_port())
         self._paused = False
         self._xmlrpc_conn1, self._xmlrpc_conn2 = multiprocessing.Pipe(True)
         self._updater_event = multiprocessing.Event()
@@ -442,19 +440,6 @@ class Worker(object):
             self._paused = False
 
         return True, "Tasks resumed successfully"
-
-    def action_htsql_query(self, query):
-        """Executes a HTSQL Query"""
-        try:
-            r = requests.get('http://127.0.0.1:{}/{}/:json'.format(
-                self._htsql_port, query.strip('/')))
-        except Exception as e:
-            return False, str(e)
-
-        if r.status_code != 200:
-            return False, "htsql request failed with code " + str(r.status_code)
-
-        return True, r.text
 
     def action_backup_status(self, user_hash=None):
         with io.StringIO() as f:
@@ -600,14 +585,9 @@ class Worker(object):
             Task('_xmlrpc', start_xmlrpc_server, self._xmlrpc_conn2),
             # This is not working nice when using NTK lib (maybe related to the multiprocess lib).
             # Must be executed as a separate process for now.
-            #Task('_flask', start_flask_server),
+            # Task('_flask', start_flask_server),
             Task('_backup', start_backup_scheduler, self._doing_backup),
         ]
-        # TODO: Make those work on windows
-        if not _is_windows:
-            tasks.extend([
-                Task('_htsql', start_htsql, self._htsql_port),
-            ])
 
         store = get_default_store()
         is_link = store.is_link_server()
