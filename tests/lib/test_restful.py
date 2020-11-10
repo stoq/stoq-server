@@ -580,7 +580,7 @@ def test_data_resource_with_hotjar_config(get_config_mock, client):
     assert response.json['hotjar_id'] == 'hotjar-id'
     get_config_mock.assert_called_once_with()
     get_config_mock.return_value.get.assert_any_call('Hotjar', 'id')
-    assert get_config_mock.return_value.get.call_count == 4
+    assert get_config_mock.return_value.get.call_count == 6
 
 
 @mock.patch('stoqserver.lib.restful.api')

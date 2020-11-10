@@ -354,7 +354,9 @@ class DataResource(BaseResource):
         branch = station.branch
         config = get_config()
         can_send_sms = config.get("Twilio", "sid") is not None
-        iti_discount = True if config.get("Discounts", "iti") == '1' else False
+        iti_discount = config.get("Discounts", "iti") == '1'
+        iti_discount_percentage = config.get("Discounts", "iti_discount_percentage")
+        iti_discount_max_value = config.get("Discounts", "iti_discount_max_value")
         hotjar_id = config.get("Hotjar", "id")
         plugins = get_plugin_manager().active_plugins_names
         responses = signal('GetSettingsForFrontendEvent').send(station)
@@ -411,6 +413,8 @@ class DataResource(BaseResource):
             can_send_sms=can_send_sms,
             can_use_cnpj=self._can_use_cnpj(store, branch, plugins),
             iti_discount=iti_discount,
+            iti_discount_percentage=iti_discount_percentage,
+            iti_discount_max_value=iti_discount_max_value,
             hotjar_id=hotjar_id,
             plugins=plugins,
             settings=settings,
