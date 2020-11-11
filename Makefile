@@ -23,5 +23,23 @@ test:
 	python runtests.py stoqserver/lib/test
 	pytest -vvv
 
+bundle_dist:
+	-rm -rf dist/
+	poetry install --no-root
+	pybabel compile -d $(PACKAGE)/locale -D $(PACKAGE) || true
+	poetry build --format sdist
+	tar -zxvf dist/*.tar.gz -C dist
+
+bundle_deb: bundle_dist
+	-rm -rf dist/*/env
+	cd dist/* && \
+		python -m venv env && \
+		. env/bin/activate && \
+		pip install -U poetry pip wheel setuptools && \
+		poetry export -f requirements.txt --without-hashes | cut -d '@' -f 2 > requirements.txt && \
+		pip install -r requirements.txt && \
+		cp setup_old.py setup.py && \
+		debuild --preserve-env -us -uc
+
 include utils/utils.mk
 .PHONY: check coverage

@@ -23,10 +23,12 @@
 #
 
 import gettext
+import glob
 import importlib
 import locale
 import os
 import platform
+import sys
 
 import pkg_resources
 
@@ -68,3 +70,10 @@ def enable_translation(domain, root='..', enable_global=None):
 
 
 enable_translation('stoqserver', enable_global=True)
+
+
+def activate_virtualenv():
+    venv_path = glob.glob('/usr/lib/stoq-virtualenv/lib/python*/site-packages/')
+    if not venv_path:
+        return
+    sys.path = [venv_path[0]] + sys.path

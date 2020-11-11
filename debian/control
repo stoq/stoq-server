@@ -2,8 +2,7 @@ Source: stoq-server
 Section: python
 Priority: optional
 Maintainer: Stoq Team <dev@stoq.com.br>
-Build-Depends: debhelper (>= 8.0.0), python3-all (>= 3.4),
- python3-setuptools, python3-mock
+Build-Depends: debhelper (>= 8.0.0), python3-all (>= 3.4), python3-setuptools
 Homepage: http://www.stoq.com.br/
 Vcs-Git: https://github.com/stoq/stoq-server.git
 Vcs-Browser: https://github.com/stoq/stoq-server/
@@ -12,10 +11,10 @@ X-Python3-Version: >= 3.4
 
 Package: stoq-server
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends},
- stoq (>= 6.1~rc1), python3-stoqdrivers (>= 2.0.0), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
- python3-requests (>= 2.2), python3-flask, python3-flask-restful, python3-raven, tmate,
- python3-gevent, python3-psutil (>= 3.4.2), python3-tzlocal (>= 1.2), python3-psycogreen
-Recommends: python3-pygments
+Depends: ${misc:Depends}
+ binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib, tmate,
+ python3-psycopg2 (>= 2.0.5), postgresql-client, iso-codes (>= 3.12.1-1), libxss1, ntp,
+ libusb-1.0-0, python3-venv
+Recommends: libusb-1.0-0:i386, libc6-i386
 Homepage: http://www.stoq.com.br/
 Description: A server for Stoq.

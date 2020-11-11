@@ -62,7 +62,7 @@ setup(
     version=stoqserver.version_str,
     packages=find_packages(),
     install_requires=install_requires,
-    scripts=['bin/stoqserver'],
+    scripts=['bin/stoqserver', 'bin/stoqdbadmin'],
     zip_safe=True,
     include_package_data=True,
     data_files=data_files,

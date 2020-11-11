@@ -30,7 +30,7 @@ tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>
 
 [[package]]
 name = "babel"
-version = "2.8.1"
+version = "2.9.0"
 description = "Internationalization utilities"
 category = "main"
 optional = false
@@ -851,8 +851,8 @@ testing = ["zope.event", "nose", "coverage"]
 
 [metadata]
 lock-version = "1.1"
-python-versions = ">=3.5,<4"
-content-hash = "91917d3285b91210d9e69b2a27f09759215bcdaee8f7d1126174aa26bfd79ae7"
+python-versions = "^3.5"
+content-hash = "a779213e771ef8b18dafe53f60137d919a313be052235d887a4464ac13515536"
 
 [metadata.files]
 aniso8601 = [
@@ -868,8 +868,8 @@ attrs = [
     {file = "attrs-20.3.0.tar.gz", hash = "sha256:832aa3cde19744e49938b91fea06d69ecb9e649c93ba974535d08ad92164f700"},
 ]
 babel = [
-    {file = "Babel-2.8.1-py2.py3-none-any.whl", hash = "sha256:be432f50d6c38c705ea45a0c05a4bbb22a70742a93888fbae5e7948da1635d23"},
-    {file = "Babel-2.8.1.tar.gz", hash = "sha256:820c195271534e8a86f564ba9ef2c207f356cfeb7e94d2bdc6b57897c4233837"},
+    {file = "Babel-2.9.0-py2.py3-none-any.whl", hash = "sha256:9d35c22fcc79893c3ecc85ac4a56cde1ecf3f19c540bba0922308a6c06ca6fa5"},
+    {file = "Babel-2.9.0.tar.gz", hash = "sha256:da031ab54472314f210b0adcff1588ee5d1d1d0ba4dbd07b94dba82bde791e05"},
 ]
 blinker = [
     {file = "blinker-1.3.tar.gz", hash = "sha256:6811010809262261e41ab7b92f3f6d23f35cf816fbec2bc05077992eebec6e2f"},

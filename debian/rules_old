@@ -10,5 +10,3 @@ export DEB_BUILD_OPTIONS=nocheck
 %:
 	dh $@ --with python3 --buildsystem=pybuild
 
-override_dh_install:
-	dh_install ./env/* usr/lib/stoq-virtualenv

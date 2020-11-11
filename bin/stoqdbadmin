@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+
+import sys
+
+from stoqserver import activate_virtualenv
+
+activate_virtualenv()
+
+from stoq import dbadmin  # noqa
+
+try:
+    sys.exit(dbadmin.main(sys.argv))
+except KeyboardInterrupt:
+    raise SystemExit

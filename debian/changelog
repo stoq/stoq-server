@@ -1,3 +1,9 @@
+stoq-server (2.0.0~beta1) xenial; urgency=medium
+
+  * Release 2.0.0~beta1
+
+ -- Luiz Menezes <luiz.menezes@stoq.com.br>  Wed, 11 Nov 2020 14:04:38 -0300
+
 stoq-server (1.6.0~beta1) xenial; urgency=medium
 
   * Release 1.6.0~beta1
