@@ -355,8 +355,8 @@ class DataResource(BaseResource):
         config = get_config()
         can_send_sms = config.get("Twilio", "sid") is not None
         iti_discount = config.get("Discounts", "iti") == '1'
-        iti_discount_percentage = config.get("Discounts", "iti_discount_percentage")
-        iti_discount_max_value = config.get("Discounts", "iti_discount_max_value")
+        iti_discount_percentage = config.get("Discounts", "iti_discount_percentage") or '0.3'
+        iti_discount_max_value = config.get("Discounts", "iti_discount_max_value") or '10'
         hotjar_id = config.get("Hotjar", "id")
         plugins = get_plugin_manager().active_plugins_names
         responses = signal('GetSettingsForFrontendEvent').send(station)
