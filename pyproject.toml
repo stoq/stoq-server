@@ -3,6 +3,11 @@ name = "stoq-server"
 version = "2.0.0"
 description = "Stoq API backend and syncrhonization daemon and other workers"
 authors = ["Stoq Team <dev@stoq.com.br>"]
+packages = [{ include = "stoqserver" }]
+include = [
+    "poetry.lock",
+    "setup_old.py",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.5,<4"
