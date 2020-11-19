@@ -43,7 +43,6 @@ test:
   before_script:
     - apt update
     - python --version
-    - python2 --version
     # Install tools to create debian packages
     - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev devscripts debhelper python3-all libjpeg8-dev zlib1g-dev swig
     - export LC_ALL=pt_BR.UTF-8
@@ -71,6 +70,7 @@ create_deb_manual:
   when: manual
 
 create_bundle_manual:
+  image: romaia/stoq:bionic
   extends: .create_deb
   script:
     - make bundle_deb
@@ -78,6 +78,7 @@ create_bundle_manual:
   when: manual
 
 create_bundle:
+  image: romaia/stoq:bionic
   extends: .create_deb
   script:
     - make bundle_deb
