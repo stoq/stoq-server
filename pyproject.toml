@@ -38,6 +38,9 @@ gevent = "^20.9.0"
 # we need to pin werkzeug its latest version doesn't work for flask < 1
 # although flask (0.10.1 used in production) allows it
 Werkzeug = "0.10.4"
+# this is required by stoq-plugin-nfe
+viivakoodi = "^0.8.0"
+PyKCS11 = "^1.5.9"
 
 [tool.poetry.dev-dependencies]
 Babel = "^2.8.0"
