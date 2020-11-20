@@ -23,32 +23,20 @@
 #
 
 import os
-import platform
-import sys
 
 from setuptools import find_packages, setup
 
 import stoqserver
 
-install_requires = [
-    "babel",
-    "flask >= 0.10.1, < 1",
-    "flask-restful >= 0.3.4",
-    "gevent >= 1.1.0",
-    "netifaces",
-    "psutil >= 3.4.2",
-    "psycogreen",
-    "raven",
-    "requests >= 2.2",
-    "tzlocal >= 1.2.2",
-]
+with open('requirements.txt') as f:
+    install_requires = [line.strip() for line in f.readlines()
+                        if line.strip() and not line.startswith('#') and 'git+' not in line]
 
-data_files = []
-if 'bdist_egg' not in sys.argv and platform.system() != "Windows":
-    data_files = [
-        ('/etc/sudoers.d', [os.path.join('data', 'sudoers.d', 'stoqserver')]),
-        ('/etc/supervisor/conf.d', [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
-    ]
+data_files = [
+    ('/etc/udev/rules.d', [os.path.join('data', 'udev', '10-stoq.rules')]),
+    ('/etc/sudoers.d', [os.path.join('data', 'sudoers.d', 'stoqserver')]),
+    ('/etc/supervisor/conf.d', [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
+]
 
 setup(
     name='stoqserver',

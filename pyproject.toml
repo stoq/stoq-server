@@ -7,6 +7,7 @@ packages = [{ include = "stoqserver" }]
 include = [
     "**/*.mo",
     "bin/*",
+    "data/udev/10-stoq.rules",
     "data/sudoers.d/stoqserver",
     "data/supervisor/stoqserver.conf",
     "data/scripts/duplicitybackup.py",

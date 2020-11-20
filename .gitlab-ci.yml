@@ -50,6 +50,7 @@ test:
     - python3 -m venv env
     - source env/bin/activate
     - pip install -U setuptools pip poetry wheel
+    - poetry export -f requirements.txt --without-hashes | cut -d '@' -f 2 > requirements.txt
   script:
     - cp setup_old.py setup.py
     - cp debian/control_old debian/control
@@ -69,7 +70,14 @@ create_deb_manual:
   stage: test
   when: manual
 
-create_bundle_manual:
+create_bundle_manual_xenial:
+  extends: .create_deb
+  script:
+    - make bundle_deb
+  stage: test
+  when: manual
+
+create_bundle_manual_bionic:
   image: romaia/stoq:bionic
   extends: .create_deb
   script:

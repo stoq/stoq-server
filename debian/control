@@ -14,7 +14,7 @@ Architecture: all
 Depends: ${misc:Depends}
  binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib, tmate,
  libcairo2, libpangocairo-1.0-0, libpango-1.0-0, python3-psycopg2 (>= 2.0.5), postgresql-client,
- iso-codes (>= 3.12.1-1), libxss1, ntp, libusb-1.0-0, python3-venv
+ iso-codes (>= 3.12.1-1), libxss1, ntp, libusb-1.0-0, python3-venv, python3-zope.event
 Recommends: libusb-1.0-0:i386, libc6-i386
 Homepage: http://www.stoq.com.br/
 Description: A server for Stoq.
