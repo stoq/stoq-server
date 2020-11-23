@@ -31,7 +31,11 @@ test:
     - pip install -U setuptools pip poetry wheel
     - poetry install
     - poetry shell
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/stoqtech/private/stoq-plugin-ifood.git
+    # Tip of master from iFood plugin is not compatible with this stoqserver version
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/stoqtech/private/stoq-plugin-ifood.git --depth=10
+    - cd stoq-plugin-ifood
+    - git checkout 9b94b7071ad5a69f77c50cc6191665bb93bf62b6
+    - cd ..
     - pip install -e stoq-plugin-ifood --no-deps --no-build-isolation
     - python3 -V
     - poetry show

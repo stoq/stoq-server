@@ -31,7 +31,7 @@ import platform
 import pkg_resources
 
 
-__version__ = (1, 6, 0, "beta1")
+__version__ = (1, 6, 0)
 version_str = '.'.join(str(i) for i in __version__)
 
 
