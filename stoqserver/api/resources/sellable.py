@@ -82,8 +82,9 @@ class SellableResource(BaseResource):
         barcode = data.get('barcode')
         description = data.get('description')
         base_price = self._price_validation(data)
+        sellable = store.get(Sellable, sellable_id)
 
-        if sellable_id and store.get(Sellable, sellable_id):
+        if sellable and "Created via sale" not in sellable.notes:
             message = 'Product with id {} already exists'.format(sellable_id)
             log.warning(message)
             return make_response(jsonify({
@@ -97,9 +98,10 @@ class SellableResource(BaseResource):
                 'message': message,
             }), 200)
 
-        sellable = Sellable(store=store)
-        if sellable_id:
-            sellable.id = sellable_id
+        if not sellable:
+            sellable = Sellable(store=store)
+            if sellable_id:
+                sellable.id = sellable_id
         sellable.code = barcode
         sellable.barcode = barcode
         sellable.description = description
@@ -108,6 +110,9 @@ class SellableResource(BaseResource):
         # database so the override can be created
         sellable.status = Sellable.STATUS_CLOSED
         sellable.base_price = base_price
+        # If the sellable was pre-created on a sale it has a notes informing it and to
+        # proceed this note is removed
+        sellable.notes.replace("Created via sale", "")
 
         product_data = data.get('product')
         product = Product(store=store, sellable=sellable)
