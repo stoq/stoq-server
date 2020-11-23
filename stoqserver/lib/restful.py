@@ -1242,8 +1242,16 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
             sellable = store.get(Sellable, p['id'])
             if sellable is None:
-                log.error('Sellable %s does not exist', p)
-                abort(400, 'Sellable {} doesn\'t exist'.format(p['id']))
+                config = get_config()
+                if config.get("Hacks", "create_sellable_on_sale").lower() == 'true':
+                    sellable = Sellable(store=store)
+                    sellable.id = p['id']
+                    sellable.notes = "Created via sale"
+                    Product(store=store, sellable=sellable)
+                    log.warning('Sellable %s created', sellable)
+                else:
+                    log.error('Sellable %s does not exist', p)
+                    abort(400, 'Sellable {} doesn\'t exist'.format(p['id']))
 
             product = sellable.product
             if product and product.is_package:
@@ -1332,11 +1340,14 @@ class SaleResource(BaseResource, SaleResourceMixin):
         if sale.station.has_kps_enabled and sale.get_kitchen_items() and not external_order_id:
             kps_image = self._print_kps(data, sale)
 
+        transmitted = invoice_data.get('transmitted', False) if invoice_data else False
+
         retval = {
             'sale_id': sale.id,
             'client_id': client and client.id,
             'invoice_data': invoice_data,
-            'kps_image': kps_image
+            'kps_image': kps_image,
+            'transmitted': transmitted,
         }
         return retval, 201
 
