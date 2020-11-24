@@ -75,6 +75,9 @@ class SellableResource(BaseResource):
     def post(self, store):
         data = self.get_json()
 
+        log.debug("POST /sellable station: %s payload: %s",
+                  self.get_current_station(store), data)
+
         if 'product' not in data:
             abort(400, 'There is no product data on payload')
 
@@ -137,6 +140,9 @@ class SellableResource(BaseResource):
         data = self.get_json()
         status = data.get('status')
         base_price = self._price_validation(data)
+
+        log.debug("PUT /sellable/%s/override/%s station: %s payload: %s",
+                  sellable_id, branch_id, self.get_current_station(store), data)
 
         if status and status not in [Sellable.STATUS_AVAILABLE, Sellable.STATUS_CLOSED]:
             message = 'Status must be: {} or {}'.format(Sellable.STATUS_AVAILABLE,

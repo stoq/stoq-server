@@ -170,6 +170,10 @@ class ClientResource(BaseResource):
         client_name = data.get('client_name')
         client_document = data.get('client_document')
         address_info = data.get('address')
+
+        log.debug("POST /client station: %s payload: %s",
+                  self.get_current_station(store), data)
+
         # We should change the api callsite so that city_location is inside the address
         if address_info:
             address_info.setdefault('city_location', data.get('city_location'))

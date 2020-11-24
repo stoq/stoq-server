@@ -1188,6 +1188,9 @@ class SaleResource(BaseResource, SaleResourceMixin):
         should_print_receipts = data.get('print_receipts', True)
         postpone_emission = data.get('postpone_emission', False)
 
+        log.debug("POST /sale station: %s payload: %s",
+                  self.get_current_station(store), data)
+
         client, client_document, coupon_document = self._get_client_and_document(store, data)
 
         sale_id = data.get('sale_id')
