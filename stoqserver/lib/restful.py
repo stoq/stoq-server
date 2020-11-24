@@ -1480,7 +1480,7 @@ class SaleCouponImageResource(BaseResource):
         responses = GenerateInvoicePictureEvent.send(sale)
         try:
             image, mimetype = responses[0][1]
-        except TypeError:
+        except (TypeError, ValueError):
             image = responses[0][1]
             mimetype = None
 
