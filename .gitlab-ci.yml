@@ -85,6 +85,15 @@ create_bundle_manual_bionic:
   stage: test
   when: manual
 
+create_bundle_manual_focal:
+  image: romaia/stoq:focal
+  extends: .create_deb
+  script:
+    - make bundle_deb
+  stage: test
+  when: manual
+
+
 create_bundle:
   image: romaia/stoq:bionic
   extends: .create_deb
