@@ -30,7 +30,7 @@ import stoqserver
 
 with open('requirements.txt') as f:
     install_requires = [line.strip() for line in f.readlines()
-                        if line.strip() and not line.startswith('#') and 'git+' not in line]
+                        if line.strip() and not line.startswith('#') and not line.startswith('--')]
 
 data_files = [
     ('/etc/udev/rules.d', [os.path.join('data', 'udev', '10-stoq.rules')]),

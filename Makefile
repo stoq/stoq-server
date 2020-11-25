@@ -23,6 +23,10 @@ test:
 	python runtests.py stoqserver/lib/test
 	pytest -vvv
 
+requirements.txt: pyproject.toml
+	poetry export -f requirements.txt --without-hashes -o requirements.txt
+	echo '--extra-index-url https://__token__:'"${GITLAB_PYPI_TOKEN}"'@gitlab.com/api/v4/projects/13882298/packages/pypi/simple/\n' > requirements.txt
+
 bundle_dist:
 	-rm -rf dist/
 	poetry install --no-root
@@ -30,13 +34,12 @@ bundle_dist:
 	poetry build --format sdist
 	tar -zxvf dist/*.tar.gz -C dist
 
-bundle_deb: bundle_dist
+bundle_deb: bundle_dist requirements.txt
 	-rm -rf dist/*/env
 	cd dist/* && \
 		python -m venv env && \
 		. env/bin/activate && \
 		pip install -U poetry pip wheel setuptools && \
-		poetry export -f requirements.txt --without-hashes | cut -d '@' -f 2 > requirements.txt && \
 		pip install -r requirements.txt && \
 		cp setup_old.py setup.py && \
 		debuild --preserve-env -us -uc

@@ -28,11 +28,13 @@ test:
     - export LC_ALL=pt_BR.UTF-8
     - python3 -m venv env
     - source env/bin/activate
-    - pip install -U setuptools pip poetry wheel
+    - pip install -U setuptools pip poetry wheel importlib-metadata==2.1.0
+    # providing credentials using poetry config http-basic or environment variables didn't work
+    # (as suggested by poetry docs https://python-poetry.org/docs/repositories/)
+    # so the workaround below becomes necessary so the CI job can download gitlab PyPI packages
+    - sed -i 's|\(gitlab.com\)|__token__:'"${GITLAB_PYPI_TOKEN}"'@\1|' pyproject.toml
     - poetry install
     - poetry shell
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/stoqtech/private/stoq-plugin-ifood.git
-    - cd stoq-plugin-ifood && poetry build -f wheel && pip install dist/* && cd ..
     - python3 -V
     - poetry show
   script:
@@ -50,7 +52,9 @@ test:
     - python3 -m venv env
     - source env/bin/activate
     - pip install -U setuptools pip poetry wheel
-    - poetry export -f requirements.txt --without-hashes | cut -d '@' -f 2 > requirements.txt
+    - make requirements.txt
+    - sed -i 's|\(gitlab.com\)|__token__:'"${GITLAB_PYPI_TOKEN}"'@\1|' pyproject.toml
+    - sed -i 's|\(gitlab.com\)|__token__:'"${GITLAB_PYPI_TOKEN}"'@\1|' requirements.txt
   script:
     - cp setup_old.py setup.py
     - cp debian/control_old debian/control
