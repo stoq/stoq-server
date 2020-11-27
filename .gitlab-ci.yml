@@ -105,3 +105,14 @@ create_bundle:
     - make bundle_deb
   only:
     - master
+
+gitlab_pypi_upload:
+  stage: test
+  only:
+    - master
+  when: manual
+  script:
+    - rm -rf dist/*
+    - poetry build
+    - pip install -U twine
+    - TWINE_PASSWORD=${CI_JOB_TOKEN} TWINE_USERNAME=gitlab-ci-token twine upload --skip-existing --repository-url "https://gitlab.com/api/v4/projects/13882298/packages/pypi" dist/*
