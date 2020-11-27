@@ -1246,7 +1246,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
             sellable = store.get(Sellable, p['id'])
             if sellable is None:
                 config = get_config()
-                if config.get("Hacks", "create_sellable_on_sale").lower() == 'true':
+                if (config.get("Hacks", "create_sellable_on_sale") or "").lower() == 'true':
                     sellable = Sellable(store=store)
                     sellable.id = p['id']
                     sellable.notes = "Created via sale"
