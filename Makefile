@@ -31,6 +31,7 @@ bundle_dist:
 	-rm -rf dist/
 	poetry install --no-root
 	pybabel compile -d $(PACKAGE)/locale -D $(PACKAGE) || true
+	cp data/udev/bundle-10-stoq.rules data/udev/10-stoq.rules
 	poetry build --format sdist
 	tar -zxvf dist/*.tar.gz -C dist
 
@@ -43,6 +44,7 @@ bundle_deb: bundle_dist requirements.txt
 		pip install -r requirements.txt && \
 		cp setup_old.py setup.py && \
 		debuild --preserve-env -us -uc
+	-rm setup.py data/udev/10-stoq.rules
 
 include utils/utils.mk
 .PHONY: check coverage
