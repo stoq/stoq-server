@@ -102,15 +102,15 @@ def setup_stoq(register_station=False, name='stoqserver',
     provide_utility(ICurrentBranch, main_company, replace=True)
 
 
-def setup_logging(app_name='stoq-server'):
+def setup_logging(app_name='stoq-server', is_debug=None):
     ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.DEBUG if is_debug else logging.INFO)
     formatter = logging.Formatter(
         '%(asctime)s %(name)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
 
     root = logging.getLogger()
-    root.setLevel(logging.INFO)
+    root.setLevel(logging.DEBUG if is_debug else logging.INFO)
     root.addHandler(ch)
 
     handler = SysLogHandler(address='/dev/log')
@@ -243,7 +243,7 @@ class StoqServerCmdHandler:
     def cmd_flask(self, options, *args):
         """Run the server daemon"""
         setup_stoq(register_station=True, name='stoqflask', version=stoq.version, options=options)
-        setup_logging('stoq-flask')
+        setup_logging(app_name='stoq-flask', is_debug=options.debug)
 
         def _exit(*args):
             sys.exit(0)
