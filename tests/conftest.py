@@ -50,6 +50,33 @@ class StoqTestClient(FlaskClient):
         return self._request('put', *args, **kwargs)
 
 
+class B1foodTestClient(FlaskClient):
+    @cached_property(ttl=0)
+    def auth_token(self):
+        response = super().get(
+            '/b1food/oauth/authenticate?client_id=B1FoodClientId&response_type=token')
+        ans = json.loads(response.data.decode())
+        return 'Bearer ' + ans.get('access_token', '')
+
+    def _request(self, method_name, *args, **kwargs):
+        method = getattr(super(), method_name)
+        if 'headers' not in kwargs:
+            kwargs['headers'] = {'Authorization': self.auth_token}
+        response = method(
+            *args,
+            content_type='application/json',
+            **kwargs,
+        )
+        try:
+            response.json = json.loads(response.data.decode())
+        except AttributeError:
+            pass
+        return response
+
+    def get(self, *args, **kwargs):
+        return self._request('get', *args, **kwargs)
+
+
 # This is flask test client according to boilerplate:
 # https://flask.palletsprojects.com/en/1.0.x/testing/
 @pytest.fixture
@@ -58,6 +85,22 @@ def client(current_user, current_station):
     db_fd, app.config['DATABASE'] = tempfile.mkstemp()
     app.config['TESTING'] = True
     app.test_client_class = StoqTestClient
+    with app.test_client() as client:
+        with app.app_context():
+            client.user = current_user
+            client.station = current_station
+            yield client
+
+    os.close(db_fd)
+    os.unlink(app.config['DATABASE'])
+
+
+@pytest.fixture
+def b1food_client(current_user, current_station):
+    app = bootstrap_app()
+    db_fd, app.config['DATABASE'] = tempfile.mkstemp()
+    app.config['TESTING'] = True
+    app.test_client_class = B1foodTestClient
     with app.test_client() as client:
         with app.app_context():
             client.user = current_user

@@ -84,6 +84,7 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent,
                        PrintExternalOrderEvent, ReadyToDeliverExternalOrderEvent)
 
+from stoqserver.api.resources.b1food import (B1foodLoginResource, IncomeCenterResource)
 from stoqserver.api.resources.branch import BranchResource
 from stoqserver.api.resources.client import ClientResource
 from stoqserver.api.resources.inventory import InventoryResource
@@ -97,6 +98,8 @@ PurchaseOrder, PaymentRenegotiation
 Dict
 
 # Resources
+B1foodLoginResource
+IncomeCenterResource
 BranchResource
 ClientResource
 InventoryResource

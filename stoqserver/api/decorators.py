@@ -31,6 +31,7 @@ from stoqlib.api import api
 from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.person import LoginUser
 from stoqlib.domain.token import AccessToken
+from stoqlib.lib.configparser import get_config
 
 
 def login_required(f):
@@ -53,6 +54,19 @@ def login_required(f):
             # provided in the token payload instead of this 'global' one.
             user = store.get(LoginUser, access_token.payload['user_id'])
             provide_utility(ICurrentUser, user, replace=True)
+
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def b1food_login_required(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        auth = request.args.get('Authorization', '').split('Bearer ')
+        config = get_config()
+        access_token = config.get("B1Food", "client_id") or ""
+        if len(auth) != 2 or auth[1] != access_token or access_token == "":
+            abort(401)
 
         return f(*args, **kwargs)
     return wrapper

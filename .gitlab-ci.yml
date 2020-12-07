@@ -28,7 +28,8 @@ test:
     - export LC_ALL=pt_BR.UTF-8
     - python3 -m venv env
     - source env/bin/activate
-    - pip install -U setuptools pip poetry wheel importlib-metadata==2.1.0
+    - pip install -U setuptools pip wheel importlib-metadata==2.1.0
+    - pip install -U poetry
     # providing credentials using poetry config http-basic or environment variables didn't work
     # (as suggested by poetry docs https://python-poetry.org/docs/repositories/)
     # so the workaround below becomes necessary so the CI job can download gitlab PyPI packages
@@ -51,7 +52,8 @@ test:
     - rm -rf dist
     - python3 -m venv env
     - source env/bin/activate
-    - pip install -U setuptools pip poetry wheel
+    - pip install -U setuptools pip wheel importlib-metadata==2.1.0
+    - pip install -U poetry
     - make requirements.txt
     - sed -i 's|\(gitlab.com\)|__token__:'"${GITLAB_PYPI_TOKEN}"'@\1|' pyproject.toml
     - sed -i 's|\(gitlab.com\)|__token__:'"${GITLAB_PYPI_TOKEN}"'@\1|' requirements.txt
