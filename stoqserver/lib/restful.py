@@ -1252,7 +1252,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
                 if (config.get("Hacks", "create_sellable_on_sale") or "").lower() == 'true':
                     sellable = Sellable(store=store)
                     sellable.id = p['id']
-                    sellable.notes = "Created via sale"
+                    sellable.notes = Sellable.NOTES_CREATED_VIA_SALE
                     Product(store=store, sellable=sellable)
                     log.warning('Sellable %s created', sellable)
                 else:
@@ -1332,15 +1332,22 @@ class SaleResource(BaseResource, SaleResourceMixin):
             NfeWarning.connect(self._nfe_warning_event)
             NfeSuccess.connect(self._nfe_success_event)
 
-        # Fiscal plugins will connect to this event and "do their job"
-        # It's their responsibility to raise an exception in case of any error
-        try:
-            invoice_data = SaleConfirmedRemoteEvent.emit(sale, coupon_document,
-                                                         should_print_receipts, postpone_emission)
-        except (NfePrinterException, SatPrinterException):
-            return self._handle_coupon_printing_fail(sale)
-        except NfeRejectedException as e:
-            return self._handle_nfe_coupon_rejected(sale, e.reason)
+        if sale.has_pre_created_sellables:
+            # Since sale has sellables pre-created via sale and therefore with tax information
+            # missing, emission should be skipped to be made once its information is fulfilled
+            invoice_data = None
+            log.warning('Pre-created sellables without tax information found, '
+                        'skipping emission for %s', sale)
+        else:
+            # Fiscal plugins will connect to this event and "do their job"
+            # It's their responsibility to raise an exception in case of any error
+            try:
+                invoice_data = SaleConfirmedRemoteEvent.emit(
+                    sale, coupon_document, should_print_receipts, postpone_emission)
+            except (NfePrinterException, SatPrinterException):
+                return self._handle_coupon_printing_fail(sale)
+            except NfeRejectedException as e:
+                return self._handle_nfe_coupon_rejected(sale, e.reason)
 
         kps_image = None
         if sale.station.has_kps_enabled and sale.get_kitchen_items() and not external_order_id:
