@@ -55,6 +55,8 @@ Werkzeug = "0.10.4"
 # this is required by stoq-plugin-nfe
 viivakoodi = "^0.8.0"
 PyKCS11 = "^1.5.9"
+# cffi depends on this but it is not installing correctly
+pycparser = "^2.20"
 
 [tool.poetry.dev-dependencies]
 Babel = "^2.8.0"
