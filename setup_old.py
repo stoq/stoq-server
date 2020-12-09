@@ -33,10 +33,17 @@ with open('requirements.txt') as f:
                         if line.strip() and not line.startswith('#') and not line.startswith('--')]
 
 data_files = [
-    ('/etc/udev/rules.d', [os.path.join('data', 'udev', '10-stoq.rules')]),
     ('/etc/sudoers.d', [os.path.join('data', 'sudoers.d', 'stoqserver')]),
     ('/etc/supervisor/conf.d', [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
 ]
+scripts = ['bin/stoqserver']
+
+# workaround so "old" stoq-server deb won't conflict with "old" stoq deb
+if os.path.exists('data/udev/10-stoq.rules'):
+    data_files += [
+        ('/etc/udev/rules.d', [os.path.join('data', 'udev', '10-stoq.rules')]),
+    ]
+    scripts += ['bin/stoqdbadmin']
 
 setup(
     name='stoqserver',
@@ -50,7 +57,7 @@ setup(
     version=stoqserver.version_str,
     packages=find_packages(),
     install_requires=install_requires,
-    scripts=['bin/stoqserver', 'bin/stoqdbadmin'],
+    scripts=scripts,
     zip_safe=True,
     include_package_data=True,
     data_files=data_files,

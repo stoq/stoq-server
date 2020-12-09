@@ -24,7 +24,7 @@ test:
   before_script:
     # Install stoqlib from master.
     - apt update
-    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev libjpeg8-dev zlib1g-dev swig
+    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev libjpeg8-dev zlib1g-dev swig build-essential libssl-dev libffi-dev python3-dev
     - export LC_ALL=pt_BR.UTF-8
     - python3 -m venv env
     - source env/bin/activate
@@ -47,7 +47,7 @@ test:
     - apt update
     - python --version
     # Install tools to create debian packages
-    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev devscripts debhelper python3-all libjpeg8-dev zlib1g-dev swig
+    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev devscripts debhelper python3-all libjpeg8-dev zlib1g-dev swig build-essential libssl-dev libffi-dev python3-dev
     - export LC_ALL=pt_BR.UTF-8
     - rm -rf dist
     - python3 -m venv env
@@ -61,7 +61,7 @@ test:
     - cp setup_old.py setup.py
     - cp debian/control_old debian/control
     - cp debian/rules_old debian/rules
-    - make deb
+    - poetry run make deb
   artifacts:
     paths:
       - dist/*.deb
@@ -79,7 +79,7 @@ create_deb_manual:
 create_bundle_manual_xenial:
   extends: .create_deb
   script:
-    - make bundle_deb
+    - poetry run make bundle_deb
   stage: test
   when: manual
 
