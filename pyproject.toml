@@ -35,7 +35,7 @@ stoqnfe = "^1.0.1"
 stoqifood = "^1.0.0"
 stoqlink = "^1.9"
 stoqnonfiscal = "^1.0.0"
-stoqlib = "^7.0.0"
+stoqlib = "^7.1.0"
 
 # pypi packages
 blinker = "^1.3"
