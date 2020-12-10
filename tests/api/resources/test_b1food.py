@@ -24,6 +24,8 @@ def sale(example_creator, current_user):
     person = example_creator.create_person()
     person.login_user = current_user
     test_sale.salesperson.person = person
+    payment = example_creator.create_payment(group=test_sale.group)
+    payment.paid_value = 10
 
     return test_sale
 
@@ -331,3 +333,184 @@ def test_get_sale_item_with_empty_document(get_config_mock, b1food_client, store
 
     assert response.status_code == 200
     assert res[0]['consumidores'] == [{'documento': '', 'tipo': ''}]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_payment_with_lojas_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'lojas': 1
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_payment_with_lojas_as_list_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'lojas': [1, 2, 4]
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_payment_with_consumidores_as_list_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'consumidores': [97050782033, 70639759000102]
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_payment_with_consumidores_and_lojas_args(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'consumidores': [97050782033, 70639759000102],
+        'lojas': [1, 2, 4]
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_payment_with_operacaocupom_as_list_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'operacaocupom': [
+            'a25dd1ad-7dae-11ea-b5ac-b285fb9a2a4e',
+            '21b5a545-7aa1-11ea-b5ac-b285fb9a2a4e'
+        ]
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_with_cnpj_client_successfully(get_config_mock, b1food_client,
+                                                   store, example_creator, sale):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    sale.client.person.individual = None
+    company = example_creator.create_company()
+    company.cnpj = '35.600.423/0001-27'
+    sale.client.person.company = company
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03'
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert res[0]['consumidores'] == [{'documento': '35600423000127', 'tipo': 'CNPJ'}]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_with_empty_document(get_config_mock, b1food_client, store, sale):
+    sale.client.person.individual.cpf = ''
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03'
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert res[0]['consumidores'] == [{'documento': '', 'tipo': ''}]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payments_successfully(get_config_mock, b1food_client, store, sale):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03'
+    }
+    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+    salesperson = sale.salesperson
+    payment = sale.group.payments[0]
+    document = raw_document(sale.get_client_document())
+    assert response.status_code == 200
+    assert res == [
+        {
+            'codAtendente': 'admin',
+            'consumidores': [
+                {
+                    'documento': document,
+                    'tipo': 'CPF'
+                }
+            ],
+            'dataContabil': '2020-01-02 00:00:00 ',
+            'hora': '00',
+            'idAtendente': salesperson.id,
+            'idMovimentoCaixa': sale.id,
+            'loja': None,
+            'lojaId': sale.branch.id,
+            'maquinaCod': '',
+            'maquinaId': sale.station.id,
+            'maquinaPortaFiscal': None,
+            'meiospagamento': [
+                {
+                    'id': payment.method.id,
+                    'codigo': payment.method.id,
+                    'nome': payment.method.method_name,
+                    'valor': payment.value,
+                    'troco': 0,
+                    'valorRecebido': payment.paid_value,
+                    'idAtendente': sale.salesperson.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                }
+            ],
+            'nomeAtendente': 'John',
+            'nomeMaquina': sale.station.name,
+            'numPessoas': 1,
+            'operacaoId': sale.id,
+            'rede': 'Stoq Roupas e Acessórios Ltda',
+            'redeId': sale.branch.person.company.id,
+            'vlAcrescimo': None,
+            'vlTotalReceber': sale.group.get_total_value(),
+            'vlTotalRecebido': sale.group.get_total_paid(),
+            'vlDesconto': 0.0,
+            'vlRepique': 0,
+            'vlServicoRecebido': 0,
+            'vlTaxaEntrega': 0,
+            'vlTrocoFormasPagto': 0
+        },
+    ]

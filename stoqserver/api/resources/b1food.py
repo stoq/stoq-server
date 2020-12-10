@@ -54,9 +54,9 @@ b1food_token = generate_b1food_token()
 
 
 def _check_required_params(data, required_params):
-    for arg in required_params:
-        if arg not in data:
-            message = 'Missing parameter \'%s\'' % arg
+    for param in required_params:
+        if param not in data:
+            message = 'Missing parameter \'%s\'' % param
             log.error(message)
             abort(400, message)
 
@@ -226,5 +226,107 @@ class B1FoodSaleItemResource(BaseResource):
                 }
 
                 response.append(res_item)
+
+        return response
+
+
+class B1FoodPaymentsResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/movimentocaixa']
+
+    def get(self, store):
+        data = request.args
+        required_params = ['dtinicio', 'dtfim']
+        _check_required_params(data, required_params)
+
+        initial_date = datetime.strptime(data['dtinicio'], '%Y-%m-%d')
+        end_date = datetime.strptime(data['dtfim'], '%Y-%m-%d')
+
+        request_branches = data.get('lojas')
+        request_documents = data.get('consumidores')
+        request_invoice_ids = data.get('operacaocupom')
+
+        acronyms = _get_acronyms(request_branches)
+        documents = _get_documents(request_documents)
+        invoice_ids = _get_invoice_ids(request_invoice_ids)
+
+        query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
+
+        tables = [Sale]
+
+        if len(acronyms) > 0 or len(documents) > 0:
+            tables.append(Join(Branch, Sale.branch_id == Branch.id))
+
+        if len(acronyms) > 0:
+            query = And(query, Branch.acronym.is_in(acronyms))
+
+        if len(documents) > 0:
+            tables = tables + [Join(Person, Person.id == Branch.person_id),
+                               Join(Individual, Individual.person_id == Person.id),
+                               Join(Company, Company.person_id == Person.id)]
+            query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
+
+        if len(invoice_ids) > 0:
+            query = And(query, Sale.invoice_id.is_in(invoice_ids))
+
+        sales = store.using(*tables).find(Sale, query)
+
+        response = []
+
+        for sale in sales:
+            document = raw_document(sale.get_client_document())
+            if len(document) == 11:
+                document_type = 'CPF'
+            elif len(document) == 14:
+                document_type = 'CNPJ'
+            else:
+                document_type = ''
+
+            payments = []
+            for payment in sale.group.payments:
+                payments.append({
+                    'id': payment.method.id,
+                    'codigo': payment.method.id,
+                    'nome': payment.method.method_name,
+                    'valor': float(payment.value),
+                    'troco': 0,
+                    'valorRecebido': float(payment.paid_value),
+                    'idAtendente': sale.salesperson.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                })
+            res_item = {
+                'idMovimentoCaixa': sale.id,
+                'redeId': sale.branch.person.company.id,
+                'rede': sale.branch.person.name,
+                'lojaId': sale.branch.id,
+                'loja': sale.branch.acronym,
+                'hora': sale.confirm_date.strftime('%H'),
+                'idAtendente': sale.salesperson.id,
+                'codAtendente': sale.salesperson.person.login_user.username,
+                'nomeAtendente': sale.salesperson.person.name,
+                'vlDesconto': float(sale.discount_value),
+                'vlAcrescimo': None,
+                'vlTotalReceber': float(sale.group.get_total_value()),
+                'vlTotalRecebido': float(sale.group.get_total_paid()),
+                'vlTrocoFormasPagto': 0,  # ?????????????
+                'vlServicoRecebido': 0,  # ?????????????
+                'vlRepique': 0,  # ?????????????
+                'vlTaxaEntrega': 0,  # ????????????? FIXME: ExternalOrder
+                'numPessoas': 1,
+                'operacaoId': sale.id,
+                'maquinaId': sale.station.id,
+                'nomeMaquina': sale.station.name,
+                'maquinaCod': sale.station.code,
+                'maquinaPortaFiscal': None,
+                'meiospagamento': payments,
+                'consumidores': [{
+                    'documento': document,
+                    'tipo': document_type,
+                }],
+                'dataContabil': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            }
+
+            response.append(res_item)
 
         return response
