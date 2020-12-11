@@ -36,6 +36,10 @@ stoqifood = "^1.0.0"
 stoqlink = "^1.9"
 stoqnonfiscal = "^1.0.0"
 stoqlib = "^7.1.0"
+stoqsat = "^1.0.0"
+stoqpassbook = "^1.0.1"
+stoqimendes = "^1.1"
+stoqsitef = "^1.22"
 
 # pypi packages
 blinker = "^1.3"

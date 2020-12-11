@@ -32,7 +32,7 @@ tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>
 name = "babel"
 version = "2.9.0"
 description = "Internationalization utilities"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
@@ -49,20 +49,20 @@ python-versions = "*"
 
 [[package]]
 name = "boto3"
-version = "1.16.30"
+version = "1.16.34"
 description = "The AWS SDK for Python"
 category = "main"
 optional = false
 python-versions = "*"
 
 [package.dependencies]
-botocore = ">=1.19.30,<1.20.0"
+botocore = ">=1.19.34,<1.20.0"
 jmespath = ">=0.7.1,<1.0.0"
 s3transfer = ">=0.3.0,<0.4.0"
 
 [[package]]
 name = "botocore"
-version = "1.19.30"
+version = "1.19.34"
 description = "Low-level, data-driven core of boto 3."
 category = "main"
 optional = false
@@ -72,6 +72,14 @@ python-versions = "*"
 jmespath = ">=0.7.1,<1.0.0"
 python-dateutil = ">=2.1,<3.0.0"
 urllib3 = {version = ">=1.25.4,<1.27", markers = "python_version != \"3.4\""}
+
+[[package]]
+name = "bump2version"
+version = "1.0.1"
+description = "Version-bump your software with a single command!"
+category = "main"
+optional = false
+python-versions = ">=3.5"
 
 [[package]]
 name = "cairocffi"
@@ -109,6 +117,14 @@ doc = ["sphinx", "sphinx-rtd-theme"]
 test = ["pytest-runner", "pytest-cov", "pytest-flake8", "pytest-isort"]
 
 [[package]]
+name = "certifi"
+version = "2020.12.5"
+description = "Python package for providing Mozilla's CA Bundle."
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "cffi"
 version = "1.14.4"
 description = "Foreign Function Interface for Python calling C code."
@@ -118,6 +134,14 @@ python-versions = "*"
 
 [package.dependencies]
 pycparser = "*"
+
+[[package]]
+name = "chardet"
+version = "3.0.4"
+description = "Universal encoding detector for Python 2 and 3"
+category = "main"
+optional = false
+python-versions = "*"
 
 [[package]]
 name = "colorama"
@@ -276,10 +300,18 @@ genshi = ["genshi"]
 lxml = ["lxml"]
 
 [[package]]
+name = "idna"
+version = "2.10"
+description = "Internationalized Domain Names in Applications (IDNA)"
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+
+[[package]]
 name = "importlib-metadata"
 version = "2.1.1"
 description = "Read metadata from Python packages"
-category = "main"
+category = "dev"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 
@@ -417,7 +449,7 @@ six = "*"
 
 [[package]]
 name = "pillow"
-version = "3.1.2"
+version = "3.4.2"
 description = "Python Imaging Library (Fork)"
 category = "main"
 optional = false
@@ -564,7 +596,7 @@ python-versions = "*"
 
 [[package]]
 name = "pyserial"
-version = "2.7"
+version = "3.4"
 description = "Python Serial Port Extension"
 category = "main"
 optional = false
@@ -648,6 +680,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "pyusb"
+version = "1.1.0"
+description = "Python USB access module"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "qrcode"
 version = "5.3"
 description = "QR Code image generator"
@@ -681,16 +721,26 @@ category = "main"
 optional = false
 python-versions = "*"
 
+[package.dependencies]
+pillow = ">=2.4.0"
+
 [[package]]
 name = "requests"
-version = "2.9.1"
+version = "2.25.0"
 description = "Python HTTP for Humans."
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+
+[package.dependencies]
+certifi = ">=2017.4.17"
+chardet = ">=3.0.2,<4"
+idna = ">=2.5,<3"
+urllib3 = ">=1.21.1,<1.27"
 
 [package.extras]
-security = ["ndg-httpsclient", "pyOpenSSL (>=0.13)", "pyasn1"]
+security = ["pyOpenSSL (>=0.14)", "cryptography (>=1.3.4)"]
+socks = ["PySocks (>=1.5.6,!=1.5.7)", "win-inet-pton"]
 
 [[package]]
 name = "s3transfer"
@@ -713,22 +763,23 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "stoqdrivers"
-version = "2.0.1"
-description = "Drivers for the retail sector."
+version = "2.0.0"
+description = "Python fiscal printer (ECF) drivers"
 category = "main"
 optional = false
-python-versions = ">=3.5,<4.0"
+python-versions = "*"
 
 [package.dependencies]
-importlib-metadata = ">=2.0.0,<3.0.0"
-Pillow = "3.1.2"
-pyserial = ">=2.2,<3.0"
-qrcode = ">=5.3,<5.4"
-"zope.interface" = ">=4.0,<5.0"
+babel = "*"
+pillow = "*"
+pyserial = ">=2.2"
+pyusb = "*"
+qrcode = ">=5.3,<6.0"
+"zope.interface" = ">=3.0"
 
 [[package]]
 name = "stoqifood"
-version = "1.0.0"
+version = "1.1.1"
 description = "Stoq plugin for external order"
 category = "main"
 optional = false
@@ -736,15 +787,36 @@ python-versions = ">=3.5,<4"
 
 [package.dependencies]
 blinker = ">=1.3,<2.0"
+bump2version = ">=1.0.1,<2.0.0"
 gevent = ">=20.9.0,<21.0.0"
 mako = ">=1.0.3,<2.0.0"
 pillow = ">=3.1.2,<4.0.0"
 python-dateutil = ">=2.4.2,<3.0.0"
-requests = "2.9.1"
+requests = ">=2.9.1,<3.0.0"
 storm = ">=0.24,<0.25"
 tzlocal = ">=1.2.2,<2.0.0"
 weasyprint = ">=0.34,<0.35"
 "zope.interface" = ">=4.1.3,<5.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://gitlab.com/api/v4/projects/13882298/packages/pypi/simple"
+reference = "gitlab"
+
+[[package]]
+name = "stoqimendes"
+version = "1.1"
+description = ""
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+kiwi-gtk = ">=3.0.4"
+python-dateutil = ">=2.4.2"
+storm = ">=0.24"
+uplink = ">=0.9.1"
+"zope.interface" = ">=4.1.3"
 
 [package.source]
 type = "legacy"
@@ -808,7 +880,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnfe"
-version = "1.0.1"
+version = "1.1.0"
 description = "Integration with SEFAZ system to emit the NF-e or NFC-e"
 category = "main"
 optional = false
@@ -853,6 +925,68 @@ pillow = ">=3.1.2"
 stoqdrivers = ">=2.0.0,<3.0.0"
 storm = ">=0.24,<0.25"
 weasyprint = ">=0.34,<0.35"
+
+[package.source]
+type = "legacy"
+url = "https://gitlab.com/api/v4/projects/13882298/packages/pypi/simple"
+reference = "gitlab"
+
+[[package]]
+name = "stoqpassbook"
+version = "1.0.1"
+description = "A integration with passbook"
+category = "main"
+optional = false
+python-versions = ">=3.5,<4.0"
+
+[package.dependencies]
+blinker = ">=1.4,<2.0"
+kiwi-gtk = ">=3.0.4,<4.0.0"
+mako = ">=1.0.3,<2.0.0"
+pillow = ">=3.1.2,<4.0.0"
+requests = ">=2.9.1"
+storm = ">=0.24,<0.25"
+weasyprint = ">=0.34,<0.35"
+"zope.interface" = ">=4.1.3,<5.0.0"
+
+[package.source]
+type = "legacy"
+url = "https://gitlab.com/api/v4/projects/13882298/packages/pypi/simple"
+reference = "gitlab"
+
+[[package]]
+name = "stoqsat"
+version = "1.0.0"
+description = "Permits send CF-e files(Cupom Fiscal eletrônico) to SAT devices(Sistema Autenticador e Transmissor)."
+category = "main"
+optional = false
+python-versions = ">=3.5,<4"
+
+[package.dependencies]
+blinker = ">=1.4,<2.0"
+kiwi-gtk = ">=3.0.4,<4.0.0"
+lxml = ">=4.5.2,<5.0.0"
+pillow = ">=3.1.2,<4.0.0"
+pyserial = "3.4"
+storm = ">=0.24,<0.25"
+
+[package.source]
+type = "legacy"
+url = "https://gitlab.com/api/v4/projects/13882298/packages/pypi/simple"
+reference = "gitlab"
+
+[[package]]
+name = "stoqsitef"
+version = "1.22"
+description = ""
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+blinker = ">=1.4"
+kiwi-gtk = ">=3.0.4"
+"zope.interface" = ">=4.1.3"
 
 [package.source]
 type = "legacy"
@@ -918,6 +1052,35 @@ python-versions = "*"
 
 [package.dependencies]
 pytz = "*"
+
+[[package]]
+name = "uplink"
+version = "0.9.3"
+description = "A Declarative HTTP Client for Python."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+requests = ">=2.18.0"
+six = ">=1.12.0"
+uritemplate = ">=3.0.0"
+
+[package.extras]
+aiohttp = ["aiohttp (>=2.3.0)"]
+marshmallow = ["marshmallow (>=2.15.0)"]
+pydantic = ["pydantic (>=1.6.1)"]
+tests = ["pytest (==4.6.5)", "pytest-mock", "pytest-cov", "pytest-twisted"]
+twisted = ["twisted (>=17.1.0)", "twisted (<=17.9.0)", "twisted (<=19.2.1)"]
+typing = ["typing (>=3.6.4)"]
+
+[[package]]
+name = "uritemplate"
+version = "3.0.1"
+description = "URI templates"
+category = "main"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
 name = "urllib3"
@@ -986,7 +1149,7 @@ python-versions = "*"
 name = "zipp"
 version = "1.2.0"
 description = "Backport of pathlib-compatible object wrapper for zip files"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=2.7"
 
@@ -1022,7 +1185,7 @@ testing = ["zope.event", "nose", "coverage"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.5"
-content-hash = "3eb0775052fae415068ba0c48a3b6be3b5dbd7415deb89d71e4aeab8cb0cc79a"
+content-hash = "fbbfcae31660f46945aa69a4ccadd4aafb6f2c1b334b7e1aa1ff345fe716d38a"
 
 [metadata.files]
 aniso8601 = [
@@ -1045,12 +1208,16 @@ blinker = [
     {file = "blinker-1.4.tar.gz", hash = "sha256:471aee25f3992bd325afa3772f1063dbdbbca947a041b8b89466dc00d606f8b6"},
 ]
 boto3 = [
-    {file = "boto3-1.16.30-py2.py3-none-any.whl", hash = "sha256:163ab6f9030ade265af9b36a10e608f12911cb5f3557e8e3390dffeba919262e"},
-    {file = "boto3-1.16.30.tar.gz", hash = "sha256:848aa8d11c9927daa13512072a501e2fc70ba86b073fc6927b86466f4a459b4d"},
+    {file = "boto3-1.16.34-py2.py3-none-any.whl", hash = "sha256:ddad9ada00eccae1fc2da28c69531ba202fead562994ddcd9a9a232e993cd8a2"},
+    {file = "boto3-1.16.34.tar.gz", hash = "sha256:616cde1e326949020da85a5bacaa7ad287e9f117d10ac9c5bfb9150a98dfe1a7"},
 ]
 botocore = [
-    {file = "botocore-1.19.30-py2.py3-none-any.whl", hash = "sha256:70a8ec8d76096927b619a2f1f0dffe326fc9a4f9224afc6cf5d7ef2fd98a94a2"},
-    {file = "botocore-1.19.30.tar.gz", hash = "sha256:822f9dd11f11c54b9c4666cfec9b7246a32990dbca1be27528a75a8dabed4dc2"},
+    {file = "botocore-1.19.34-py2.py3-none-any.whl", hash = "sha256:49f5e56a7382a65ee0873371edcd91bdba8fc3f70abe102ebc1a0da2e6fbed06"},
+    {file = "botocore-1.19.34.tar.gz", hash = "sha256:4d81d92127ef646ae0f0ee84c9c220c92fa82312e765c29f8cb3b000fdbdd038"},
+]
+bump2version = [
+    {file = "bump2version-1.0.1-py2.py3-none-any.whl", hash = "sha256:37f927ea17cde7ae2d7baf832f8e80ce3777624554a653006c9144f8017fe410"},
+    {file = "bump2version-1.0.1.tar.gz", hash = "sha256:762cb2bfad61f4ec8e2bdf452c7c267416f8c70dd9ecb1653fd0bbb01fa936e6"},
 ]
 cairocffi = [
     {file = "cairocffi-1.1.0.tar.gz", hash = "sha256:f1c0c5878f74ac9ccb5d48b2601fcc75390c881ce476e79f4cfedd288b1b05db"},
@@ -1058,6 +1225,10 @@ cairocffi = [
 cairosvg = [
     {file = "CairoSVG-2.5.0-py3-none-any.whl", hash = "sha256:cf1d8dcba8984ce46ddfecf5bb4768b4bdd86577873470ccb798cba0b024b842"},
     {file = "CairoSVG-2.5.0.tar.gz", hash = "sha256:3fc50d10f0cbef53b3ee376a97a88d81bbd9e2f190f7e63de08431a1a08e9afa"},
+]
+certifi = [
+    {file = "certifi-2020.12.5-py2.py3-none-any.whl", hash = "sha256:719a74fb9e33b9bd44cc7f3a8d94bc35e4049deebe19ba7d8e108280cfd59830"},
+    {file = "certifi-2020.12.5.tar.gz", hash = "sha256:1a4995114262bffbc2413b159f2a1a480c969de6e6eb13ee966d470af86af59c"},
 ]
 cffi = [
     {file = "cffi-1.14.4-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:ebb253464a5d0482b191274f1c8bf00e33f7e0b9c66405fbffc61ed2c839c775"},
@@ -1096,6 +1267,10 @@ cffi = [
     {file = "cffi-1.14.4-cp39-cp39-win32.whl", hash = "sha256:ba4e9e0ae13fc41c6b23299545e5ef73055213e466bd107953e4a013a5ddd7e3"},
     {file = "cffi-1.14.4-cp39-cp39-win_amd64.whl", hash = "sha256:f032b34669220030f905152045dfa27741ce1a6db3324a5bc0b96b6c7420c87b"},
     {file = "cffi-1.14.4.tar.gz", hash = "sha256:1a465cbe98a7fd391d47dce4b8f7e5b921e6cd805ef421d04f5f66ba8f06086c"},
+]
+chardet = [
+    {file = "chardet-3.0.4-py2.py3-none-any.whl", hash = "sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691"},
+    {file = "chardet-3.0.4.tar.gz", hash = "sha256:84ab92ed1c4d4f16916e05906b6b75a6c0fb5db821cc65e70cbd64a3e2a5eaae"},
 ]
 colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
@@ -1231,6 +1406,10 @@ html5lib = [
     {file = "html5lib-1.1-py2.py3-none-any.whl", hash = "sha256:0d78f8fde1c230e99fe37986a60526d7049ed4bf8a9fadbad5f00e22e58e041d"},
     {file = "html5lib-1.1.tar.gz", hash = "sha256:b2e5b40261e20f354d198eae92afc10d750afb487ed5e50f9c4eaf07c184146f"},
 ]
+idna = [
+    {file = "idna-2.10-py2.py3-none-any.whl", hash = "sha256:b97d804b1e9b523befed77c48dacec60e6dcb0b5391d57af6a65a312a90648c0"},
+    {file = "idna-2.10.tar.gz", hash = "sha256:b307872f855b18632ce0c21c5e45be78c0ea7ae4c15c828c20788b26921eb3f6"},
+]
 importlib-metadata = [
     {file = "importlib_metadata-2.1.1-py2.py3-none-any.whl", hash = "sha256:c2d6341ff566f609e89a2acb2db190e5e1d23d5409d6cc8d2fe34d72443876d4"},
     {file = "importlib_metadata-2.1.1.tar.gz", hash = "sha256:b8de9eff2b35fb037368f28a7df1df4e6436f578fa74423505b6c6a778d5b5dd"},
@@ -1351,8 +1530,50 @@ pathlib2 = [
     {file = "pathlib2-2.3.5.tar.gz", hash = "sha256:6cd9a47b597b37cc57de1c05e56fb1a1c9cc9fab04fe78c29acd090418529868"},
 ]
 pillow = [
-    {file = "Pillow-3.1.2.tar.gz", hash = "sha256:c593622445503ae1ee361d3a6bb40794e043b43d00c96fcb298ba43ecd375905"},
-    {file = "Pillow-3.1.2.zip", hash = "sha256:54fb1db9d8ed3d05831f0124a3241579d7d27dd95eaa72d3a85ef97dc8b8c4d5"},
+    {file = "Pillow-3.4.2-cp26-cp26m-win32.whl", hash = "sha256:963aa56368688280f22c1f21e2b23992424f7cfe167f0ec300eb6453f03d6a49"},
+    {file = "Pillow-3.4.2-cp26-cp26m-win_amd64.whl", hash = "sha256:c53c3d1a72d84f460091613894d4b610914acd874dcfcf74cbbd03970bdfa289"},
+    {file = "Pillow-3.4.2-cp27-cp27m-macosx_10_6_intel.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl", hash = "sha256:78667f7252947a72c2dc439593d369ec7ec2f1f4443d73239ae196797fbd8e0b"},
+    {file = "Pillow-3.4.2-cp27-cp27m-manylinux1_i686.whl", hash = "sha256:a922540cc5881d3006d272e3ffdb693414a7e9bca2fa9443309cdd23eca0651c"},
+    {file = "Pillow-3.4.2-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:f9d2dd1c7007a97eb2832bcc30798bea181176b248d7362b6033d1c97e83c355"},
+    {file = "Pillow-3.4.2-cp27-cp27m-win32.whl", hash = "sha256:8ffabd1e2ee44be964b3f4df982a4be6ca29e93159c744f4b1a6519edf366bce"},
+    {file = "Pillow-3.4.2-cp27-cp27m-win_amd64.whl", hash = "sha256:b1dbc2d8a11505eea4537d43db20daa42b96126214cc4e291db73da174f23821"},
+    {file = "Pillow-3.4.2-cp27-cp27mu-manylinux1_i686.whl", hash = "sha256:a44ed4fd02dde15d1968fb5bc732427d3e179f93cc8420927423a308d30040a1"},
+    {file = "Pillow-3.4.2-cp27-cp27mu-manylinux1_x86_64.whl", hash = "sha256:fdc641ac432115e35d31441dbb253b016beea467dff402259d74b4df5e5f0f63"},
+    {file = "Pillow-3.4.2-cp33-cp33m-macosx_10_6_x86_64.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl", hash = "sha256:d94d5b6759be9401a23d8b8dcea8114d0d84aa2f2995886baa9923a8de2c78db"},
+    {file = "Pillow-3.4.2-cp33-cp33m-win32.whl", hash = "sha256:89f6b6e2ea7bcb842512a1c8168e0adf75de2ed64331971d5b65911e0313ea93"},
+    {file = "Pillow-3.4.2-cp33-cp33m-win_amd64.whl", hash = "sha256:b28e94dfe4cfec91b1f9b6b07103f0dc18d195152499f936df7b7a6f0aa2ff67"},
+    {file = "Pillow-3.4.2-cp34-cp34m-macosx_10_6_intel.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl", hash = "sha256:0142d0508315428014badb00325742e2e3d90339734f58ddaa072f9ec15420c4"},
+    {file = "Pillow-3.4.2-cp34-cp34m-manylinux1_i686.whl", hash = "sha256:75a8fed85ca8e4ba87662f41563c7bb0c2c02b31739db132d8bfda2cdce9163f"},
+    {file = "Pillow-3.4.2-cp34-cp34m-manylinux1_x86_64.whl", hash = "sha256:be94b72de31747891c0a8cd45ab60e344f510f3f9f040fd55f1e25c0ddb6322c"},
+    {file = "Pillow-3.4.2-cp34-cp34m-win32.whl", hash = "sha256:bbbe42e9c2fb41bb78cfa6801880da29730836bc8e65eb6d8af5b7aa027a7151"},
+    {file = "Pillow-3.4.2-cp34-cp34m-win_amd64.whl", hash = "sha256:6831afdd1e5542faf5c197b2d535be2c95976778cd658c96276220d3c1a3f526"},
+    {file = "Pillow-3.4.2-cp35-cp35m-macosx_10_6_intel.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl", hash = "sha256:61b082064279d26dd292a4ced8d7a25fb8aea488dde9d71928ffc1c4f898cfcb"},
+    {file = "Pillow-3.4.2-cp35-cp35m-manylinux1_i686.whl", hash = "sha256:df68a56ff419eecb2a634f3acd735bd57bfbc31244efd18e822ac01cf9e31795"},
+    {file = "Pillow-3.4.2-cp35-cp35m-manylinux1_x86_64.whl", hash = "sha256:fbb384b0936c9e71c5456707699e0fcdf6ce1004c08766463b8f48035651eea3"},
+    {file = "Pillow-3.4.2-cp35-cp35m-win32.whl", hash = "sha256:3e1b1993e65bb40e9751ba7d00acb57ad954687bcadf14cbca9e8faeb57af4d2"},
+    {file = "Pillow-3.4.2-cp35-cp35m-win_amd64.whl", hash = "sha256:979ca0d32b932fdd0ca9e3ec842e4bead6bba80612b45c7d77639d96d3453c7a"},
+    {file = "Pillow-3.4.2-py2.6-win-amd64.egg", hash = "sha256:d5991072d8b555ee0803c33bbd18a5ba74926bff2f01c19a8ef9dc2065680d7e"},
+    {file = "Pillow-3.4.2-py2.6-win32.egg", hash = "sha256:6f7bede00acacd2b2a3883d0ebd9e8f3cbc661e3818457552c064658c8e0896d"},
+    {file = "Pillow-3.4.2-py2.7-win-amd64.egg", hash = "sha256:be7e3af82d1c46f2dce5d081a661eeb3343cf581e62ef29e59792955af120306"},
+    {file = "Pillow-3.4.2-py2.7-win32.egg", hash = "sha256:bad85006140a9fd77f5cdbe53ffd812bf1ab5ea69d4f081a19100d5a50c49eb5"},
+    {file = "Pillow-3.4.2-py3.3-win-amd64.egg", hash = "sha256:ce71dded61e4d1f4e152f3e2f63a9b1e930560bfb035f00e0730035cfbaf0d47"},
+    {file = "Pillow-3.4.2-py3.3-win32.egg", hash = "sha256:4963213805b1a634be9b2e669ceef16e26e8b3943668e4d9846541273d5a2b24"},
+    {file = "Pillow-3.4.2-py3.4-win-amd64.egg", hash = "sha256:27d803edb646d1386087351093c1ccf4f072827ad8935031e65db61f6424af0b"},
+    {file = "Pillow-3.4.2-py3.4-win32.egg", hash = "sha256:4fcd0af251c3e37fac2546199c0df53998cd28ef61f86ad2f550c541e2008928"},
+    {file = "Pillow-3.4.2-py3.5-win-amd64.egg", hash = "sha256:98d2ea01a8ad3bba77ad256d47fc37c283926e6a75a11a7412b551f36c830683"},
+    {file = "Pillow-3.4.2-py3.5-win32.egg", hash = "sha256:68be8d22e69cef5696edec72d493e651af990a5514ba205876d5ba6cd81c7a79"},
+    {file = "Pillow-3.4.2.tar.gz", hash = "sha256:0ee9975c05602e755ff5000232e0335ba30d507f6261922a658ee11b1cec36d1"},
+    {file = "Pillow-3.4.2.win-amd64-py2.6.exe", hash = "sha256:3df1a3f828451c8eaba56b480b2ab537c38ab87c1f9e04f44792cbabf2a914e3"},
+    {file = "Pillow-3.4.2.win-amd64-py2.7.exe", hash = "sha256:8fe8a648cfa86ece47381fef743107abe0989b2df416b5c1d684128511176b1f"},
+    {file = "Pillow-3.4.2.win-amd64-py3.3.exe", hash = "sha256:bdafd787d8b1dcd8048dbf3bdd87e0d42b4d72dd4c3c216b99bd8b78412adbab"},
+    {file = "Pillow-3.4.2.win-amd64-py3.4.exe", hash = "sha256:f354f71d8727e751d2b0064dd27fb2e8497705abe06c93f9b3f7f28b5f2b0a56"},
+    {file = "Pillow-3.4.2.win-amd64-py3.5.exe", hash = "sha256:c5c892925d2bde542c5f0d0f708abe29d0c6b957bdcd112f41a7f66e667ab735"},
+    {file = "Pillow-3.4.2.win32-py2.6.exe", hash = "sha256:94011017364d16b7680ab34ebab0fc92862890dc900450275df1b2af97cfa8ac"},
+    {file = "Pillow-3.4.2.win32-py2.7.exe", hash = "sha256:a5d82077feec4f72224a7db7154cbe65992cbc9b045aae7f050371394a630ed5"},
+    {file = "Pillow-3.4.2.win32-py3.3.exe", hash = "sha256:d6952514b6a9a35d7915fc19edf0dc48de5a812270ec2ca65c8f9fce72d67f78"},
+    {file = "Pillow-3.4.2.win32-py3.4.exe", hash = "sha256:b9f7090f02ec93691f633b1d3b628ae81b44f162b95f80ab0c1534de729bafd0"},
+    {file = "Pillow-3.4.2.win32-py3.5.exe", hash = "sha256:294d8d41d385e6dcc992f6598a6962f270d7ba3b2846940cbdb48e9a65d7d74d"},
+    {file = "Pillow-3.4.2.zip", hash = "sha256:85b237840ad8b30a1572bf9e3898a26c77910a56554d73ed4f58a42197c2e4c2"},
 ]
 pluggy = [
     {file = "pluggy-0.13.1-py2.py3-none-any.whl", hash = "sha256:966c145cd83c96502c3c3868f50408687b38434af77734af1e9ca461a4081d2d"},
@@ -1483,9 +1704,8 @@ pyphen = [
     {file = "Pyphen-0.10.0.tar.gz", hash = "sha256:719b21dfb4b04fbc11cc0f6112418535fe35474021120cccfffc43a25fe63128"},
 ]
 pyserial = [
-    {file = "pyserial-2.7.tar.gz", hash = "sha256:3542ec0838793e61d6224e27ff05e8ce4ba5a5c5cc4ec5c6a3e8d49247985477"},
-    {file = "pyserial-2.7.win32.exe", hash = "sha256:c9417776e46bf15772601359a48fa1041612a5b7012fba1f5f331a08b9147c8d"},
-    {file = "pyserial-2.7.win32_py3k.exe", hash = "sha256:6409e3c3aeb01fa30ddcac6834e880eec665ff088be86fdc472941e033f90b08"},
+    {file = "pyserial-3.4-py2.py3-none-any.whl", hash = "sha256:e0770fadba80c31013896c7e6ef703f72e7834965954a78e71a3049488d4d7d8"},
+    {file = "pyserial-3.4.tar.gz", hash = "sha256:6e2d401fdee0eab996cf734e67773a0143b932772ca8b42451440cfed942c627"},
 ]
 pytest = [
     {file = "pytest-6.1.2-py3-none-any.whl", hash = "sha256:4288fed0d9153d9646bfcdf0c0428197dba1ecb27a33bb6e031d002fa88653fe"},
@@ -1508,6 +1728,9 @@ python-nss = [
 pytz = [
     {file = "pytz-2020.4-py2.py3-none-any.whl", hash = "sha256:5c55e189b682d420be27c6995ba6edce0c0a77dd67bfbe2ae6607134d5851ffd"},
     {file = "pytz-2020.4.tar.gz", hash = "sha256:3e6b7dd2d1e0a59084bcee14a17af60c5c562cdc16d828e8eba2e683d3a7e268"},
+]
+pyusb = [
+    {file = "pyusb-1.1.0.tar.gz", hash = "sha256:d69ed64bff0e2102da11b3f49567256867853b861178689671a163d30865c298"},
 ]
 qrcode = [
     {file = "qrcode-5.3-py2.py3-none-any.whl", hash = "sha256:60222a612b83231ed99e6cb36e55311227c395d0d0f62e41bb51ebbb84a9a22b"},
@@ -1543,8 +1766,8 @@ reportlab = [
     {file = "reportlab-3.4.0.tar.gz", hash = "sha256:5beaf35e59dfd5ebd814fdefd76908292e818c982bd7332b5d347dfd2f01c343"},
 ]
 requests = [
-    {file = "requests-2.9.1-py2.py3-none-any.whl", hash = "sha256:113fbba5531a9e34945b7d36b33a084e8ba5d0664b703c81a7c572d91919a5b8"},
-    {file = "requests-2.9.1.tar.gz", hash = "sha256:c577815dd00f1394203fc44eb979724b098f88264a9ef898ee45b8e5e9cf587f"},
+    {file = "requests-2.25.0-py2.py3-none-any.whl", hash = "sha256:e786fa28d8c9154e6a4de5d46a1d921b8749f8b74e28bde23768e5e16eece998"},
+    {file = "requests-2.25.0.tar.gz", hash = "sha256:7f1a0b932f4a60a1a65caa4263921bb7d9ee911957e0ae4a23a6dd08185ad5f8"},
 ]
 s3transfer = [
     {file = "s3transfer-0.3.3-py2.py3-none-any.whl", hash = "sha256:2482b4259524933a022d59da830f51bd746db62f047d6eb213f2f8855dcb8a13"},
@@ -1555,12 +1778,16 @@ six = [
     {file = "six-1.15.0.tar.gz", hash = "sha256:30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259"},
 ]
 stoqdrivers = [
-    {file = "stoqdrivers-2.0.1-py3-none-any.whl", hash = "sha256:71aae8b602832a175a7d8542d4a4203df1914b8ac62571b4fedd1f5a9d8e4cda"},
-    {file = "stoqdrivers-2.0.1.tar.gz", hash = "sha256:d3150b5ecd7dd213dd642836422dcd37ad09c8162859d5f1e45fa32a39314d60"},
+    {file = "stoqdrivers-2.0.0-py3-none-any.whl", hash = "sha256:8285a476afaeee225cf8bfb23f5a58331b0d2dd99a0e01624303bb45f5798070"},
+    {file = "stoqdrivers-2.0.0.tar.gz", hash = "sha256:0b1bf35ec30d9f2ca549f8309fea2e5c27a0ecbbc4e1dd224e44ff68c9e09964"},
 ]
 stoqifood = [
-    {file = "stoqifood-1.0.0-py3-none-any.whl", hash = "sha256:24a77a0952cf50cbcef6e78aec92dc2a40d4afd47f62a0431cb8edf57c451c5e"},
-    {file = "stoqifood-1.0.0.tar.gz", hash = "sha256:c1c69f1718847998b9002af5186370de8af29b6f74ec4db11d48e5a9eae3a925"},
+    {file = "stoqifood-1.1.1-py3-none-any.whl", hash = "sha256:cf885d3c16c7856547f3d4375c2e1b0c77195c03dda1d932496c4c812554cb95"},
+    {file = "stoqifood-1.1.1.tar.gz", hash = "sha256:486917fc887786c7ed4b2bd443c399996cc52675df22b0d16a58cd17fe0ecb82"},
+]
+stoqimendes = [
+    {file = "stoqimendes-1.1-py3-none-any.whl", hash = "sha256:125fb8c874c5bdf0ec7a423178b8c4a890a976219ff1f51373d27349ebb464ba"},
+    {file = "stoqimendes-1.1.tar.gz", hash = "sha256:0813916ecfe176410914d5640c312d6f24a262266e71af8f79ebcd862d28196c"},
 ]
 stoqlib = [
     {file = "stoqlib-7.1.0-py3-none-any.whl", hash = "sha256:6a5854035f2a6de8ad5fdef3c474c6799819c19723ccb061f3819ad306ae5034"},
@@ -1571,12 +1798,24 @@ stoqlink = [
     {file = "stoqlink-1.9.tar.gz", hash = "sha256:3c81e86adf5988516d4c1a280110065711074bfcfeb140af907565a531c314bf"},
 ]
 stoqnfe = [
-    {file = "stoqnfe-1.0.1-py3-none-any.whl", hash = "sha256:ff303d013560056c00071d8ff4e957b26f520db03ce2667256e5a76e76d8401c"},
-    {file = "stoqnfe-1.0.1.tar.gz", hash = "sha256:a34c9be090ad7aa725a24be017e9d29fe9f6018c55828dfc931dc1381316af54"},
+    {file = "stoqnfe-1.1.0-py3-none-any.whl", hash = "sha256:0014e1db75d4df420391a936f0e471dccf58869be948ffd0de741c2ac9bb2889"},
+    {file = "stoqnfe-1.1.0.tar.gz", hash = "sha256:5bc96df30a77dc2a754bc9fbfa96421d60305bcecfcf5ff08a1ce71dab682eaf"},
 ]
 stoqnonfiscal = [
     {file = "stoqnonfiscal-1.0.0-py3-none-any.whl", hash = "sha256:b487b2ef83f42ab10fca2457ebacd5564d8988c355460840fde8158bd1b6181a"},
     {file = "stoqnonfiscal-1.0.0.tar.gz", hash = "sha256:522d90f6d8c55c08f9c5418513c0957a6ea2318d2e9ee67a2301e85bd1b8088f"},
+]
+stoqpassbook = [
+    {file = "stoqpassbook-1.0.1-py3-none-any.whl", hash = "sha256:91b9fb75e9b2f3ba3cc6b29eda91a9635c17af54a7b647fe268d61946751beef"},
+    {file = "stoqpassbook-1.0.1.tar.gz", hash = "sha256:1c12b33690d081732f210aaec91a48ea5277c07ecd1f94d65b4c7aa51a09ea2d"},
+]
+stoqsat = [
+    {file = "stoqsat-1.0.0-py3-none-any.whl", hash = "sha256:4e9e6a716e41bf7487f0be10034f99d9095a75a3327cfdd6bf677f7219c816a7"},
+    {file = "stoqsat-1.0.0.tar.gz", hash = "sha256:dc2b7412985bbfb78317dc48ec4280e549a12cf0d332530a12638f710564f8aa"},
+]
+stoqsitef = [
+    {file = "stoqsitef-1.22-py3-none-any.whl", hash = "sha256:aec2f99ebcdc29924cfc332d8265799c65d66c0bb3f74742e7ef368e226d1cb8"},
+    {file = "stoqsitef-1.22.tar.gz", hash = "sha256:1951d6ba924a58949a3de4b4962263d7005a7868f51966b9f466fd0e10d24890"},
 ]
 storm = [
     {file = "storm-0.24.tar.gz", hash = "sha256:0880c6723388e8daba8faacc6cb2f812310b7ee92154ce97eebf3ae0d5753f15"},
@@ -1594,6 +1833,14 @@ toml = [
 ]
 tzlocal = [
     {file = "tzlocal-1.2.2.tar.gz", hash = "sha256:cbbaa4e9d25c36386f12af9febe315139fdd39317b91abcb42d782a5e93e525d"},
+]
+uplink = [
+    {file = "uplink-0.9.3-py2.py3-none-any.whl", hash = "sha256:9bff896c063f15da93eb3d312e68183b3dd8b784b0975094b511ff7a3b9aee78"},
+    {file = "uplink-0.9.3.tar.gz", hash = "sha256:5dc135d2a66f64e207a4edde46e86f3ae8457bd955a7b37e586496aeb4b6aa28"},
+]
+uritemplate = [
+    {file = "uritemplate-3.0.1-py2.py3-none-any.whl", hash = "sha256:07620c3f3f8eed1f12600845892b0e036a2420acf513c53f7de0abd911a5894f"},
+    {file = "uritemplate-3.0.1.tar.gz", hash = "sha256:5af8ad10cec94f215e3f48112de2022e1d5a37ed427fbd88652fa908f2ab7cae"},
 ]
 urllib3 = [
     {file = "urllib3-1.26.2-py2.py3-none-any.whl", hash = "sha256:d8ff90d979214d7b4f8ce956e80f4028fc6860e4431f731ea4a8c08f23f99473"},
