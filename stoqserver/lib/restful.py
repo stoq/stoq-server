@@ -1253,7 +1253,9 @@ class SaleResource(BaseResource, SaleResourceMixin):
                     sellable = Sellable(store=store)
                     sellable.id = p['id']
                     sellable.notes = Sellable.NOTES_CREATED_VIA_SALE
-                    Product(store=store, sellable=sellable)
+                    product = Product(store=store, sellable=sellable)
+                    storable = Storable(store=store, product=product)
+                    storable.maximum_quantity = 1000
                     log.warning('Sellable %s created', sellable)
                 else:
                     log.error('Sellable %s does not exist', p)
