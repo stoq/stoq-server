@@ -39,6 +39,7 @@ test:
     - python3 -V
     - poetry show
   script:
+    - make ci-check-bump
     - make coverage
 
 .create_deb:

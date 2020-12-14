@@ -33,6 +33,9 @@ import sys
 import pkg_resources
 
 
+version = "2.0.0"
+
+# legacy versioning
 __version__ = (1, 6, 0, "beta1")
 version_str = '.'.join(str(i) for i in __version__)
 
