@@ -100,6 +100,7 @@ class B1foodLoginResource(BaseResource):
 
         config = get_config()
         config_client_id = config.get("B1Food", "client_id") or ""
+        access_token = config.get("B1Food", "access_token") or ""
         if client_id != config_client_id and config_client_id != "":
             log.error('Login failed for client_id %s', client_id)
             abort(403, 'Login failed for client_id {}'.format(client_id))
@@ -107,7 +108,7 @@ class B1foodLoginResource(BaseResource):
         return make_response(jsonify({
             'token_type': 'Bearer',
             'expires_in': float('inf'),
-            'access_token': b1food_token
+            'access_token': access_token
         }), 200)
 
 
