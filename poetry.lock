@@ -32,7 +32,7 @@ tests_no_zope = ["coverage[toml] (>=5.0.2)", "hypothesis", "pympler", "pytest (>
 name = "babel"
 version = "2.9.0"
 description = "Internationalization utilities"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
@@ -49,20 +49,20 @@ python-versions = "*"
 
 [[package]]
 name = "boto3"
-version = "1.16.35"
+version = "1.16.36"
 description = "The AWS SDK for Python"
 category = "main"
 optional = false
 python-versions = "*"
 
 [package.dependencies]
-botocore = ">=1.19.35,<1.20.0"
+botocore = ">=1.19.36,<1.20.0"
 jmespath = ">=0.7.1,<1.0.0"
 s3transfer = ">=0.3.0,<0.4.0"
 
 [[package]]
 name = "botocore"
-version = "1.19.35"
+version = "1.19.36"
 description = "Low-level, data-driven core of boto 3."
 category = "main"
 optional = false
@@ -406,6 +406,14 @@ optional = false
 python-versions = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*"
 
 [[package]]
+name = "multidict"
+version = "5.0.2"
+description = "multidict implementation"
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[[package]]
 name = "nose"
 version = "1.3.7"
 description = "nose extends unittest to make testing easier"
@@ -596,11 +604,14 @@ python-versions = "*"
 
 [[package]]
 name = "pyserial"
-version = "3.4"
+version = "3.5"
 description = "Python Serial Port Extension"
 category = "main"
 optional = false
 python-versions = "*"
+
+[package.extras]
+cp2110 = ["hidapi"]
 
 [[package]]
 name = "pytest"
@@ -675,14 +686,6 @@ python-versions = "*"
 name = "pytz"
 version = "2020.4"
 description = "World timezone definitions, modern and historical"
-category = "main"
-optional = false
-python-versions = "*"
-
-[[package]]
-name = "pyusb"
-version = "1.1.0"
-description = "Python USB access module"
 category = "main"
 optional = false
 python-versions = "*"
@@ -763,19 +766,17 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "stoqdrivers"
-version = "2.0.0"
-description = "Python fiscal printer (ECF) drivers"
+version = "2.0.2"
+description = "Drivers for the retail sector."
 category = "main"
 optional = false
-python-versions = "*"
+python-versions = ">=3.5,<4.0"
 
 [package.dependencies]
-babel = "*"
-pillow = "*"
+Pillow = ">=3.1.2"
 pyserial = ">=2.2"
-pyusb = "*"
-qrcode = ">=5.3,<6.0"
-"zope.interface" = ">=3.0"
+qrcode = ">=5.3,<5.4"
+"zope.interface" = ">=4.0,<5.0"
 
 [[package]]
 name = "stoqifood"
@@ -858,7 +859,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlink"
-version = "1.9"
+version = "1.10"
 description = ""
 category = "main"
 optional = false
@@ -880,7 +881,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnfe"
-version = "1.1.0"
+version = "1.2.0"
 description = "Integration with SEFAZ system to emit the NF-e or NFC-e"
 category = "main"
 optional = false
@@ -893,6 +894,7 @@ kiwi-gtk = ">=3.0.4,<4.0.0"
 lxml = ">=4.5.2,<5.0.0"
 mako = ">=1.0.3,<2.0.0"
 MarkupSafe = ">=1.1.1,<2.0.0"
+multidict = "<5.1.0"
 pillow = ">=3.1.2,<4.0.0"
 PyKCS11 = ">=1.5.9,<2.0.0"
 pyopenssl = ">=17.0.0,<18.0.0"
@@ -900,6 +902,7 @@ python-nss = ">=1.0.0,<2.0.0"
 pytz = ">=2014.10"
 qrcode = ">=5.3,<6.0"
 reportlab = ">=3.3.0,<4.0.0"
+stoqlib = ">=7.1.0,<8.0.0"
 storm = ">=0.24,<0.25"
 weasyprint = ">=0.34,<0.35"
 "zope.interface" = ">=4.1.3,<5.0.0"
@@ -956,7 +959,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqsat"
-version = "1.0.0"
+version = "1.2.1"
 description = "Permits send CF-e files(Cupom Fiscal eletrônico) to SAT devices(Sistema Autenticador e Transmissor)."
 category = "main"
 optional = false
@@ -966,8 +969,8 @@ python-versions = ">=3.5,<4"
 blinker = ">=1.4,<2.0"
 kiwi-gtk = ">=3.0.4,<4.0.0"
 lxml = ">=4.5.2,<5.0.0"
-pillow = ">=3.1.2,<4.0.0"
-pyserial = "3.4"
+pillow = ">=3.1.2"
+pyserial = ">=3.4,<4.0"
 storm = ">=0.24,<0.25"
 
 [package.source]
@@ -1185,7 +1188,7 @@ testing = ["zope.event", "nose", "coverage"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.5"
-content-hash = "73a53440e35a73d7c073aeeb051582aee38c14bbbc9ae42aa2fa0fc054be83d4"
+content-hash = "d58115c5fcbb0c9a09d2f69c53d909f692dc577ca2ddd2c023199b66e8b3449c"
 
 [metadata.files]
 aniso8601 = [
@@ -1208,12 +1211,12 @@ blinker = [
     {file = "blinker-1.4.tar.gz", hash = "sha256:471aee25f3992bd325afa3772f1063dbdbbca947a041b8b89466dc00d606f8b6"},
 ]
 boto3 = [
-    {file = "boto3-1.16.35-py2.py3-none-any.whl", hash = "sha256:2a6e92194bd6f2341908dc9b133af057ea1ff20b7d7e54674f48cdb531d93ca5"},
-    {file = "boto3-1.16.35.tar.gz", hash = "sha256:a35e0915547ea659ddd832c9aaf55038c56fa894c4cc2a2a46cd6c642494012a"},
+    {file = "boto3-1.16.36-py2.py3-none-any.whl", hash = "sha256:4ef19b74babe3925255cc0718bbed228e9b147f05051c39b3081c8e7fa6f1044"},
+    {file = "boto3-1.16.36.tar.gz", hash = "sha256:a1e64250415afd441799df4f70ac401bcf1611a300f3221547121193e3b10479"},
 ]
 botocore = [
-    {file = "botocore-1.19.35-py2.py3-none-any.whl", hash = "sha256:d31dce56799edb5796085d5296931faae201e28e14e568d9db4dac237a135fe3"},
-    {file = "botocore-1.19.35.tar.gz", hash = "sha256:633aa910509b060717df4130f7e2841f1101c0c47fd5871f4903b4b1dbab7e23"},
+    {file = "botocore-1.19.36-py2.py3-none-any.whl", hash = "sha256:9fba0246e29dbe0d4576a602aa5bc7a7caeaffb4e3c7f396f563dcdf04e26abf"},
+    {file = "botocore-1.19.36.tar.gz", hash = "sha256:a5ad68d2a2cd3781fa26dba36f355169c2a0ee103bcd544fdfc71d5709ecf0c1"},
 ]
 bump2version = [
     {file = "bump2version-1.0.1-py2.py3-none-any.whl", hash = "sha256:37f927ea17cde7ae2d7baf832f8e80ce3777624554a653006c9144f8017fe410"},
@@ -1510,6 +1513,45 @@ markupsafe = [
     {file = "MarkupSafe-1.1.1-cp38-cp38-win_amd64.whl", hash = "sha256:e8313f01ba26fbbe36c7be1966a7b7424942f670f38e666995b88d012765b9be"},
     {file = "MarkupSafe-1.1.1.tar.gz", hash = "sha256:29872e92839765e546828bb7754a68c418d927cd064fd4708fab9fe9c8bb116b"},
 ]
+multidict = [
+    {file = "multidict-5.0.2-cp36-cp36m-macosx_10_14_x86_64.whl", hash = "sha256:b82400ef848bbac6b9035a105ac6acaa1fb3eea0d164e35bbb21619b88e49fed"},
+    {file = "multidict-5.0.2-cp36-cp36m-manylinux1_i686.whl", hash = "sha256:b98af08d7bb37d3456a22f689819ea793e8d6961b9629322d7728c4039071641"},
+    {file = "multidict-5.0.2-cp36-cp36m-manylinux2014_aarch64.whl", hash = "sha256:d4a6fb98e9e9be3f7d70fd3e852369c00a027bd5ed0f3e8ade3821bcad257408"},
+    {file = "multidict-5.0.2-cp36-cp36m-manylinux2014_i686.whl", hash = "sha256:2ab9cad4c5ef5c41e1123ed1f89f555aabefb9391d4e01fd6182de970b7267ed"},
+    {file = "multidict-5.0.2-cp36-cp36m-manylinux2014_ppc64le.whl", hash = "sha256:62abab8088704121297d39c8f47156cb8fab1da731f513e59ba73946b22cf3d0"},
+    {file = "multidict-5.0.2-cp36-cp36m-manylinux2014_s390x.whl", hash = "sha256:59182e975b8c197d0146a003d0f0d5dc5487ce4899502061d8df585b0f51fba2"},
+    {file = "multidict-5.0.2-cp36-cp36m-manylinux2014_x86_64.whl", hash = "sha256:76cbdb22f48de64811f9ce1dd4dee09665f84f32d6a26de249a50c1e90e244e0"},
+    {file = "multidict-5.0.2-cp36-cp36m-win32.whl", hash = "sha256:653b2bbb0bbf282c37279dd04f429947ac92713049e1efc615f68d4e64b1dbc2"},
+    {file = "multidict-5.0.2-cp36-cp36m-win_amd64.whl", hash = "sha256:c58e53e1c73109fdf4b759db9f2939325f510a8a5215135330fe6755921e4886"},
+    {file = "multidict-5.0.2-cp37-cp37m-macosx_10_14_x86_64.whl", hash = "sha256:359ea00e1b53ceef282232308da9d9a3f60d645868a97f64df19485c7f9ef628"},
+    {file = "multidict-5.0.2-cp37-cp37m-manylinux1_i686.whl", hash = "sha256:b561e76c9e21402d9a446cdae13398f9942388b9bff529f32dfa46220af54d00"},
+    {file = "multidict-5.0.2-cp37-cp37m-manylinux2014_aarch64.whl", hash = "sha256:9380b3f2b00b23a4106ba9dd022df3e6e2e84e1788acdbdd27603b621b3288df"},
+    {file = "multidict-5.0.2-cp37-cp37m-manylinux2014_i686.whl", hash = "sha256:1cd102057b09223b919f9447c669cf2efabeefb42a42ae6233f25ffd7ee31a79"},
+    {file = "multidict-5.0.2-cp37-cp37m-manylinux2014_ppc64le.whl", hash = "sha256:d99da85d6890267292065e654a329e1d2f483a5d2485e347383800e616a8c0b1"},
+    {file = "multidict-5.0.2-cp37-cp37m-manylinux2014_s390x.whl", hash = "sha256:f612e8ef8408391a4a3366e3508bab8ef97b063b4918a317cb6e6de4415f01af"},
+    {file = "multidict-5.0.2-cp37-cp37m-manylinux2014_x86_64.whl", hash = "sha256:6128d2c0956fd60e39ec7d1c8f79426f0c915d36458df59ddd1f0cff0340305f"},
+    {file = "multidict-5.0.2-cp37-cp37m-win32.whl", hash = "sha256:9ed9b280f7778ad6f71826b38a73c2fdca4077817c64bc1102fdada58e75c03c"},
+    {file = "multidict-5.0.2-cp37-cp37m-win_amd64.whl", hash = "sha256:f65a2442c113afde52fb09f9a6276bbc31da71add99dc76c3adf6083234e07c6"},
+    {file = "multidict-5.0.2-cp38-cp38-macosx_10_14_x86_64.whl", hash = "sha256:2576e30bbec004e863d87216bc34abe24962cc2e964613241a1c01c7681092ab"},
+    {file = "multidict-5.0.2-cp38-cp38-manylinux1_i686.whl", hash = "sha256:20cc9b2dd31761990abff7d0e63cd14dbfca4ebb52a77afc917b603473951a38"},
+    {file = "multidict-5.0.2-cp38-cp38-manylinux2014_aarch64.whl", hash = "sha256:6566749cd78cb37cbf8e8171b5cd2cbfc03c99f0891de12255cf17a11c07b1a3"},
+    {file = "multidict-5.0.2-cp38-cp38-manylinux2014_i686.whl", hash = "sha256:6168839491a533fa75f3f5d48acbb829475e6c7d9fa5c6e245153b5f79b986a3"},
+    {file = "multidict-5.0.2-cp38-cp38-manylinux2014_ppc64le.whl", hash = "sha256:e58db0e0d60029915f7fc95a8683fa815e204f2e1990f1fb46a7778d57ca8c35"},
+    {file = "multidict-5.0.2-cp38-cp38-manylinux2014_s390x.whl", hash = "sha256:8fa4549f341a057feec4c3139056ba73e17ed03a506469f447797a51f85081b5"},
+    {file = "multidict-5.0.2-cp38-cp38-manylinux2014_x86_64.whl", hash = "sha256:06f39f0ddc308dab4e5fa282d145f90cd38d7ed75390fc83335636909a9ec191"},
+    {file = "multidict-5.0.2-cp38-cp38-win32.whl", hash = "sha256:8efcf070d60fd497db771429b1c769a3783e3a0dd96c78c027e676990176adc5"},
+    {file = "multidict-5.0.2-cp38-cp38-win_amd64.whl", hash = "sha256:060d68ae3e674c913ec41a464916f12c4d7ff17a3a9ebbf37ba7f2c681c2b33e"},
+    {file = "multidict-5.0.2-cp39-cp39-macosx_10_14_x86_64.whl", hash = "sha256:4a3f19da871befa53b48dd81ee48542f519beffa13090dc135fffc18d8fe36db"},
+    {file = "multidict-5.0.2-cp39-cp39-manylinux1_i686.whl", hash = "sha256:af271c2540d1cd2a137bef8d95a8052230aa1cda26dd3b2c73d858d89993d518"},
+    {file = "multidict-5.0.2-cp39-cp39-manylinux2014_aarch64.whl", hash = "sha256:3e61cc244fd30bd9fdfae13bdd0c5ec65da51a86575ff1191255cae677045ffe"},
+    {file = "multidict-5.0.2-cp39-cp39-manylinux2014_i686.whl", hash = "sha256:4df708ef412fd9b59b7e6c77857e64c1f6b4c0116b751cb399384ec9a28baa66"},
+    {file = "multidict-5.0.2-cp39-cp39-manylinux2014_ppc64le.whl", hash = "sha256:cbabfc12b401d074298bfda099c58dfa5348415ae2e4ec841290627cb7cb6b2e"},
+    {file = "multidict-5.0.2-cp39-cp39-manylinux2014_s390x.whl", hash = "sha256:43c7a87d8c31913311a1ab24b138254a0ee89142983b327a2c2eab7a7d10fea9"},
+    {file = "multidict-5.0.2-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:fa0503947a99a1be94f799fac89d67a5e20c333e78ddae16e8534b151cdc588a"},
+    {file = "multidict-5.0.2-cp39-cp39-win32.whl", hash = "sha256:17847fede1aafdb7e74e01bb34ab47a1a1ea726e8184c623c45d7e428d2d5d34"},
+    {file = "multidict-5.0.2-cp39-cp39-win_amd64.whl", hash = "sha256:a7b8b5bd16376c8ac2977748bd978a200326af5145d8d0e7f799e2b355d425b6"},
+    {file = "multidict-5.0.2.tar.gz", hash = "sha256:e5bf89fe57f702a046c7ec718fe330ed50efd4bcf74722940db2eb0919cddb1c"},
+]
 nose = [
     {file = "nose-1.3.7-py2-none-any.whl", hash = "sha256:dadcddc0aefbf99eea214e0f1232b94f2fa9bd98fa8353711dacb112bfcbbb2a"},
     {file = "nose-1.3.7-py3-none-any.whl", hash = "sha256:9ff7c6cc443f8c51994b34a667bbcf45afd6d945be7477b52e97516fd17c53ac"},
@@ -1702,8 +1744,8 @@ pyphen = [
     {file = "Pyphen-0.10.0.tar.gz", hash = "sha256:719b21dfb4b04fbc11cc0f6112418535fe35474021120cccfffc43a25fe63128"},
 ]
 pyserial = [
-    {file = "pyserial-3.4-py2.py3-none-any.whl", hash = "sha256:e0770fadba80c31013896c7e6ef703f72e7834965954a78e71a3049488d4d7d8"},
-    {file = "pyserial-3.4.tar.gz", hash = "sha256:6e2d401fdee0eab996cf734e67773a0143b932772ca8b42451440cfed942c627"},
+    {file = "pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0"},
+    {file = "pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb"},
 ]
 pytest = [
     {file = "pytest-6.1.2-py3-none-any.whl", hash = "sha256:4288fed0d9153d9646bfcdf0c0428197dba1ecb27a33bb6e031d002fa88653fe"},
@@ -1726,9 +1768,6 @@ python-nss = [
 pytz = [
     {file = "pytz-2020.4-py2.py3-none-any.whl", hash = "sha256:5c55e189b682d420be27c6995ba6edce0c0a77dd67bfbe2ae6607134d5851ffd"},
     {file = "pytz-2020.4.tar.gz", hash = "sha256:3e6b7dd2d1e0a59084bcee14a17af60c5c562cdc16d828e8eba2e683d3a7e268"},
-]
-pyusb = [
-    {file = "pyusb-1.1.0.tar.gz", hash = "sha256:d69ed64bff0e2102da11b3f49567256867853b861178689671a163d30865c298"},
 ]
 qrcode = [
     {file = "qrcode-5.3-py2.py3-none-any.whl", hash = "sha256:60222a612b83231ed99e6cb36e55311227c395d0d0f62e41bb51ebbb84a9a22b"},
@@ -1776,8 +1815,8 @@ six = [
     {file = "six-1.15.0.tar.gz", hash = "sha256:30639c035cdb23534cd4aa2dd52c3bf48f06e5f4a941509c8bafd8ce11080259"},
 ]
 stoqdrivers = [
-    {file = "stoqdrivers-2.0.0-py3-none-any.whl", hash = "sha256:8285a476afaeee225cf8bfb23f5a58331b0d2dd99a0e01624303bb45f5798070"},
-    {file = "stoqdrivers-2.0.0.tar.gz", hash = "sha256:0b1bf35ec30d9f2ca549f8309fea2e5c27a0ecbbc4e1dd224e44ff68c9e09964"},
+    {file = "stoqdrivers-2.0.2-py3-none-any.whl", hash = "sha256:7f992e98352d4a1f8d9b7fd4fcc33d55b4f96f730a543906599ec18567296dea"},
+    {file = "stoqdrivers-2.0.2.tar.gz", hash = "sha256:f1a1bef13fd038a4708457638555a873e747f81d9cdc4e689ab528fb7a7105c3"},
 ]
 stoqifood = [
     {file = "stoqifood-1.1.2-py3-none-any.whl", hash = "sha256:17778cd21245f9024bcba979fad20487df5e821580f8b79494ce95b57d7b3321"},
@@ -1792,12 +1831,11 @@ stoqlib = [
     {file = "stoqlib-7.1.0.tar.gz", hash = "sha256:2dd6d1cc61245f48f9fadd32a4be7c611570d09369f6927433066e453537b8b6"},
 ]
 stoqlink = [
-    {file = "stoqlink-1.9-py3-none-any.whl", hash = "sha256:0b56cb4d2ed21dd302f3289e72a83d62bd50c735f8408bfee09e538feec3dbff"},
-    {file = "stoqlink-1.9.tar.gz", hash = "sha256:3c81e86adf5988516d4c1a280110065711074bfcfeb140af907565a531c314bf"},
+    {file = "stoqlink-1.10.tar.gz", hash = "sha256:26fc565336704539aec55841e1c2636ea2d05f588ce1356fdf8b4e5ce3c67be0"},
 ]
 stoqnfe = [
-    {file = "stoqnfe-1.1.0-py3-none-any.whl", hash = "sha256:0014e1db75d4df420391a936f0e471dccf58869be948ffd0de741c2ac9bb2889"},
-    {file = "stoqnfe-1.1.0.tar.gz", hash = "sha256:5bc96df30a77dc2a754bc9fbfa96421d60305bcecfcf5ff08a1ce71dab682eaf"},
+    {file = "stoqnfe-1.2.0-py3-none-any.whl", hash = "sha256:71095363aa7760de4423e0de8bede45e64cd5d8628d15c71b20ef4037c785e5e"},
+    {file = "stoqnfe-1.2.0.tar.gz", hash = "sha256:f0c0a48ed8120a91526c6a1aeac80a14f9da31510edb1c7c01f801839da0ac11"},
 ]
 stoqnonfiscal = [
     {file = "stoqnonfiscal-1.0.0-py3-none-any.whl", hash = "sha256:b487b2ef83f42ab10fca2457ebacd5564d8988c355460840fde8158bd1b6181a"},
@@ -1808,8 +1846,8 @@ stoqpassbook = [
     {file = "stoqpassbook-1.0.1.tar.gz", hash = "sha256:1c12b33690d081732f210aaec91a48ea5277c07ecd1f94d65b4c7aa51a09ea2d"},
 ]
 stoqsat = [
-    {file = "stoqsat-1.0.0-py3-none-any.whl", hash = "sha256:4e9e6a716e41bf7487f0be10034f99d9095a75a3327cfdd6bf677f7219c816a7"},
-    {file = "stoqsat-1.0.0.tar.gz", hash = "sha256:dc2b7412985bbfb78317dc48ec4280e549a12cf0d332530a12638f710564f8aa"},
+    {file = "stoqsat-1.2.1-py3-none-any.whl", hash = "sha256:82923b8ffb6563e795642cd2839d401b2065701de7024250c46c9c8535f675b1"},
+    {file = "stoqsat-1.2.1.tar.gz", hash = "sha256:2fd2424b799d559f4d3c6d82ce49451958ce9af5faf954ff94834243b96316bd"},
 ]
 stoqsitef = [
     {file = "stoqsitef-1.22-py3-none-any.whl", hash = "sha256:aec2f99ebcdc29924cfc332d8265799c65d66c0bb3f74742e7ef368e226d1cb8"},

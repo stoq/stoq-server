@@ -25,6 +25,9 @@ test:
 
 bundle_dist:
 	-rm -rf dist/
+	# workaround to generate wheel from stoq-plugin-link source
+	# https://gitlab.com/stoqtech/private/stoq-plugin-link/-/blob/master/.gitlab-ci.yml#L75
+	pip install -U kiwi-gtk
 	poetry install --no-root
 	pybabel compile -d $(PACKAGE)/locale -D $(PACKAGE) || true
 	cp data/udev/bundle-10-stoq.rules data/udev/10-stoq.rules
@@ -36,7 +39,7 @@ bundle_deb: bundle_dist requirements.txt
 	cd dist/* && \
 		python -m venv env && \
 		. env/bin/activate && \
-		pip install -U pip wheel setuptools && \
+		pip install -U pip wheel setuptools kiwi-gtk && \
 		pip install -U poetry && \
 		pip install -r requirements.txt && \
 		cp setup_old.py setup.py && \

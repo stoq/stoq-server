@@ -22,9 +22,13 @@ case "$1" in
         userdel stoqserver || true
         # Remove log files
         rm -f /var/log/stoqserver.log || true
+        # remove virtualenv
+        rm -rf /usr/lib/stoq-virtualenv || true
     ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # remove virtualenv
+        rm -rf /usr/lib/stoq-virtualenv || true
     ;;
 
     *)
