@@ -43,7 +43,8 @@ def test_b1food_success_login(get_config_mock, b1food_client):
         'client_id': 'B1FoodClientId'
     }
 
-    response = b1food_client.get('/b1food/oauth/authenticate', query_string=query_string)
+    response = b1food_client.get('/b1food/oauth/authenticate',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert 'access_token' in res
@@ -58,7 +59,8 @@ def test_b1food_login_without_client_id(get_config_mock, b1food_client):
         'response_type': 'token',
     }
 
-    response = b1food_client.get('/b1food/oauth/authenticate', query_string=query_string)
+    response = b1food_client.get('/b1food/oauth/authenticate',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 400
@@ -72,7 +74,8 @@ def test_login_with_invalid_client_id(get_config_mock, b1food_client):
         'response_type': 'token',
         'client_id': 'B1FoodInvalidClientId'
     }
-    response = b1food_client.get('/b1food/oauth/authenticate', query_string=query_string)
+    response = b1food_client.get('/b1food/oauth/authenticate',
+                                 query_string=query_string)
 
     assert response.status_code == 403
 
@@ -83,7 +86,8 @@ def test_get_income_center(get_config_mock, b1food_client):
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
     }
-    response = b1food_client.get('b1food/centrosrenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/centrosrenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -95,7 +99,8 @@ def test_get_income_center_with_wrong_authorization(get_config_mock, b1food_clie
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
     }
-    response = b1food_client.get('b1food/centrosrenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/centrosrenda',
+                                 query_string=query_string)
 
     assert response.status_code == 401
 
@@ -107,7 +112,8 @@ def test_get_sale_item_without_initial_date_arg(get_config_mock, b1food_client):
         'Authorization': 'Bearer B1FoodClientId',
         'dtfim': '2020-01-01'
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 400
@@ -121,7 +127,8 @@ def test_get_sale_item_without_end_date_arg(get_config_mock, b1food_client):
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01'
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 400
@@ -136,7 +143,8 @@ def test_get_sale_item_with_no_sales(get_config_mock, b1food_client):
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-01'
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -151,7 +159,8 @@ def test_get_sale_item_with_usarDtMov_arg(get_config_mock, b1food_client):
         'dtfim': '2020-01-01',
         'usarDtMov': 1
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -166,7 +175,8 @@ def test_get_sale_item_with_lojas_arg(get_config_mock, b1food_client):
         'dtfim': '2020-01-01',
         'lojas': 1
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -181,7 +191,8 @@ def test_get_sale_item_with_lojas_as_list_arg(get_config_mock, b1food_client):
         'dtfim': '2020-01-01',
         'lojas': [1, 2, 4]
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -196,7 +207,8 @@ def test_get_sale_item_with_consumidores_as_list_arg(get_config_mock, b1food_cli
         'dtfim': '2020-01-01',
         'consumidores': [97050782033, 70639759000102]
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -212,7 +224,8 @@ def test_get_sale_item_with_consumidores_and_lojas_args(get_config_mock, b1food_
         'consumidores': [97050782033, 70639759000102],
         'lojas': [1, 2, 4]
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -230,7 +243,8 @@ def test_get_sale_item_with_operacaocupom_as_list_arg(get_config_mock, b1food_cl
             '21b5a545-7aa1-11ea-b5ac-b285fb9a2a4e'
         ]
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -245,7 +259,8 @@ def test_get_sale_item_successfully(get_config_mock, b1food_client, store, sale)
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-03'
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     item = sale.get_items()[0]
@@ -311,7 +326,8 @@ def test_get_sale_item_with_cnpj_client_successfully(get_config_mock, b1food_cli
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-03'
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 200
@@ -328,7 +344,8 @@ def test_get_sale_item_with_empty_document(get_config_mock, b1food_client, store
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-03'
     }
-    response = b1food_client.get('b1food/itemvenda', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/itemvenda',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 200
@@ -344,7 +361,8 @@ def test_get_payment_with_lojas_arg(get_config_mock, b1food_client):
         'dtfim': '2020-01-01',
         'lojas': 1
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -359,7 +377,8 @@ def test_get_payment_with_lojas_as_list_arg(get_config_mock, b1food_client):
         'dtfim': '2020-01-01',
         'lojas': [1, 2, 4]
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -374,7 +393,8 @@ def test_get_payment_with_consumidores_as_list_arg(get_config_mock, b1food_clien
         'dtfim': '2020-01-01',
         'consumidores': [97050782033, 70639759000102]
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -390,7 +410,8 @@ def test_get_payment_with_consumidores_and_lojas_args(get_config_mock, b1food_cl
         'consumidores': [97050782033, 70639759000102],
         'lojas': [1, 2, 4]
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -408,7 +429,8 @@ def test_get_payment_with_operacaocupom_as_list_arg(get_config_mock, b1food_clie
             '21b5a545-7aa1-11ea-b5ac-b285fb9a2a4e'
         ]
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
@@ -428,7 +450,8 @@ def test_get_payment_with_cnpj_client_successfully(get_config_mock, b1food_clien
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-03'
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 200
@@ -445,7 +468,8 @@ def test_get_payment_with_empty_document(get_config_mock, b1food_client, store, 
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-03'
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 200
@@ -461,7 +485,8 @@ def test_get_payments_successfully(get_config_mock, b1food_client, store, sale):
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-03'
     }
-    response = b1food_client.get('b1food/movimentocaixa', query_string=query_string)
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
     salesperson = sale.salesperson
     payment = sale.group.payments[0]

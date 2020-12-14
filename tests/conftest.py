@@ -60,8 +60,6 @@ class B1foodTestClient(FlaskClient):
 
     def _request(self, method_name, *args, **kwargs):
         method = getattr(super(), method_name)
-        if 'headers' not in kwargs:
-            kwargs['headers'] = {'Authorization': self.auth_token}
         response = method(
             *args,
             content_type='application/json',

@@ -91,9 +91,12 @@ class B1foodLoginResource(BaseResource):
     routes = ['/b1food/oauth/authenticate']
 
     def get(self):
-        if 'client_id' not in request.args:
+        data = request.args
+        log.debug("/oauth/authenticate query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+        if 'client_id' not in data:
             abort(400, 'Missing client_id')
-        client_id = request.args['client_id']
+        client_id = data['client_id']
 
         config = get_config()
         config_client_id = config.get("B1Food", "client_id") or ""
@@ -110,18 +113,23 @@ class B1foodLoginResource(BaseResource):
 
 class IncomeCenterResource(BaseResource):
     method_decorators = [b1food_login_required]
-    routes = ['/b1food/centrosrenda']
+    routes = ['/b1food/terceiros/restful/centrosrenda']
 
     def get(self):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
         return []
 
 
 class B1FoodSaleItemResource(BaseResource):
     method_decorators = [b1food_login_required, store_provider]
-    routes = ['/b1food/itemvenda']
+    routes = ['/b1food/terceiros/restful/itemvenda']
 
     def get(self, store):
         data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
 
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
@@ -232,10 +240,13 @@ class B1FoodSaleItemResource(BaseResource):
 
 class B1FoodPaymentsResource(BaseResource):
     method_decorators = [b1food_login_required, store_provider]
-    routes = ['/b1food/movimentocaixa']
+    routes = ['/b1food/terceiros/restful/movimentocaixa']
 
     def get(self, store):
         data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
 
