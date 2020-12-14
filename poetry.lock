@@ -1185,7 +1185,7 @@ testing = ["zope.event", "nose", "coverage"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.5"
-content-hash = "fbbfcae31660f46945aa69a4ccadd4aafb6f2c1b334b7e1aa1ff345fe716d38a"
+content-hash = "73a53440e35a73d7c073aeeb051582aee38c14bbbc9ae42aa2fa0fc054be83d4"
 
 [metadata.files]
 aniso8601 = [

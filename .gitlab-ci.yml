@@ -39,6 +39,7 @@ test:
     - python3 -V
     - poetry show
   script:
+    - make ci-check-bump
     - make coverage
 
 .create_deb:
@@ -112,7 +113,6 @@ gitlab_pypi_upload:
   stage: test
   only:
     - master
-  when: manual
   extends: .create_deb
   script:
     - poetry build
