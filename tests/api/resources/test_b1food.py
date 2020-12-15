@@ -5,6 +5,7 @@ from unittest import mock
 from datetime import datetime
 
 from stoqlib.domain.station import BranchStation
+from stoqlib.domain.till import Till
 from stoqlib.lib.formatters import raw_document
 
 from stoqserver.api.resources.b1food import generate_b1food_token
@@ -30,6 +31,22 @@ def sale(example_creator, current_user):
     sale_item.icms_info.p_icms = 18
 
     return test_sale
+
+
+@pytest.fixture
+def open_till(current_till, current_user):
+    if current_till.status != Till.STATUS_OPEN:
+        current_till.open_till(current_user)
+
+    return current_till
+
+
+@pytest.fixture
+def close_till(open_till, current_user):
+    open_till.close_till(current_user)
+    open_till.opening_date = datetime.strptime('2020-01-02 08:00', '%Y-%m-%d %H:%M')
+    open_till.closing_date = datetime.strptime('2020-01-02 18:00', '%Y-%m-%d %H:%M')
+    return open_till
 
 
 @pytest.mark.parametrize('size', (1, 10, 30, 128))
@@ -544,6 +561,7 @@ def test_get_payments_successfully(get_config_mock, b1food_client, store, sale):
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
 def test_get_stations_successfully(get_config_mock, b1food_client, current_station):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
     query_string = {
@@ -783,3 +801,45 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
             ],
         }
     ]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_tills_successfully(get_config_mock, b1food_client, close_till):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/periodos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == [
+        {
+            'ativo': True,
+            'id': close_till.id,
+            'codigo': str(close_till.identifier),
+            'dataCriacao': close_till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'dataAlteracao': close_till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'nome': None,
+            'redeId': close_till.branch.person.company.id,
+            'lojaId': close_till.branch.id
+        }
+    ]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_tills_with_lojas(get_config_mock, b1food_client, close_till):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'lojas': 1
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/periodos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []

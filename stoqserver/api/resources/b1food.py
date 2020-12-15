@@ -31,6 +31,7 @@ from storm.expr import And, Join, Or
 from stoqlib.domain.person import Branch, Company, Individual, Person
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.station import BranchStation
+from stoqlib.domain.till import Till
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.formatters import raw_document
 
@@ -303,7 +304,7 @@ class B1FoodPaymentsResource(BaseResource):
                     'nome': payment.method.method_name,
                     'valor': float(payment.value),
                     'troco': 0,
-                    'valorRecebido': float(payment.paid_value),
+                    'valorRecebido': float(payment.paid_value or 0),
                     'idAtendente': sale.salesperson.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
@@ -511,5 +512,45 @@ class B1FoodReceiptsResource(BaseResource):
             }
 
             response.append(res_item)
+
+        return response
+
+
+class B1FoodTillResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/periodos']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        request_branches = data.get('lojas')
+
+        acronyms = _get_acronyms(request_branches)
+        tables = [Till]
+        query = None
+
+        if len(acronyms) > 0:
+            tables.append(Join(Branch, Till.branch_id == Branch.id))
+            query = Branch.acronym.is_in(acronyms)
+
+        if query:
+            tills = store.using(*tables).find(Till, query)
+        else:
+            tills = store.using(*tables).find(Till)
+
+        response = []
+        for till in tills:
+            response.append({
+                'ativo': True,
+                'id': till.id,
+                'codigo': str(till.identifier),
+                'dataCriacao': till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                'dataAlteracao': till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                'nome': None,
+                'redeId': till.branch.person.company.id,
+                'lojaId': till.branch.id
+            })
 
         return response
