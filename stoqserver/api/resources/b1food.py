@@ -391,3 +391,125 @@ class B1FoodStationResource(BaseResource):
             })
 
         return response
+
+
+class B1FoodReceiptsResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/comprovante']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        required_params = ['dtinicio', 'dtfim']
+        _check_required_params(data, required_params)
+
+        initial_date = datetime.strptime(data['dtinicio'], '%Y-%m-%d')
+        end_date = datetime.strptime(data['dtfim'], '%Y-%m-%d')
+
+        request_branches = data.get('lojas')
+        request_documents = data.get('consumidores')
+        request_invoice_ids = data.get('operacaocupom')
+
+        acronyms = _get_acronyms(request_branches)
+        documents = _get_documents(request_documents)
+        invoice_ids = _get_invoice_ids(request_invoice_ids)
+
+        if bool(data.get('usarDtMov')) is True:
+            query = And(Sale.open_date >= initial_date, Sale.open_date <= end_date)
+        else:
+            query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
+
+        tables = [Sale]
+
+        if len(acronyms) > 0 or len(documents) > 0:
+            tables.append(Join(Branch, Sale.branch_id == Branch.id))
+
+        if len(acronyms) > 0:
+            query = And(query, Branch.acronym.is_in(acronyms))
+
+        if len(documents) > 0:
+            tables = tables + [Join(Person, Person.id == Branch.person_id),
+                               Join(Individual, Individual.person_id == Person.id),
+                               Join(Company, Company.person_id == Person.id)]
+            query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
+
+        if len(invoice_ids) > 0:
+            query = And(query, Sale.invoice_id.is_in(invoice_ids))
+
+        sales = store.using(*tables).find(Sale, query)
+
+        response = []
+
+        for sale in sales:
+            items = []
+            for item in sale.get_items():
+                discount = item.item_discount
+                product = item.sellable.product
+                items.append({
+                    'ordem': None,  # ordem dos itens
+                    'idMaterial': item.sellable.id,
+                    'codigo': item.sellable.code,
+                    'descricao': item.sellable.description,
+                    'quantidade': float(item.quantity),
+                    'valorBruto': float(item.base_price * item.quantity),
+                    'valorUnitario': float(item.base_price),
+                    'valorUnitarioLiquido': float(item.price - discount),
+                    'valorLiquido': float((item.price - discount) * item.quantity),
+                    'aliquota': float(item.icms_info.p_icms or 0),
+                    'baseIcms': float(item.icms_info.v_icms or 0),
+                    'codNcm': product.ncm,
+                    'idOrigem': None,
+                    'codOrigem': None,
+                    'cfop': str(item.cfop.code),
+                    'desconto': float(discount),
+                    'acrescimo': None,
+                    'cancelado': True if sale.cancel_date else False,
+                    'maquinaId': sale.station.id,
+                    'nomeMaquina': sale.station.name,
+                    'maquinaCod': sale.station.code,
+                    'isTaxa': None,  # ???????????????
+                    'isRepique': None,  # ??????????
+                    'isGorjeta': None,  # ???????
+                    'isEntrega': None,
+                })
+            payments = []
+            for payment in sale.group.payments:
+                payments.append({
+                    'id': payment.method.id,
+                    'codigo': payment.method.id,
+                    'descricao': payment.method.method_name,
+                    'valor': float(payment.value),
+                    'troco': 0,
+                    'valorRecebido': float(payment.paid_value),
+                    'idAtendente': sale.salesperson.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                })
+
+            res_item = {
+                'maquinaCod': sale.station.code,
+                'nomeMaquina': sale.station.name,
+                'nfNumero': sale.invoice.invoice_number,
+                'nfSerie': sale.invoice.series,
+                'denominacao': sale.invoice.mode,
+                'valor': float(sale.total_amount),
+                'maquinaId': sale.station.id,
+                'desconto': float(sale.discount_value or 0),
+                'acrescimo': 0,
+                'chaveNfe': sale.invoice.key,
+                'dataContabil': sale.confirm_date.strftime('%Y-%m-%d'),
+                'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                'idOperacao': sale.id,  # sale.id or invoice.id ??
+                'troco': 0,
+                'pagamentos': float(sale.paid),
+                'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                'cancelado': True if sale.cancel_date else False,
+                'detalhes': items,
+                'meios': payments,
+            }
+
+            response.append(res_item)
+
+        return response

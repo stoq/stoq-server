@@ -26,6 +26,8 @@ def sale(example_creator, current_user):
     test_sale.salesperson.person = person
     payment = example_creator.create_payment(group=test_sale.group)
     payment.paid_value = 10
+    sale_item.icms_info.v_icms = 1
+    sale_item.icms_info.p_icms = 18
 
     return test_sale
 
@@ -601,3 +603,183 @@ def test_get_stations_branch(get_config_mock, b1food_client):
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_receipts_with_lojas_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'lojas': 1
+    }
+    response = b1food_client.get('b1food/terceiros/restful/comprovante',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_receipts_with_lojas_as_list_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'lojas': [1, 2, 4]
+    }
+    response = b1food_client.get('b1food/terceiros/restful/comprovante',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_receipts_with_consumidores_as_list_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'consumidores': [97050782033, 70639759000102]
+    }
+    response = b1food_client.get('b1food/terceiros/restful/comprovante',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_receipts_with_consumidores_and_lojas_args(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'consumidores': [97050782033, 70639759000102],
+        'lojas': [1, 2, 4]
+    }
+    response = b1food_client.get('b1food/terceiros/restful/comprovante',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_receipts_with_operacaocupom_as_list_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'operacaocupom': [
+            'a25dd1ad-7dae-11ea-b5ac-b285fb9a2a4e',
+            '21b5a545-7aa1-11ea-b5ac-b285fb9a2a4e'
+        ]
+    }
+    response = b1food_client.get('b1food/terceiros/restful/comprovante',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_receipts_with_usarDtMov_arg(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-01',
+        'usarDtMov': 1
+    }
+    response = b1food_client.get('b1food/terceiros/restful/comprovante',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03'
+    }
+    response = b1food_client.get('b1food/terceiros/restful/comprovante',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+    item = sale.get_items()[0]
+    payment = sale.group.payments[0]
+    assert response.status_code == 200
+    assert res == [
+        {
+            'maquinaCod': sale.station.code,
+            'nomeMaquina': sale.station.name,
+            'nfNumero': sale.invoice.invoice_number,
+            'nfSerie': sale.invoice.series,
+            'denominacao': sale.invoice.mode,
+            'valor': 0.0,
+            'maquinaId': sale.station.id,
+            'desconto': 0.0,
+            'acrescimo': 0,
+            'chaveNfe': sale.invoice.key,
+            'dataContabil': sale.confirm_date.strftime('%Y-%m-%d'),
+            'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'idOperacao': sale.id,
+            'troco': 0,
+            'pagamentos': 0.0,
+            'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'cancelado': True if sale.cancel_date else False,
+            'detalhes': [
+                {
+                    'ordem': None,
+                    'idMaterial': item.sellable.id,
+                    'codigo': item.sellable.code,
+                    'desconto': -90.0,
+                    'descricao': item.sellable.description,
+                    'quantidade': float(item.quantity),
+                    'valorBruto': float(item.base_price * item.quantity),
+                    'valorUnitario': float(item.base_price),
+                    'valorUnitarioLiquido': 190.0,
+                    'valorLiquido': 190.0,
+                    'aliquota': float(item.icms_info.p_icms),
+                    'baseIcms': float(item.icms_info.v_icms),
+                    'codNcm': item.sellable.product.ncm,
+                    'idOrigem': None,
+                    'codOrigem': None,
+                    'cfop': str(item.cfop.code),
+                    'acrescimo': None,
+                    'cancelado': True if sale.cancel_date else False,
+                    'maquinaId': sale.station.id,
+                    'nomeMaquina': sale.station.name,
+                    'maquinaCod': sale.station.code,
+                    'isTaxa': None,
+                    'isRepique': None,
+                    'isGorjeta': None,
+                    'isEntrega': None,
+                }
+            ],
+            'meios': [
+                {
+                    'id': payment.method.id,
+                    'codigo': payment.method.id,
+                    'descricao': payment.method.method_name,
+                    'valor': 10.0,
+                    'troco': 0,
+                    'valorRecebido': 10.0,
+                    'idAtendente': sale.salesperson.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                }
+            ],
+        }
+    ]
