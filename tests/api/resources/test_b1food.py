@@ -4,6 +4,7 @@ import pytest
 from unittest import mock
 from datetime import datetime
 
+from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.station import BranchStation
 from stoqlib.domain.till import Till
 from stoqlib.lib.formatters import raw_document
@@ -801,6 +802,55 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
             ],
         }
     ]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_methods(get_config_mock, b1food_client, store, sale):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    payment_method = store.find(PaymentMethod, method_name='money').one()
+
+    query_string = {'Authorization': 'Bearer B1FoodClientId'}
+    response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+
+    res_item = [item for item in res if item['id'] == payment_method.id]
+    assert res_item == [{
+        'ativo': payment_method.is_active,
+        'id': payment_method.id,
+        'codigo': payment_method.id,
+        'nome': payment_method.method_name,
+        'redeId': None,
+        'lojaId': None
+    }]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_methods_active(get_config_mock, b1food_client, store, sale):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    payment_method_active = PaymentMethod.get_active_methods(store)[0]
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': True
+    }
+    response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert res[0] == {
+        'ativo': payment_method_active.is_active,
+        'id': payment_method_active.id,
+        'codigo': payment_method_active.id,
+        'nome': payment_method_active.method_name,
+        'redeId': None,
+        'lojaId': None
+    }
 
 
 @mock.patch('stoqserver.api.decorators.get_config')

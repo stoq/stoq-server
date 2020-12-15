@@ -28,6 +28,7 @@ from datetime import datetime
 from flask import abort, make_response, jsonify, request
 from storm.expr import And, Join, Or
 
+from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.person import Branch, Company, Individual, Person, EmployeeRole
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.station import BranchStation
@@ -341,6 +342,36 @@ class B1FoodPaymentsResource(BaseResource):
                 'dataContabil': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
             }
 
+            response.append(res_item)
+
+        return response
+
+
+class B1FoodPaymentMethodResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/meio-pagamento']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        request_is_active = data.get('ativo')
+
+        payment_methods = store.find(PaymentMethod)
+        if request_is_active:
+            payment_methods = PaymentMethod.get_active_methods(store)
+
+        response = []
+        for payment_method in payment_methods:
+            res_item = {
+                'ativo': payment_method.is_active,
+                'id': payment_method.id,
+                'codigo': payment_method.id,
+                'nome': payment_method.method_name,
+                'redeId': None,
+                'lojaId': None
+            }
             response.append(res_item)
 
         return response
