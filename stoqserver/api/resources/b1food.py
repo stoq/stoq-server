@@ -30,6 +30,7 @@ from storm.expr import And, Join, Or
 
 from stoqlib.domain.person import Branch, Company, Individual, Person
 from stoqlib.domain.sale import Sale
+from stoqlib.domain.station import BranchStation
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.formatters import raw_document
 
@@ -181,7 +182,7 @@ class B1FoodSaleItemResource(BaseResource):
                 sellable = item.sellable
                 station = sale.station
                 salesperson = sale.salesperson
-                document = raw_document(sale.get_client_document())
+                document = raw_document(sale.get_client_document() or "")
 
                 if len(document) == 11:
                     document_type = 'CPF'
@@ -286,7 +287,7 @@ class B1FoodPaymentsResource(BaseResource):
         response = []
 
         for sale in sales:
-            document = raw_document(sale.get_client_document())
+            document = raw_document(sale.get_client_document() or "")
             if len(document) == 11:
                 document_type = 'CPF'
             elif len(document) == 14:
@@ -340,5 +341,53 @@ class B1FoodPaymentsResource(BaseResource):
             }
 
             response.append(res_item)
+
+        return response
+
+
+class B1FoodStationResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/terminais']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        request_branches = data.get('lojas')
+        active = data.get('ativo')
+
+        acronyms = _get_acronyms(request_branches)
+        tables = [BranchStation]
+        query = None
+
+        if active is not None:
+            is_active = active == '1'
+            query = BranchStation.is_active == is_active
+
+        if len(acronyms) > 0:
+            tables.append(Join(Branch, BranchStation.branch_id == Branch.id))
+            if query is not None:
+                query = And(query, Branch.acronym.is_in(acronyms))
+            else:
+                query = Branch.acronym.is_in(acronyms)
+
+        if query:
+            stations = store.using(*tables).find(BranchStation, query)
+        else:
+            stations = store.using(*tables).find(BranchStation)
+
+        response = []
+        for station in stations:
+            response.append({
+                'ativo': station.is_active,
+                'id': station.id,
+                'codigo': station.id,
+                'nome': station.name,
+                'apelido': station.name,
+                'portaFiscal': None,
+                'redeId': station.branch.person.company.id,
+                'lojaId': station.branch.id
+            })
 
         return response

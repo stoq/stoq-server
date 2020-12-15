@@ -539,3 +539,65 @@ def test_get_payments_successfully(get_config_mock, b1food_client, store, sale):
             'vlTrocoFormasPagto': 0
         },
     ]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_stations_successfully(get_config_mock, b1food_client, current_station):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/terminais',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res[0]['ativo'] is True
+    assert res[0]['lojaId'] == current_station.branch.id
+    assert res[0]['redeId'] == current_station.branch.person.company.id
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_inactive_stations(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 0,
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/terminais',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_active_stations(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 1,
+        'lojas': 1
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/terminais',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_stations_branch(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'lojas': 1
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/terminais',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
