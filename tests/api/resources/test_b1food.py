@@ -822,7 +822,7 @@ def test_get_tills_successfully(get_config_mock, b1food_client, close_till):
             'codigo': str(close_till.identifier),
             'dataCriacao': close_till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
             'dataAlteracao': close_till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-            'nome': None,
+            'nome': '',
             'redeId': close_till.branch.person.company.id,
             'lojaId': close_till.branch.id
         }
@@ -843,3 +843,25 @@ def test_get_tills_with_lojas(get_config_mock, b1food_client, close_till):
     res = json.loads(response.data.decode('utf-8'))
 
     assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_roles_successfully(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/cargos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert len(res) > 0
+    assert 'ativo' in res[0]
+    assert 'id' in res[0]
+    assert 'codigo' in res[0]
+    assert 'dataCriacao' in res[0]
+    assert 'dataAlteracao' in res[0]
+    assert 'nome' in res[0]
+    assert 'redeId' in res[0]
+    assert 'lojaId' in res[0]

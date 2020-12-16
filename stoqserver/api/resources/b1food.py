@@ -28,7 +28,7 @@ from datetime import datetime
 from flask import abort, make_response, jsonify, request
 from storm.expr import And, Join, Or
 
-from stoqlib.domain.person import Branch, Company, Individual, Person
+from stoqlib.domain.person import Branch, Company, Individual, Person, EmployeeRole
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.station import BranchStation
 from stoqlib.domain.till import Till
@@ -548,9 +548,36 @@ class B1FoodTillResource(BaseResource):
                 'codigo': str(till.identifier),
                 'dataCriacao': till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
                 'dataAlteracao': till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-                'nome': None,
+                'nome': '',
                 'redeId': till.branch.person.company.id,
                 'lojaId': till.branch.id
+            })
+
+        return response
+
+
+class B1FoodRolesResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/cargos']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        roles = store.find(EmployeeRole)
+
+        response = []
+        for role in roles:
+            response.append({
+                'ativo': True,
+                'id': role.id,
+                'codigo': role.id,
+                'dataCriacao': '',
+                'dataAlteracao': '',
+                'nome': role.name,
+                'redeId': None,
+                'lojaId': None
             })
 
         return response
