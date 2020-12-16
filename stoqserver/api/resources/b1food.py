@@ -90,6 +90,15 @@ def _get_invoice_ids(request_invoice_ids):
     return invoice_ids
 
 
+def _get_network_info():
+    # We do not have this infos on database, so until we have them we get from config
+    config = get_config()
+    return {
+        'id': config.get('B1Food', 'network_id') or '',
+        'name': config.get('B1Food', 'network_name') or '',
+    }
+
+
 class B1foodLoginResource(BaseResource):
     routes = ['/b1food/oauth/authenticate']
 
@@ -193,6 +202,8 @@ class B1FoodSaleItemResource(BaseResource):
                 else:
                     document_type = ''
 
+                network = _get_network_info()
+
                 res_item = {
                     'idItemVenda': item.id,
                     'valorUnitario': float(item.base_price),
@@ -207,7 +218,7 @@ class B1FoodSaleItemResource(BaseResource):
                     'nomeMaquina': station.name,
                     'maquinaCod': station.code,
                     'quantidade': float(item.quantity),
-                    'redeId': sale.branch.person.company.id,
+                    'redeId': network['id'],
                     'lojaId': sale.branch.id,
                     'idMaterial': sellable.id,
                     'codMaterial': sellable.code,
@@ -297,6 +308,8 @@ class B1FoodPaymentsResource(BaseResource):
             else:
                 document_type = ''
 
+            network = _get_network_info()
+
             payments = []
             for payment in sale.group.payments:
                 payments.append({
@@ -312,7 +325,7 @@ class B1FoodPaymentsResource(BaseResource):
                 })
             res_item = {
                 'idMovimentoCaixa': sale.id,
-                'redeId': sale.branch.person.company.id,
+                'redeId': network['id'],
                 'rede': sale.branch.person.name,
                 'lojaId': sale.branch.id,
                 'loja': sale.branch.acronym,
@@ -362,6 +375,8 @@ class B1FoodPaymentMethodResource(BaseResource):
         if request_is_active:
             payment_methods = PaymentMethod.get_active_methods(store)
 
+        network = _get_network_info()
+
         response = []
         for payment_method in payment_methods:
             res_item = {
@@ -369,7 +384,7 @@ class B1FoodPaymentMethodResource(BaseResource):
                 'id': payment_method.id,
                 'codigo': payment_method.id,
                 'nome': payment_method.method_name,
-                'redeId': None,
+                'redeId': network['id'],
                 'lojaId': None
             }
             response.append(res_item)
@@ -409,6 +424,8 @@ class B1FoodStationResource(BaseResource):
         else:
             stations = store.using(*tables).find(BranchStation)
 
+        network = _get_network_info()
+
         response = []
         for station in stations:
             response.append({
@@ -418,7 +435,7 @@ class B1FoodStationResource(BaseResource):
                 'nome': station.name,
                 'apelido': station.name,
                 'portaFiscal': None,
-                'redeId': station.branch.person.company.id,
+                'redeId': network['id'],
                 'lojaId': station.branch.id
             })
 
@@ -571,6 +588,8 @@ class B1FoodTillResource(BaseResource):
         else:
             tills = store.using(*tables).find(Till)
 
+        network = _get_network_info()
+
         response = []
         for till in tills:
             response.append({
@@ -580,7 +599,7 @@ class B1FoodTillResource(BaseResource):
                 'dataCriacao': till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
                 'dataAlteracao': till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
                 'nome': '',
-                'redeId': till.branch.person.company.id,
+                'redeId': network['id'],
                 'lojaId': till.branch.id
             })
 
@@ -598,6 +617,8 @@ class B1FoodRolesResource(BaseResource):
 
         roles = store.find(EmployeeRole)
 
+        network = _get_network_info()
+
         response = []
         for role in roles:
             response.append({
@@ -607,8 +628,50 @@ class B1FoodRolesResource(BaseResource):
                 'dataCriacao': '',
                 'dataAlteracao': '',
                 'nome': role.name,
-                'redeId': None,
+                'redeId': network['id'],
                 'lojaId': None
+            })
+
+        return response
+
+
+class B1FoodBranchResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/rede-loja']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        tables = [Branch]
+        query = None
+
+        active = data.get('ativo')
+
+        if active is not None:
+            is_active = active == '1'
+            query = Branch.is_active == is_active
+
+        if query:
+            branches = store.using(*tables).find(Branch, query)
+        else:
+            branches = store.using(*tables).find(Branch)
+
+        network = _get_network_info()
+
+        response = [{
+            'idRede': network['id'],
+            'nome': network['name'],
+            'ativo': True,
+            'idRedePai': None,
+            'lojas': [],
+        }]
+        for branch in branches:
+            response[0]['lojas'].append({
+                'idLoja': branch.id,
+                'nome': branch.name,
+                'ativo': branch.is_active
             })
 
         return response

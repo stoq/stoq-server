@@ -50,6 +50,14 @@ def close_till(open_till, current_user):
     return open_till
 
 
+@pytest.fixture
+def network():
+    return {
+        'id': '35868887-3fae-11eb-9f78-40b89ae8d341',
+        'name': 'Company name'
+    }
+
+
 @pytest.mark.parametrize('size', (1, 10, 30, 128))
 def test_generate_b1food_token(size):
     assert len(generate_b1food_token(size)) == size
@@ -270,10 +278,13 @@ def test_get_sale_item_with_operacaocupom_as_list_arg(get_config_mock, b1food_cl
     assert res == []
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_sale_item_successfully(get_config_mock, b1food_client, store, sale):
+def test_get_sale_item_successfully(get_config_mock, get_network_info,
+                                    b1food_client, store, sale, network):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01',
@@ -324,7 +335,7 @@ def test_get_sale_item_successfully(get_config_mock, b1food_client, store, sale)
         'nomeMaquina': station.name,
         'operacaoId': sale.id,
         'quantidade': 1.0,
-        'redeId': sale.branch.person.company.id,
+        'redeId': network['id'],
         'valorBruto': 10.0,
         'valorLiquido': 190.0,
         'valorUnitario': 10.0,
@@ -496,10 +507,13 @@ def test_get_payment_with_empty_document(get_config_mock, b1food_client, store, 
     assert res[0]['consumidores'] == [{'documento': '', 'tipo': ''}]
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_payments_successfully(get_config_mock, b1food_client, store, sale):
+def test_get_payments_successfully(get_config_mock, get_network_info,
+                                   b1food_client, store, sale, network):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01',
@@ -548,7 +562,7 @@ def test_get_payments_successfully(get_config_mock, b1food_client, store, sale):
             'numPessoas': 1,
             'operacaoId': sale.id,
             'rede': 'Stoq Roupas e Acessórios Ltda',
-            'redeId': sale.branch.person.company.id,
+            'redeId': network['id'],
             'vlAcrescimo': None,
             'vlTotalReceber': sale.group.get_total_value(),
             'vlTotalRecebido': sale.group.get_total_paid(),
@@ -561,10 +575,13 @@ def test_get_payments_successfully(get_config_mock, b1food_client, store, sale):
     ]
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_stations_successfully(get_config_mock, b1food_client, current_station):
+def test_get_stations_successfully(get_config_mock, get_network_info,
+                                   b1food_client, current_station, network):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
     }
@@ -575,7 +592,7 @@ def test_get_stations_successfully(get_config_mock, b1food_client, current_stati
 
     assert res[0]['ativo'] is True
     assert res[0]['lojaId'] == current_station.branch.id
-    assert res[0]['redeId'] == current_station.branch.person.company.id
+    assert res[0]['redeId'] == network['id']
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
@@ -804,10 +821,13 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
     ]
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_payment_methods(get_config_mock, b1food_client, store, sale):
+def test_get_payment_methods(get_config_mock, get_network_info,
+                            b1food_client, store, sale, network):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
     payment_method = store.find(PaymentMethod, method_name='money').one()
 
     query_string = {'Authorization': 'Bearer B1FoodClientId'}
@@ -823,15 +843,18 @@ def test_get_payment_methods(get_config_mock, b1food_client, store, sale):
         'id': payment_method.id,
         'codigo': payment_method.id,
         'nome': payment_method.method_name,
-        'redeId': None,
+        'redeId': network['id'],
         'lojaId': None
     }]
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_payment_methods_active(get_config_mock, b1food_client, store, sale):
+def test_get_payment_methods_active(get_config_mock, get_network_info,
+                                   b1food_client, store, sale, network):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
     payment_method_active = PaymentMethod.get_active_methods(store)[0]
 
     query_string = {
@@ -848,15 +871,18 @@ def test_get_payment_methods_active(get_config_mock, b1food_client, store, sale)
         'id': payment_method_active.id,
         'codigo': payment_method_active.id,
         'nome': payment_method_active.method_name,
-        'redeId': None,
+        'redeId': network['id'],
         'lojaId': None
     }
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_tills_successfully(get_config_mock, b1food_client, close_till):
+def test_get_tills_successfully(get_config_mock, get_network_info,
+                                b1food_client, close_till, network):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
     }
@@ -873,7 +899,7 @@ def test_get_tills_successfully(get_config_mock, b1food_client, close_till):
             'dataCriacao': close_till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
             'dataAlteracao': close_till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
             'nome': '',
-            'redeId': close_till.branch.person.company.id,
+            'redeId': network['id'],
             'lojaId': close_till.branch.id
         }
     ]
@@ -915,3 +941,53 @@ def test_get_roles_successfully(get_config_mock, b1food_client):
     assert 'nome' in res[0]
     assert 'redeId' in res[0]
     assert 'lojaId' in res[0]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_branches_successfully(get_config_mock, get_network_info,
+                                   b1food_client, network):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/rede-loja',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert len(res) > 0
+    assert res[0]['idRede'] == network['id']
+    assert res[0]['nome'] == network['name']
+    assert res[0]['ativo'] is True
+    assert len(res[0]['lojas']) > 0
+    assert 'idLoja' in res[0]['lojas'][0]
+    assert 'nome' in res[0]['lojas'][0]
+    assert 'ativo' in res[0]['lojas'][0]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_branches_only_active(get_config_mock, get_network_info,
+                                  b1food_client, network):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': '1',
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/rede-loja',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert len(res) > 0
+    assert res[0]['idRede'] == network['id']
+    assert res[0]['nome'] == network['name']
+    assert res[0]['ativo'] is True
+    assert len(res[0]['lojas']) > 0
+    assert 'idLoja' in res[0]['lojas'][0]
+    assert 'nome' in res[0]['lojas'][0]
+    assert 'ativo' in res[0]['lojas'][0]
+    assert res[0]['lojas'][0]['ativo'] is True
