@@ -23,7 +23,7 @@ test:
 	python runtests.py stoqserver/lib/test
 	pytest -vvv
 
-bundle_dist:
+bundle_dist: requirements.txt
 	-rm -rf dist/
 	# workaround to generate wheel from stoq-plugin-link source
 	# https://gitlab.com/stoqtech/private/stoq-plugin-link/-/blob/master/.gitlab-ci.yml#L75
@@ -39,12 +39,12 @@ bundle_deb: bundle_dist requirements.txt
 	cd dist/* && \
 		python -m venv env && \
 		. env/bin/activate && \
-		pip install -U pip wheel setuptools kiwi-gtk && \
+		pip install -U kiwi-gtk && \
+		pip install -U pip wheel setuptools && \
 		pip install -U poetry && \
 		pip install -r requirements.txt && \
 		cp setup_old.py setup.py && \
 		debuild --preserve-env -us -uc
-	-rm setup.py data/udev/10-stoq.rules
 
 include utils/utils.mk
 .PHONY: check coverage

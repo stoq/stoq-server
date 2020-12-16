@@ -49,20 +49,20 @@ python-versions = "*"
 
 [[package]]
 name = "boto3"
-version = "1.16.36"
+version = "1.16.37"
 description = "The AWS SDK for Python"
 category = "main"
 optional = false
 python-versions = "*"
 
 [package.dependencies]
-botocore = ">=1.19.36,<1.20.0"
+botocore = ">=1.19.37,<1.20.0"
 jmespath = ">=0.7.1,<1.0.0"
 s3transfer = ">=0.3.0,<0.4.0"
 
 [[package]]
 name = "botocore"
-version = "1.19.36"
+version = "1.19.37"
 description = "Low-level, data-driven core of boto 3."
 category = "main"
 optional = false
@@ -806,7 +806,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqimendes"
-version = "1.1"
+version = "1.2.2"
 description = ""
 category = "main"
 optional = false
@@ -859,7 +859,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlink"
-version = "1.10"
+version = "1.11.3"
 description = ""
 category = "main"
 optional = false
@@ -980,7 +980,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqsitef"
-version = "1.22"
+version = "1.23.2"
 description = ""
 category = "main"
 optional = false
@@ -1211,12 +1211,12 @@ blinker = [
     {file = "blinker-1.4.tar.gz", hash = "sha256:471aee25f3992bd325afa3772f1063dbdbbca947a041b8b89466dc00d606f8b6"},
 ]
 boto3 = [
-    {file = "boto3-1.16.36-py2.py3-none-any.whl", hash = "sha256:4ef19b74babe3925255cc0718bbed228e9b147f05051c39b3081c8e7fa6f1044"},
-    {file = "boto3-1.16.36.tar.gz", hash = "sha256:a1e64250415afd441799df4f70ac401bcf1611a300f3221547121193e3b10479"},
+    {file = "boto3-1.16.37-py2.py3-none-any.whl", hash = "sha256:ad0e8dbd934d97b5228252785c0236c3ee4d464c14138f568e371bf43c6ea584"},
+    {file = "boto3-1.16.37.tar.gz", hash = "sha256:ee86c26b3d457aa4d0256d0535d13107c32aa33bb5eb2a0b2dac9d81c3aca405"},
 ]
 botocore = [
-    {file = "botocore-1.19.36-py2.py3-none-any.whl", hash = "sha256:9fba0246e29dbe0d4576a602aa5bc7a7caeaffb4e3c7f396f563dcdf04e26abf"},
-    {file = "botocore-1.19.36.tar.gz", hash = "sha256:a5ad68d2a2cd3781fa26dba36f355169c2a0ee103bcd544fdfc71d5709ecf0c1"},
+    {file = "botocore-1.19.37-py2.py3-none-any.whl", hash = "sha256:5605c250f6f7c72ca50e45eab6186dfda03cb84296ca5b05f7416defcd3fcbc5"},
+    {file = "botocore-1.19.37.tar.gz", hash = "sha256:67bf1285455d79336ce7061da1768206b78f7a0efc13c8b4033fd348a74e7491"},
 ]
 bump2version = [
     {file = "bump2version-1.0.1-py2.py3-none-any.whl", hash = "sha256:37f927ea17cde7ae2d7baf832f8e80ce3777624554a653006c9144f8017fe410"},
@@ -1823,15 +1823,16 @@ stoqifood = [
     {file = "stoqifood-1.1.2.tar.gz", hash = "sha256:3826b65af73f3549d030f473fc3e0f2e9e3f43d1b20b08451edcad520d955012"},
 ]
 stoqimendes = [
-    {file = "stoqimendes-1.1-py3-none-any.whl", hash = "sha256:125fb8c874c5bdf0ec7a423178b8c4a890a976219ff1f51373d27349ebb464ba"},
-    {file = "stoqimendes-1.1.tar.gz", hash = "sha256:0813916ecfe176410914d5640c312d6f24a262266e71af8f79ebcd862d28196c"},
+    {file = "stoqimendes-1.2.2-py3-none-any.whl", hash = "sha256:190f6f1567be62a5221446727dbff2faf75af9f275cbb23281d1aef3d0384929"},
+    {file = "stoqimendes-1.2.2.tar.gz", hash = "sha256:f60cef55afb521bf3444d7ae48caf5e48b439737324fddeebb1d485ce94ab4e6"},
 ]
 stoqlib = [
     {file = "stoqlib-7.1.0-py3-none-any.whl", hash = "sha256:6a5854035f2a6de8ad5fdef3c474c6799819c19723ccb061f3819ad306ae5034"},
     {file = "stoqlib-7.1.0.tar.gz", hash = "sha256:2dd6d1cc61245f48f9fadd32a4be7c611570d09369f6927433066e453537b8b6"},
 ]
 stoqlink = [
-    {file = "stoqlink-1.10.tar.gz", hash = "sha256:26fc565336704539aec55841e1c2636ea2d05f588ce1356fdf8b4e5ce3c67be0"},
+    {file = "stoqlink-1.11.3-py3-none-any.whl", hash = "sha256:295d76096d77af386b59f5fd24ae832c056bdee2e4ae4fe1da07241172a53190"},
+    {file = "stoqlink-1.11.3.tar.gz", hash = "sha256:0a8c6d8861b0b3f69db9e42e35a3488c59b15a22b4b53f4dd1e7b58135810a08"},
 ]
 stoqnfe = [
     {file = "stoqnfe-1.2.0-py3-none-any.whl", hash = "sha256:71095363aa7760de4423e0de8bede45e64cd5d8628d15c71b20ef4037c785e5e"},
@@ -1850,8 +1851,8 @@ stoqsat = [
     {file = "stoqsat-1.2.1.tar.gz", hash = "sha256:2fd2424b799d559f4d3c6d82ce49451958ce9af5faf954ff94834243b96316bd"},
 ]
 stoqsitef = [
-    {file = "stoqsitef-1.22-py3-none-any.whl", hash = "sha256:aec2f99ebcdc29924cfc332d8265799c65d66c0bb3f74742e7ef368e226d1cb8"},
-    {file = "stoqsitef-1.22.tar.gz", hash = "sha256:1951d6ba924a58949a3de4b4962263d7005a7868f51966b9f466fd0e10d24890"},
+    {file = "stoqsitef-1.23.2-py3-none-any.whl", hash = "sha256:0a841d5cf937da6146831484659b2a74d8f6d09bb85b4808627843b414c5bcae"},
+    {file = "stoqsitef-1.23.2.tar.gz", hash = "sha256:fb1781ab3a55c31768f855798d2eb53e5653986fb5ee3824f575e9a89733c0a7"},
 ]
 storm = [
     {file = "storm-0.24.tar.gz", hash = "sha256:0880c6723388e8daba8faacc6cb2f812310b7ee92154ce97eebf3ae0d5753f15"},

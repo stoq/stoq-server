@@ -36,6 +36,7 @@ data_files = [
     ('/etc/sudoers.d', [os.path.join('data', 'sudoers.d', 'stoqserver')]),
     ('/etc/supervisor/conf.d', [os.path.join('data', 'supervisor', 'stoqserver.conf')]),
 ]
+
 scripts = ['bin/stoqserver']
 
 # workaround so "old" stoq-server deb won't conflict with "old" stoq deb

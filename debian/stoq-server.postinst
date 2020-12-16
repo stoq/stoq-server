@@ -109,6 +109,10 @@ EOF
         # Update usually would be enough, but we want to make sure that
         # the daemon will restart in case the code changed
         supervisorctl restart stoqserver || true
+
+        # Fix bundle's virtualenv symbolic links
+        ln -fs /usr/bin/python3 /usr/lib/stoq-virtualenv/bin/python
+        ln -fs /usr/lib/stoq-virtualenv/bin/python /usr/lib/stoq-virtualenv/bin/python3
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
