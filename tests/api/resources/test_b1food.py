@@ -58,6 +58,11 @@ def network():
     }
 
 
+@pytest.fixture
+def client_category(example_creator):
+    return example_creator.create_client_category()
+
+
 @pytest.mark.parametrize('size', (1, 10, 30, 128))
 def test_generate_b1food_token(size):
     assert len(generate_b1food_token(size)) == size
@@ -991,3 +996,31 @@ def test_get_branches_only_active(get_config_mock, get_network_info,
     assert 'nome' in res[0]['lojas'][0]
     assert 'ativo' in res[0]['lojas'][0]
     assert res[0]['lojas'][0]['ativo'] is True
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_discount_categories_successfully(get_config_mock, get_network_info,
+                                              b1food_client, network, client_category):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/tiposdescontos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert len(res) > 0
+    assert res[0] == {
+        'ativo': True,
+        'id': client_category.id,
+        'codigo': client_category.id,
+        'dataAlteracao': '',
+        'dataCriacao': '',
+        'nome': client_category.name,
+        'redeId': network['id'],
+        'lojaId': None
+    }

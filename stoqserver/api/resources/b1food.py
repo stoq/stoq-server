@@ -29,7 +29,8 @@ from flask import abort, make_response, jsonify, request
 from storm.expr import And, Join, Or
 
 from stoqlib.domain.payment.method import PaymentMethod
-from stoqlib.domain.person import Branch, Company, Individual, Person, EmployeeRole
+from stoqlib.domain.person import (Branch, Company, Individual,
+                                   Person, EmployeeRole, ClientCategory)
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.station import BranchStation
 from stoqlib.domain.till import Till
@@ -672,6 +673,35 @@ class B1FoodBranchResource(BaseResource):
                 'idLoja': branch.id,
                 'nome': branch.name,
                 'ativo': branch.is_active
+            })
+
+        return response
+
+
+class B1FoodDiscountCategoryResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/tiposdescontos']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        categories = store.find(ClientCategory)
+
+        network = _get_network_info()
+
+        response = []
+        for category in categories:
+            response.append({
+                'ativo': True,
+                'id': category.id,
+                'codigo': category.id,
+                'dataAlteracao': '',
+                'dataCriacao': '',
+                'nome': category.name,
+                'redeId': network['id'],
+                'lojaId': None
             })
 
         return response
