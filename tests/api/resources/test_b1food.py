@@ -3,11 +3,15 @@ import pytest
 
 from unittest import mock
 from datetime import datetime
+from storm.expr import Ne
 
+from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.payment.method import PaymentMethod
+from stoqlib.domain.sellable import Sellable
 from stoqlib.domain.station import BranchStation
 from stoqlib.domain.till import Till
 from stoqlib.lib.formatters import raw_document
+from stoqlib.lib.parameters import sysparam
 
 from stoqserver.api.resources.b1food import generate_b1food_token
 
@@ -32,6 +36,13 @@ def sale(example_creator, current_user):
     sale_item.icms_info.p_icms = 18
 
     return test_sale
+
+
+@pytest.fixture
+def sellable(example_creator):
+    sellable = example_creator.create_sellable()
+
+    return sellable
 
 
 @pytest.fixture
@@ -320,11 +331,11 @@ def test_get_sale_item_successfully(get_config_mock, get_network_info,
         'dtLancamento': '2020-01-02',
         'grupo': {
             'ativo': True,
-            'codigo': sellable.category.id,
-            'dataAlteracao': '',
+            'codigo': '',
+            'dataAlteracao': sellable.category.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'descricao': sellable.category.description,
             'idGrupo': sellable.category.id,
-            'idGrupoPai': sellable.category.category_id or ''
+            'idGrupoPai': sellable.category.category_id
         },
         'horaLancamento': '00:00',
         'idItemVenda': item.id,
@@ -386,6 +397,105 @@ def test_get_sale_item_with_empty_document(get_config_mock, b1food_client, store
 
     assert response.status_code == 200
     assert res[0]['consumidores'] == [{'documento': '', 'tipo': ''}]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_sellables(get_config_mock, get_network_info, b1food_client,
+                       store, sale, sellable, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+
+    delivery = sysparam.get_object(store, 'DELIVERY_SERVICE')
+    sellables = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id))
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+    }
+    response = b1food_client.get('b1food/terceiros/restful/material',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == sellables.count()
+
+    res_item = [item for item in res if item['idMaterial'] == sellable.id]
+    assert res_item == [{
+        'idMaterial': sellable.id,
+        'codigo': sellable.code,
+        'descricao': sellable.description,
+        'unidade': sellable.unit,
+        'dataAlteracao': sellable.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
+        'redeId': network['id'],
+        'lojaId': None,
+        'isTaxa': False,
+        'isRepique': False,
+        'isGorjeta': False,
+        'isEntrega': False,
+        'grupo': {
+            'idGrupo': None,
+            'codigo': '',
+            'descricao': None,
+            'idGrupoPai': None,
+            'dataAlteracao': None,
+            'ativo': True
+        }
+    }]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_sellables_available(get_config_mock, get_network_info, b1food_client,
+                                 store, sale, sellable, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+
+    sellables = Sellable.get_available_sellables(store)
+    sellable.status = Sellable.STATUS_CLOSED
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': True
+    }
+    response = b1food_client.get('b1food/terceiros/restful/material',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == sellables.count()
+
+    res_unavailable = [item for item in res if item['ativo'] is False]
+    assert len(res_unavailable) == 0
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_sellables_from_branch(get_config_mock, get_network_info, b1food_client,
+                                   store, example_creator, sale, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+
+    delivery = sysparam.get_object(store, 'DELIVERY_SERVICE')
+    sellable = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id)).any()
+    branch = example_creator.create_branch()
+    branch.acronym = '0001 -'
+    ProductBranchOverride(store=store, product_id=sellable.id, branch_id=branch.id)
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'lojas': 1
+    }
+    response = b1food_client.get('b1food/terceiros/restful/material',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == 1
+    assert res[0]['lojaId'] == branch.id
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
@@ -830,9 +940,10 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
 def test_get_payment_methods(get_config_mock, get_network_info,
-                            b1food_client, store, sale, network):
+                             b1food_client, store, sale, network):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     get_network_info.return_value = network
+    payment_methods = store.find(PaymentMethod)
     payment_method = store.find(PaymentMethod, method_name='money').one()
 
     query_string = {'Authorization': 'Bearer B1FoodClientId'}
@@ -841,6 +952,7 @@ def test_get_payment_methods(get_config_mock, get_network_info,
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 200
+    assert len(res) == payment_methods.count()
 
     res_item = [item for item in res if item['id'] == payment_method.id]
     assert res_item == [{
@@ -857,10 +969,11 @@ def test_get_payment_methods(get_config_mock, get_network_info,
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
 def test_get_payment_methods_active(get_config_mock, get_network_info,
-                                   b1food_client, store, sale, network):
+                                    b1food_client, store, sale, network):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     get_network_info.return_value = network
-    payment_method_active = PaymentMethod.get_active_methods(store)[0]
+    payment_methods_active = PaymentMethod.get_active_methods(store)
+    payment_method_active = payment_methods_active[0]
 
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
@@ -871,6 +984,7 @@ def test_get_payment_methods_active(get_config_mock, get_network_info,
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 200
+    assert len(res) == len(payment_methods_active)
     assert res[0] == {
         'ativo': payment_method_active.is_active,
         'id': payment_method_active.id,

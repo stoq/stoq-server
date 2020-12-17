@@ -26,16 +26,19 @@ import logging
 
 from datetime import datetime
 from flask import abort, make_response, jsonify, request
-from storm.expr import And, Join, Or
+from storm.expr import And, Join, Or, Ne
 
+from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.person import (Branch, Company, Individual,
                                    Person, EmployeeRole, ClientCategory)
 from stoqlib.domain.sale import Sale
+from stoqlib.domain.sellable import Sellable
 from stoqlib.domain.station import BranchStation
 from stoqlib.domain.till import Till
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.formatters import raw_document
+from stoqlib.lib.parameters import sysparam
 
 from stoqserver.api.decorators import store_provider, b1food_login_required
 from stoqserver.lib.baseresource import BaseResource
@@ -73,6 +76,18 @@ def _get_acronyms(request_branches):
         for acronym in request_branches:
             acronyms.append('%04d' % int(acronym) + ' -')
     return acronyms
+
+
+def _get_category_info(sellable):
+    return {
+        'idGrupo': sellable.category and sellable.category.id,
+        'codigo': '',
+        'descricao': sellable.category and sellable.category.description,
+        'idGrupoPai': sellable.category and sellable.category.category_id,
+        'dataAlteracao': sellable.category and
+        sellable.category.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'ativo': True,
+    }
 
 
 def _get_documents(request_documents):
@@ -224,14 +239,7 @@ class B1FoodSaleItemResource(BaseResource):
                     'idMaterial': sellable.id,
                     'codMaterial': sellable.code,
                     'descricao': sellable.description,
-                    'grupo': {
-                        'idGrupo': sellable.category.id,
-                        'codigo': sellable.category.id,
-                        'descricao': sellable.category.description,
-                        'idGrupoPai': sellable.category.category_id or '',
-                        'dataAlteracao': '',  # FIXME
-                        'ativo': True,
-                    },
+                    'grupo': _get_category_info(sellable),
                     'operacaoId': sale.id,
                     'atendenteId': salesperson.id,
                     'atendenteCod': salesperson.person.login_user.username,
@@ -250,6 +258,72 @@ class B1FoodSaleItemResource(BaseResource):
                 }
 
                 response.append(res_item)
+
+        return response
+
+
+class B1FoodSellableResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/material']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        request_available = data.get('ativo')
+        request_branches = data.get('lojas')
+        acronyms = _get_acronyms(request_branches)
+        branches = store.find(Branch, Branch.acronym.is_in(acronyms))
+
+        delivery = sysparam.get_object(store, 'DELIVERY_SERVICE')
+        sellables = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id))
+        if request_available:
+            sellables = Sellable.get_available_sellables(store)
+
+        network = _get_network_info()
+        response = []
+
+        for sellable in sellables:
+            if not request_branches:
+                res_item = {
+                    'idMaterial': sellable.id,
+                    'codigo': sellable.code,
+                    'descricao': sellable.description,
+                    'unidade': sellable.unit,
+                    'dataAlteracao': sellable.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                    'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
+                    'redeId': network['id'],
+                    'lojaId': None,
+                    'isTaxa': False,
+                    'isRepique': False,
+                    'isGorjeta': False,
+                    'isEntrega': False,
+                    'grupo': _get_category_info(sellable)
+                }
+                response.append(res_item)
+            else:
+                for branch in branches:
+                    query = And(ProductBranchOverride.product_id == sellable.id,
+                                ProductBranchOverride.branch_id == branch.id)
+                    if store.find(ProductBranchOverride, query):
+                        res_item = {
+                            'idMaterial': sellable.id,
+                            'codigo': sellable.code,
+                            'descricao': sellable.description,
+                            'unidade': sellable.unit,
+                            'dataAlteracao': sellable.te.te_server.strftime(
+                                '%Y-%m-%d %H:%M:%S -0300'),
+                            'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
+                            'redeId': network['id'],
+                            'lojaId': branch.id,
+                            'isTaxa': False,
+                            'isRepique': False,
+                            'isGorjeta': False,
+                            'isEntrega': False,
+                            'grupo': _get_category_info(sellable)
+                        }
+                        response.append(res_item)
 
         return response
 
