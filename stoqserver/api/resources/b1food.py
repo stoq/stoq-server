@@ -23,15 +23,15 @@
 #
 
 import logging
-
 from datetime import datetime
+
 from flask import abort, make_response, jsonify, request
-from storm.expr import And, Join, Or, Ne
+from storm.expr import And, Join, LeftJoin, Ne, Or
 
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.payment.method import PaymentMethod
-from stoqlib.domain.person import (Branch, Company, Individual,
-                                   Person, EmployeeRole, ClientCategory)
+from stoqlib.domain.person import (Branch, Company, Individual, LoginUser,
+                                   Person, EmployeeRole, ClientCategory, Client)
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.sellable import Sellable
 from stoqlib.domain.station import BranchStation
@@ -68,14 +68,12 @@ def _check_required_params(data, required_params):
             abort(400, message)
 
 
-def _get_acronyms(request_branches):
-    acronyms = []
-    if request_branches:
-        request_branches = request_branches.replace('[', '').replace(']', '')
-        request_branches = request_branches.split(',')
-        for acronym in request_branches:
-            acronyms.append('%04d' % int(acronym) + ' -')
-    return acronyms
+def _parse_request_list(request_list):
+    return_list = []
+    if request_list:
+        request_list = request_list.replace('[', '').replace(']', '')
+        return_list = request_list.split(',')
+    return return_list
 
 
 def _get_category_info(sellable):
@@ -88,22 +86,6 @@ def _get_category_info(sellable):
         sellable.category.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
         'ativo': True,
     }
-
-
-def _get_documents(request_documents):
-    documents = []
-    if request_documents:
-        request_documents = request_documents.replace('[', '').replace(']', '')
-        documents = request_documents.split(',')
-    return documents
-
-
-def _get_invoice_ids(request_invoice_ids):
-    invoice_ids = []
-    if request_invoice_ids:
-        request_invoice_ids = request_invoice_ids.replace('[', '').replace(']', '')
-        invoice_ids = request_invoice_ids.split(',')
-    return invoice_ids
 
 
 def _get_network_info():
@@ -170,34 +152,37 @@ class B1FoodSaleItemResource(BaseResource):
         request_documents = data.get('consumidores')
         request_invoice_ids = data.get('operacaocupom')
 
-        acronyms = _get_acronyms(request_branches)
-        documents = _get_documents(request_documents)
-        invoice_ids = _get_invoice_ids(request_invoice_ids)
+        branch_ids = _parse_request_list(request_branches)
+        documents = _parse_request_list(request_documents)
+        invoice_ids = _parse_request_list(request_invoice_ids)
 
-        if bool(data.get('usarDtMov')) is True:
-            query = And(Sale.open_date >= initial_date, Sale.open_date <= end_date)
-        else:
+        if data.get('usarDtMov') and data.get('usarDtMov') == '1':
             query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
+        else:
+            query = And(Sale.open_date >= initial_date, Sale.open_date <= end_date)
 
         tables = [Sale]
 
-        if len(acronyms) > 0 or len(documents) > 0:
+        if len(branch_ids) > 0 or len(documents) > 0:
             tables.append(Join(Branch, Sale.branch_id == Branch.id))
 
-        if len(acronyms) > 0:
-            query = And(query, Branch.acronym.is_in(acronyms))
+        if len(branch_ids) > 0:
+            query = And(query, Branch.id.is_in(branch_ids))
 
         if len(documents) > 0:
-            tables = tables + [Join(Person, Person.id == Branch.person_id),
-                               Join(Individual, Individual.person_id == Person.id),
-                               Join(Company, Company.person_id == Person.id)]
+            tables = tables + [Join(Client, Client.id == Sale.client_id),
+                               Join(Person, Person.id == Client.person_id),
+                               LeftJoin(Individual, Individual.person_id == Person.id),
+                               LeftJoin(Company, Company.person_id == Person.id)]
             query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
 
         if len(invoice_ids) > 0:
             query = And(query, Sale.invoice_id.is_in(invoice_ids))
 
-        # These args are sent but we do not have them on the domain
-        # 'redes', 'cancelados'
+        if data.get('cancelados') and data.get('cancelados') == '0':
+            query = And(query, Sale.status != Sale.STATUS_CANCELLED)
+
+        # These args are sent but we do not have them on the domain 'redes'
 
         sales = store.using(*tables).find(Sale, query)
 
@@ -224,8 +209,8 @@ class B1FoodSaleItemResource(BaseResource):
                     'idItemVenda': item.id,
                     'valorUnitario': float(item.base_price),
                     'valorBruto': float(item.base_price * item.quantity),
-                    'valorUnitarioLiquido': float(item.price - discount),
-                    'valorLiquido': float((item.price - discount) * item.quantity),
+                    'valorUnitarioLiquido': float(item.price),
+                    'valorLiquido': float(item.price * item.quantity),
                     'idOrigem': None,
                     'codOrigem': None,
                     'desconto': float(discount),
@@ -241,7 +226,7 @@ class B1FoodSaleItemResource(BaseResource):
                     'descricao': sellable.description,
                     'grupo': _get_category_info(sellable),
                     'operacaoId': sale.id,
-                    'atendenteId': salesperson.id,
+                    'atendenteId': salesperson.person.login_user.id,
                     'atendenteCod': salesperson.person.login_user.username,
                     'atendenteNome': salesperson.person.name,
                     'isTaxa': False,
@@ -252,7 +237,7 @@ class B1FoodSaleItemResource(BaseResource):
                         'documento': document,
                         'tipo': document_type
                     }],
-                    'cancelado': False,
+                    'cancelado': sale.status == Sale.STATUS_CANCELLED,
                     'dtLancamento': sale.confirm_date.strftime('%Y-%m-%d'),
                     'horaLancamento': sale.confirm_date.strftime('%H:%M')
                 }
@@ -273,8 +258,8 @@ class B1FoodSellableResource(BaseResource):
 
         request_available = data.get('ativo')
         request_branches = data.get('lojas')
-        acronyms = _get_acronyms(request_branches)
-        branches = store.find(Branch, Branch.acronym.is_in(acronyms))
+        branch_ids = _parse_request_list(request_branches)
+        branches = store.find(Branch, Branch.id.is_in(branch_ids))
 
         delivery = sysparam.get_object(store, 'DELIVERY_SERVICE')
         sellables = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id))
@@ -347,24 +332,25 @@ class B1FoodPaymentsResource(BaseResource):
         request_documents = data.get('consumidores')
         request_invoice_ids = data.get('operacaocupom')
 
-        acronyms = _get_acronyms(request_branches)
-        documents = _get_documents(request_documents)
-        invoice_ids = _get_invoice_ids(request_invoice_ids)
+        branch_ids = _parse_request_list(request_branches)
+        documents = _parse_request_list(request_documents)
+        invoice_ids = _parse_request_list(request_invoice_ids)
 
         query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
 
         tables = [Sale]
 
-        if len(acronyms) > 0 or len(documents) > 0:
+        if len(branch_ids) > 0 or len(documents) > 0:
             tables.append(Join(Branch, Sale.branch_id == Branch.id))
 
-        if len(acronyms) > 0:
-            query = And(query, Branch.acronym.is_in(acronyms))
+        if len(branch_ids) > 0:
+            query = And(query, Branch.id.is_in(branch_ids))
 
         if len(documents) > 0:
-            tables = tables + [Join(Person, Person.id == Branch.person_id),
-                               Join(Individual, Individual.person_id == Person.id),
-                               Join(Company, Company.person_id == Person.id)]
+            tables = tables + [Join(Client, Client.id == Sale.client_id),
+                               Join(Person, Person.id == Client.person_id),
+                               LeftJoin(Individual, Individual.person_id == Person.id),
+                               LeftJoin(Company, Company.person_id == Person.id)]
             query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
 
         if len(invoice_ids) > 0:
@@ -389,40 +375,40 @@ class B1FoodPaymentsResource(BaseResource):
             for payment in sale.group.payments:
                 payments.append({
                     'id': payment.method.id,
-                    'codigo': payment.method.id,
+                    'codigo': None,
                     'nome': payment.method.method_name,
-                    'valor': float(payment.value),
-                    'troco': 0,
-                    'valorRecebido': float(payment.paid_value or 0),
-                    'idAtendente': sale.salesperson.id,
+                    'valor': float(payment.paid_value),
+                    'troco': float(payment.base_value - payment.value),
+                    'valorRecebido': float(payment.value) or 0,
+                    'idAtendente': sale.salesperson.person.login_user.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
                 })
             res_item = {
                 'idMovimentoCaixa': sale.id,
                 'redeId': network['id'],
-                'rede': sale.branch.person.name,
+                'rede': network['name'],
                 'lojaId': sale.branch.id,
-                'loja': sale.branch.acronym,
+                'loja': sale.branch.name,
                 'hora': sale.confirm_date.strftime('%H'),
-                'idAtendente': sale.salesperson.id,
+                'idAtendente': sale.salesperson.person.login_user.id,
                 'codAtendente': sale.salesperson.person.login_user.username,
                 'nomeAtendente': sale.salesperson.person.name,
                 'vlDesconto': float(sale.discount_value),
-                'vlAcrescimo': None,
-                'vlTotalReceber': float(sale.group.get_total_value()),
+                'vlAcrescimo': float(sale.surcharge_value),
+                'vlTotalReceber': float(sale.total_amount),
                 'vlTotalRecebido': float(sale.group.get_total_paid()),
-                'vlTrocoFormasPagto': 0,  # ?????????????
-                'vlServicoRecebido': 0,  # ?????????????
-                'vlRepique': 0,  # ?????????????
-                'vlTaxaEntrega': 0,  # ????????????? FIXME: ExternalOrder
+                'vlTrocoFormasPagto': 0,
+                'vlServicoRecebido': 0,
+                'vlRepique': 0,
+                'vlTaxaEntrega': 0,
                 'numPessoas': 1,
                 'operacaoId': sale.id,
                 'maquinaId': sale.station.id,
                 'nomeMaquina': sale.station.name,
                 'maquinaCod': sale.station.code,
                 'maquinaPortaFiscal': None,
-                'meiospagamento': payments,
+                'meiosPagamento': payments,
                 'consumidores': [{
                     'documento': document,
                     'tipo': document_type,
@@ -479,7 +465,7 @@ class B1FoodStationResource(BaseResource):
         request_branches = data.get('lojas')
         active = data.get('ativo')
 
-        acronyms = _get_acronyms(request_branches)
+        branch_ids = _parse_request_list(request_branches)
         tables = [BranchStation]
         query = None
 
@@ -487,12 +473,12 @@ class B1FoodStationResource(BaseResource):
             is_active = active == '1'
             query = BranchStation.is_active == is_active
 
-        if len(acronyms) > 0:
+        if len(branch_ids) > 0:
             tables.append(Join(Branch, BranchStation.branch_id == Branch.id))
             if query is not None:
-                query = And(query, Branch.acronym.is_in(acronyms))
+                query = And(query, Branch.id.is_in(branch_ids))
             else:
-                query = Branch.acronym.is_in(acronyms)
+                query = Branch.id.is_in(branch_ids)
 
         if query:
             stations = store.using(*tables).find(BranchStation, query)
@@ -506,12 +492,14 @@ class B1FoodStationResource(BaseResource):
             response.append({
                 'ativo': station.is_active,
                 'id': station.id,
-                'codigo': station.id,
+                'codigo': station.code,
                 'nome': station.name,
                 'apelido': station.name,
                 'portaFiscal': None,
                 'redeId': network['id'],
-                'lojaId': station.branch.id
+                'lojaId': station.branch.id,
+                'dataAlteracao': station.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'dataCriacao': station.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
             })
 
         return response
@@ -536,31 +524,37 @@ class B1FoodReceiptsResource(BaseResource):
         request_documents = data.get('consumidores')
         request_invoice_ids = data.get('operacaocupom')
 
-        acronyms = _get_acronyms(request_branches)
-        documents = _get_documents(request_documents)
-        invoice_ids = _get_invoice_ids(request_invoice_ids)
+        branch_ids = _parse_request_list(request_branches)
+        documents = _parse_request_list(request_documents)
+        invoice_ids = _parse_request_list(request_invoice_ids)
 
-        if bool(data.get('usarDtMov')) is True:
-            query = And(Sale.open_date >= initial_date, Sale.open_date <= end_date)
-        else:
+        if data.get('usarDtMov') and data.get('usarDtMov') == '1':
             query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
+        else:
+            query = And(Sale.open_date >= initial_date, Sale.open_date <= end_date)
 
         tables = [Sale]
 
-        if len(acronyms) > 0 or len(documents) > 0:
+        if len(branch_ids) > 0 or len(documents) > 0:
             tables.append(Join(Branch, Sale.branch_id == Branch.id))
 
-        if len(acronyms) > 0:
-            query = And(query, Branch.acronym.is_in(acronyms))
+        if len(branch_ids) > 0:
+            query = And(query, Branch.id.is_in(branch_ids))
 
         if len(documents) > 0:
-            tables = tables + [Join(Person, Person.id == Branch.person_id),
-                               Join(Individual, Individual.person_id == Person.id),
-                               Join(Company, Company.person_id == Person.id)]
+            tables = tables + [Join(Client, Client.id == Sale.client_id),
+                               Join(Person, Person.id == Client.person_id),
+                               LeftJoin(Individual, Individual.person_id == Person.id),
+                               LeftJoin(Company, Company.person_id == Person.id)]
             query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
 
         if len(invoice_ids) > 0:
             query = And(query, Sale.invoice_id.is_in(invoice_ids))
+
+        if data.get('cancelados') and data.get('cancelados') == '0':
+            query = And(query, Sale.status != Sale.STATUS_CANCELLED)
+
+        # These args are sent but we do not have them on the domain 'redes'
 
         sales = store.using(*tables).find(Sale, query)
 
@@ -572,15 +566,15 @@ class B1FoodReceiptsResource(BaseResource):
                 discount = item.item_discount
                 product = item.sellable.product
                 items.append({
-                    'ordem': None,  # ordem dos itens
+                    'ordem': None,
                     'idMaterial': item.sellable.id,
                     'codigo': item.sellable.code,
                     'descricao': item.sellable.description,
                     'quantidade': float(item.quantity),
                     'valorBruto': float(item.base_price * item.quantity),
                     'valorUnitario': float(item.base_price),
-                    'valorUnitarioLiquido': float(item.price - discount),
-                    'valorLiquido': float((item.price - discount) * item.quantity),
+                    'valorUnitarioLiquido': float(item.price),
+                    'valorLiquido': float(item.price * item.quantity),
                     'aliquota': float(item.icms_info.p_icms or 0),
                     'baseIcms': float(item.icms_info.v_icms or 0),
                     'codNcm': product.ncm,
@@ -589,25 +583,25 @@ class B1FoodReceiptsResource(BaseResource):
                     'cfop': str(item.cfop.code),
                     'desconto': float(discount),
                     'acrescimo': None,
-                    'cancelado': True if sale.cancel_date else False,
+                    'cancelado': sale.status == Sale.STATUS_CANCELLED,
                     'maquinaId': sale.station.id,
                     'nomeMaquina': sale.station.name,
                     'maquinaCod': sale.station.code,
-                    'isTaxa': None,  # ???????????????
-                    'isRepique': None,  # ??????????
-                    'isGorjeta': None,  # ???????
+                    'isTaxa': None,
+                    'isRepique': None,
+                    'isGorjeta': None,
                     'isEntrega': None,
                 })
             payments = []
             for payment in sale.group.payments:
                 payments.append({
                     'id': payment.method.id,
-                    'codigo': payment.method.id,
+                    'codigo': None,
                     'descricao': payment.method.method_name,
-                    'valor': float(payment.value),
-                    'troco': 0,
-                    'valorRecebido': float(payment.paid_value),
-                    'idAtendente': sale.salesperson.id,
+                    'valor': float(payment.base_value),
+                    'troco': float(payment.base_value - payment.value),
+                    'valorRecebido': float(payment.value),
+                    'idAtendente': sale.salesperson.person.login_user.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
                 })
@@ -621,7 +615,7 @@ class B1FoodReceiptsResource(BaseResource):
                 'valor': float(sale.total_amount),
                 'maquinaId': sale.station.id,
                 'desconto': float(sale.discount_value or 0),
-                'acrescimo': 0,
+                'acrescimo': float(sale.surcharge_value or 0),
                 'chaveNfe': sale.invoice.key,
                 'dataContabil': sale.confirm_date.strftime('%Y-%m-%d'),
                 'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
@@ -629,7 +623,7 @@ class B1FoodReceiptsResource(BaseResource):
                 'troco': 0,
                 'pagamentos': float(sale.paid),
                 'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-                'cancelado': True if sale.cancel_date else False,
+                'cancelado': sale.status == Sale.STATUS_CANCELLED,
                 'detalhes': items,
                 'meios': payments,
             }
@@ -650,13 +644,13 @@ class B1FoodTillResource(BaseResource):
 
         request_branches = data.get('lojas')
 
-        acronyms = _get_acronyms(request_branches)
+        branch_ids = _parse_request_list(request_branches)
         tables = [Till]
         query = None
 
-        if len(acronyms) > 0:
+        if len(branch_ids) > 0:
             tables.append(Join(Branch, Till.branch_id == Branch.id))
-            query = Branch.acronym.is_in(acronyms)
+            query = Branch.id.is_in(branch_ids)
 
         if query:
             tills = store.using(*tables).find(Till, query)
@@ -776,6 +770,62 @@ class B1FoodDiscountCategoryResource(BaseResource):
                 'nome': category.name,
                 'redeId': network['id'],
                 'lojaId': None
+            })
+
+        return response
+
+
+class B1FoodLoginUserResource(BaseResource):
+    method_decorators = [b1food_login_required, store_provider]
+    routes = ['/b1food/terceiros/restful/funcionarios']
+
+    def get(self, store):
+        data = request.args
+        log.debug("query string: %s, header: %s, body: %s",
+                  data, request.headers, self.get_json())
+
+        request_branches = data.get('lojas')
+        branch_ids = _parse_request_list(request_branches)
+
+        active_users = LoginUser.get_active_users(store)
+
+        user_access_list = []
+        if len(branch_ids) > 0:
+            for user in active_users:
+                associeted_branches = user.get_associated_branches()
+                for user_access in associeted_branches:
+                    if user_access.branch.id in branch_ids:
+                        user_access_list.append(user_access)
+        else:
+            for user in active_users:
+                for user_access in user.get_associated_branches():
+                    user_access_list.append(user_access)
+
+        response = []
+        for user_access in user_access_list:
+            name = user_access.user.person.name
+            if ' ' in name:
+                firstname, lastname = name.split(' ', maxsplit=1)
+            else:
+                firstname = name
+                lastname = ''
+            profile = user_access.user.profile
+            network = _get_network_info()
+
+            response.append({
+                'id': user_access.user.id,
+                'codigo': user_access.user.username,
+                'dataAlteracao': None,
+                'dataCriacao': None,
+                'primeiroNome': firstname,
+                'sobrenome': lastname,
+                'apelido': firstname,
+                'idCargo': profile.id if profile else None,
+                'codCargo': profile.id if profile else None,
+                'nomeCargo': profile.name if profile else None,
+                'redeId': network['id'],
+                'lojaId': user_access.branch.id,
+                'dtContratacao': None,
             })
 
         return response
