@@ -1,3 +1,9 @@
+stoq-server (2.1.2) xenial; urgency=medium
+
+  * Release 2.1.2
+
+ -- Luis Tadashi Oishi <luis.shi@gmail.com>  Fri, 18 Dec 2020 14:24:17 -0300
+
 stoq-server (2.0.0~beta1) xenial; urgency=medium
 
   * Release 2.0.0~beta1
