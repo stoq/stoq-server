@@ -1,0 +1,432 @@
+{
+	"info": {
+		"_postman_id": "c61d6cb0-68da-4b44-a8d6-b5bbe365f0af",
+		"name": "B1Food",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Login / Get token",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{stoq_api_url}}/{{stoq_instance}}/{{api_name}}/oauth/authenticate?client_id={{client_id}}&response_type=token",
+					"host": [
+						"{{stoq_api_url}}"
+					],
+					"path": [
+						"{{stoq_instance}}",
+						"{{api_name}}",
+						"oauth",
+						"authenticate"
+					],
+					"query": [
+						{
+							"key": "client_id",
+							"value": "{{client_id}}"
+						},
+						{
+							"key": "response_type",
+							"value": "token"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Item Venda",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/itemvenda?Authorization=Bearer {{token}}&dtinicio=2020-12-04&dtfim=2020-12-05",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"itemvenda"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						},
+						{
+							"key": "dtinicio",
+							"value": "2020-12-04"
+						},
+						{
+							"key": "dtfim",
+							"value": "2020-12-05"
+						},
+						{
+							"key": "lojas",
+							"value": "",
+							"disabled": true
+						},
+						{
+							"key": "consumidores",
+							"value": "",
+							"disabled": true
+						},
+						{
+							"key": "operacaocupom",
+							"value": "",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Centros Renda",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/centrosrenda?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"centrosrenda"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Terminais",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/terminais?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"terminais"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						},
+						{
+							"key": "lojas",
+							"value": null,
+							"disabled": true
+						},
+						{
+							"key": "ativo",
+							"value": null,
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Movimento Caixa",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/movimentocaixa?Authorization=Bearer {{token}}&dtinicio=2020-12-01&dtfim=2020-12-05",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"movimentocaixa"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						},
+						{
+							"key": "dtinicio",
+							"value": "2020-12-01"
+						},
+						{
+							"key": "dtfim",
+							"value": "2020-12-05"
+						},
+						{
+							"key": "lojas",
+							"value": null,
+							"disabled": true
+						},
+						{
+							"key": "consumidores",
+							"value": null,
+							"disabled": true
+						},
+						{
+							"key": "operacaocupom",
+							"value": null,
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Meio Pagamento",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/meio-pagamento?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"meio-pagamento"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						},
+						{
+							"key": "ativo",
+							"value": null,
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Cargos",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/cargos?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"cargos"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Rede-Loja",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/rede-loja?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"rede-loja"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						},
+						{
+							"key": "ativo",
+							"value": null,
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Tipos Descontos",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/tiposdescontos?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"tiposdescontos"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Funcionarios",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/funcionarios?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"funcionarios"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						},
+						{
+							"key": "lojas",
+							"value": null,
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Material",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{api_url}}/{{instance}}/{{api_name}}/terceiros/restful/funcionarios?Authorization=Bearer {{token}}",
+					"host": [
+						"{{api_url}}"
+					],
+					"path": [
+						"{{instance}}",
+						"{{api_name}}",
+						"terceiros",
+						"restful",
+						"funcionarios"
+					],
+					"query": [
+						{
+							"key": "Authorization",
+							"value": "Bearer {{token}}"
+						},
+						{
+							"key": "lojas",
+							"value": null,
+							"disabled": true
+						},
+						{
+							"key": "ativo",
+							"value": "",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "api_url",
+			"value": "https://app.stoq.link:6971"
+		},
+		{
+			"key": "instance",
+			"value": "sandbox"
+		},
+		{
+			"key": "api_name",
+			"value": "b1food"
+		},
+		{
+			"key": "client_id",
+			"value": ""
+		},
+		{
+			"key": "token",
+			"value": ""
+		}
+	]
+}

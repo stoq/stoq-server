@@ -1,0 +1,1527 @@
+{
+	"info": {
+		"_postman_id": "c3abf9d5-5206-4fed-877a-9a31ed4fcd76",
+		"name": "StoqCloud",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Token",
+			"item": [
+				{
+					"name": "Create Token",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "user",
+									"value": "{{user}}",
+									"type": "text"
+								},
+								{
+									"key": "pw_hash",
+									"value": "{{password}}",
+									"type": "text"
+								},
+								{
+									"key": "station_name",
+									"value": "{{station_name}}",
+									"type": "text"
+								}
+							],
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/login",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Token",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "token",
+									"value": "JWT {{access_token}}",
+									"type": "text"
+								}
+							],
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/logout",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Create",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sellable_id\":\"fb196ac6-4012-438f-8058-2674490a9950\",\n  \"barcode\": \"5010106111536\",\n  \"description\": \"Whisky Ballantine's Finest 750ml\",\n  \"base_price\": \"87.50\",\n  \"product\": {}\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sellable",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sellable"
+							]
+						},
+						"description": "Pré-cria um produto com status closed, reserva o sellable_id e barcode para um produto novo.\nO status deixará de ser closed quando os dados fiscais forem incluidos por outro processo."
+					},
+					"response": []
+				},
+				{
+					"name": "Update",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"available\",\n  \"base_price\": 10.50\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sellable/{{sellable_id}}/override/{{branch_id}}",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sellable",
+								"{{sellable_id}}",
+								"override",
+								"{{branch_id}}"
+							]
+						},
+						"description": "Atualiza o preço e disponibilidade de um produto `sellable_id` em uma filial `branch_id`"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Data",
+			"item": [
+				{
+					"name": "data",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/data",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"data"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				}
+			]
+		},
+		{
+			"name": "Client",
+			"item": [
+				{
+					"name": "Create Client",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"client_name\": \"{{client_name}}\",\n\t\"client_document\": \"{{cpf}}\",\n\t\"city_location\":{\n\t\t\"country\": \"{{country}}\",\n\t\t\"state\": \"{{state}}\",\n\t\t\"city\": \"{{city}}\"\n\t},\n\t\"address\": {\n\t\t\"street\": \"{{street}\",\n\t\t\"streetnumber\": {{streetnumber}},\n\t\t\"district\": \"{{district}}\",\n\t\t\"postal_code\": \"{{postal_code}}\",\n\t\t\"is_main_address\": true\n\t}\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/client",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"client"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get by category",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"category_name\": \"Especial\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/client",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"client"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get by doc",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/client?doc={{cpf}}",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"client"
+							],
+							"query": [
+								{
+									"key": "doc",
+									"value": "{{cpf}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Sale",
+			"item": [
+				{
+					"name": "Get",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale/{{sale_id}}",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale",
+								"{{sale_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Conta Azul",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale/{{sale_id}}",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale",
+								"{{sale_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sale_id\": \"{{$guid}}\",\n  \"coupon_document\": \"{{cpf}}\",\n  \"client_document\": \"{{cpf}}\",\n  \"client_id\": \"{{client_id}}\",\n  \"client_name\": \"{{client_name}}\",\n  \"products\": [\n    {\n      \"id\": \"f743282c-dece-11e9-8d02-340286b230a4\",\n      \"price\": \"10\",\n      \"quantity\": 1\n    }\n  ],\n  \"payments\": [\n    { \"method\": \"card\", \"card_type\": \"credit\", \"provider\": \"MASTER\", \"value\": 10.00 }\n  ],\n  \"price_table\": null,\n  \"external_order_id\": null,\n  \"print_receipts\": false,\n  \"discount_value\": 0\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Copy",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sale_id\": \"{{$guid}}\",\n    \"client_id\": \"{{client_id}}\",\n    \"products\": [\n        {\n            \"id\": \"c87bef72-a8c5-4e96-890e-7137579865ca\",\n            \"price\": \"10.00\",\n            \"quantity\": 1\n        }\n    ],\n    \"payments\": [\n        {\n            \"method\": \"card\",\n            \"card_type\": \"credit\",\n            \"provider\": \"Visa\",\n            \"value\": 10\n        }\n    ],\n    \"price_table\": null,\n    \"external_order_id\": null,\n    \"print_receipts\": false,\n    \"discount_value\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Copy Copy",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"sale_id\": \"{{$guid}}\",\n    \"client_id\": \"{{client_id}}\",\n    \"products\": [\n        {\n            \"id\": \"c87bef72-a8c5-4e96-890e-7137579865ca\",\n            \"price\": \"10.00\",\n            \"quantity\": 1\n        }\n    ],\n    \"payments\": [\n        {\n            \"method\": \"card\",\n            \"card_type\": \"credit\",\n            \"provider\": \"Visa\",\n            \"value\": 10\n        }\n    ],\n    \"price_table\": null,\n    \"external_order_id\": null,\n    \"print_receipts\": false,\n    \"discount_value\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create with Address",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "",
+								"value": "",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sale_id\": \"{{$guid}}\",\n  \"coupon_document\": \"{{cpf}}\",\n  \"client_document\": \"{{cpf}}\",\n  \"client_name\": \"{{client_name}}\",\n  \"city_location\":{\n\t\t\"country\": \"{{country}}\",\n\t\t\"state\": \"{{state}}\",\n\t\t\"city\": \"{{city}}\"\n\t},\n\t\"address\": {\n\t\t\"street\": \"{{street}}\",\n\t\t\"streetnumber\": \"{{streetnumber}}\",\n\t\t\"district\": \"{{district}}\",\n\t\t\"postal_code\": \"{{postal_code}}\",\n\t\t\"is_main_address\": true\n\t},\n  \"products\": [\n    {\n      \"id\": \"b4d4ccb7-75d7-11ea-8ccf-b285fb9a2a4e\",\n      \"price\": \"23.99\",\n      \"quantity\": 1\n    },\n    {\n      \"id\": \"b4d4ccb2-75d7-11ea-8ccf-b285fb9a2a4e\",\n      \"price\": \"5.99\",\n      \"quantity\": 1\n    }\n  ],\n  \"payments\": [\n    { \"method\": \"card\", \"card_type\": \"credit\", \"provider\": \"MASTER\", \"value\": 5 },\n    { \"method\": \"money\", \"value\": 20.98 },\n    { \"method\": \"card\", \"card_type\": \"credit\", \"provider\": \"IFOOD\", \"value\": 4 }\n  ],\n  \"price_table\": null,\n  \"external_order_id\": null,\n  \"print_receipts\": false,\n  \"discount_value\": 0\n}\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Coupon Image",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale/{{sale_id}}/coupon",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale",
+								"{{sale_id}}",
+								"coupon"
+							]
+						},
+						"description": "to visualize the image build a dataurl that is \"data:image/png;base64,\" + the contents of image response"
+					},
+					"response": []
+				},
+				{
+					"name": "Send coupon via SMS",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"phone_number\": \"16991599297\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale/{{sale_id}}/send_coupon_sms",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale",
+								"{{sale_id}}",
+								"send_coupon_sms"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Print coupon",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/sale/3059d46c-0cc7-4db0-8419-279161b9371f/print_coupon",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"sale",
+								"3059d46c-0cc7-4db0-8419-279161b9371f",
+								"print_coupon"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmY3oiLCJzdGF0aW9uX2lkIjoiMzVhYjE5MzAtNzM3Yi0xMWVhLThiN2ItYjI4NWZiOWEyYTRlIiwidXNlcl9pZCI6ImUxODkwYzhhLTczODItMTFlYS04YjdiLWIyODVmYjlhMmE0ZSIsImlhdCI6MTU4NjM2NjcwMywiaXNzIjoiU3RvcSBUZWNub2xvZ2lhIn0.pzda9xg_O-gs0rWk5kIg0bdivihPmMN9asHPUsdQhSo",
+						"type": "string"
+					}
+				]
+			}
+		},
+		{
+			"name": "Image",
+			"item": [
+				{
+					"name": "Get",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/image/3059d46c-0cc7-4db0-8419-279161b9371f?is_main=true&keyword=null",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"image",
+								"3059d46c-0cc7-4db0-8419-279161b9371f"
+							],
+							"query": [
+								{
+									"key": "is_main",
+									"value": "true"
+								},
+								{
+									"key": "keyword",
+									"value": "null"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Ping",
+			"item": [
+				{
+					"name": "Create",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/ping",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"ping"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Other",
+			"item": [
+				{
+					"name": "TEF",
+					"item": [
+						{
+							"name": "Reply",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\t\"value\": \"error\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/tef/reply",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"tef",
+										"reply"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Abort",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/tef/abort",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"tef",
+										"abort"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Start sale reversal",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/tef/StartTefSaleVoidEvent",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"tef",
+										"StartTefSaleVoidEvent"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin actions",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\t\"origin\": \"\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/tef/StartTefAdminEvent",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"tef",
+										"StartTefAdminEvent"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Start sale",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\t\"value\": 0,\n\t\"card_type\": \"credit\",\n\t\"sale_ref\": \"{{%$guid}}\",\n\t\"date_ref\": \"2020-02-01\",\n\t\"hour_ref\": \"12:00\",\n\t\"user\": \"fcz\",\n\t\"provider\": null\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/tef/StartTefSaleEvent",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"tef",
+										"StartTefSaleEvent"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gererate ale summary",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/tef/StartTefSaleSummaryEvent",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"tef",
+										"StartTefSaleSummaryEvent"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmY3oiLCJzdGF0aW9uX2lkIjoiMzVhYjE5MzAtNzM3Yi0xMWVhLThiN2ItYjI4NWZiOWEyYTRlIiwidXNlcl9pZCI6ImUxODkwYzhhLTczODItMTFlYS04YjdiLWIyODVmYjlhMmE0ZSIsImlhdCI6MTU4NjM2NjcwMywiaXNzIjoiU3RvcSBUZWNub2xvZ2lhIn0.pzda9xg_O-gs0rWk5kIg0bdivihPmMN9asHPUsdQhSo",
+								"type": "string"
+							}
+						]
+					}
+				},
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Check permission",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\t\"user\": \"{{user}}\",\n\t\"pw_hash\": \"{{password}}\",\n\t\"permission\": \"admin\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/auth",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"auth"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Till",
+					"item": [
+						{
+							"name": "Status",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": ""
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/till",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"till"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Open",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"operation\": \"open_till\",\n    \"initial_cash_amount\": 10\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/till",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"till"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Close",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\t\"operation\": \"close_till\",\n\t\"till_summaries\": [{\n\t\t\"method\": \"money\", \"provider\": \"\", \"card_type\": \"\", \"user_value\": \"10.00\"\n\t}],\n\t\"include_receipt_image\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/till",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"till"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Credit entry",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\t\"operation\": \"credit_entry\",\n\t\"entry_value\": \"10\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/till",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"till"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Debit entry",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\t\"operation\": \"debit_entry\",\n\t\"entry_value\": \"10\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/till",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"till"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Advance Payment",
+					"item": [
+						{
+							"name": "Create",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"sale_id\": \"{% uuid 'v4' %}\",\n  \"coupon_document\": null,\n  \"client_document\": \"447.355.478-35\",\n  \"client_id\": \"ead86cac-3734-11ea-bc3e-f159d4c05feb\",\n  \"client_name\": \"Filipe Mariano Freire da Silva\",\n  \"products\": [\n    {\n      \"id\": \"advance-payment-20\",\n      \"price\": \"20.00\",\n      \"quantity\": 1\n    }\n  ],\n  \"payments\": [{ \"method\": \"money\", \"value\": 20 }],\n  \"price_table\": null,\n  \"external_order_id\": null,\n  \"print_receipts\": true,\n  \"order_number\": null,\n  \"discount_value\": 0,\n  \"passbook_client_info\": {\n    \"user\": {\n      \"name\": \"Rafael Redivo\",\n      \"position\": \"3\",\n      \"uniqueId\": \"44339349844\",\n      \"nextLevel\": \"3\"\n    },\n    \"email\": \"@gmail.com\",\n    \"points\": 140,\n    \"type\": [\"prepaid\", \"points\"],\n    \"hasPinNumber\": \"true\",\n    \"hasPassbookError\": false\n  }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/advance_payment",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"advance_payment"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Event Stream",
+					"item": [
+						{
+							"name": "Get",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true,
+								"followAuthorizationHeader": false
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "file",
+									"file": {}
+								},
+								"url": {
+									"raw": "{{api_url}}/{{instance}}/stream",
+									"host": [
+										"{{api_url}}"
+									],
+									"path": [
+										"{{instance}}",
+										"stream"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "instance",
+			"value": "sandbox"
+		},
+		{
+			"key": "user",
+			"value": "jcosta"
+		},
+		{
+			"key": "password",
+			"value": "5f4dcc3b5aa765d61d8327deb882cf99"
+		},
+		{
+			"key": "access_token",
+			"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdGF0aW9uX2lkIjoiMWQyNTc0ZGMtZjQ1OS0xMWVhLTlhZGYtZDJmMzgzNWM5NDMzIiwiaWF0IjoxNTk5ODUwODgwLCJ1c2VyX2lkIjoiYTgyMGVhMjAtZjQ1Yy0xMWVhLTlhZGYtZDJmMzgzNWM5NDMzIiwiaXNzIjoiU3RvcSBUZWNub2xvZ2lhIiwic3ViIjoiamNvc3RhIn0.o3KZo5esWoJX3Qs01zMG1tjFK_REMCCwRG1B40LqZrU"
+		},
+		{
+			"key": "station_name",
+			"value": "jcosta"
+		},
+		{
+			"key": "sale_id",
+			"value": "4b885be1-568f-4beb-9ba0-8ee8bb851b5e"
+		},
+		{
+			"key": "cpf",
+			"value": "794.648.958-70"
+		},
+		{
+			"key": "client_id",
+			"value": "a189d8d8-f465-11ea-9adf-d2f3835c9433"
+		},
+		{
+			"key": "client_name",
+			"value": "Cliente Teste"
+		},
+		{
+			"key": "street",
+			"value": "Rua Aquidaban"
+		},
+		{
+			"key": "streetnumber",
+			"value": "1"
+		},
+		{
+			"key": "district",
+			"value": "Centro"
+		},
+		{
+			"key": "postal_code",
+			"value": "13560-120"
+		},
+		{
+			"key": "country",
+			"value": "Brazil"
+		},
+		{
+			"key": "state",
+			"value": "SP"
+		},
+		{
+			"key": "city",
+			"value": "São Carlos"
+		},
+		{
+			"key": "api_url",
+			"value": "https://app.stoq.link:6971"
+		},
+		{
+			"key": "sellable_id",
+			"value": "fb196ac6-4012-438f-8058-2674490a9950"
+		},
+		{
+			"key": "branch_id",
+			"value": "65971281-f458-11ea-9adf-d2f3835c9433"
+		}
+	]
+}
