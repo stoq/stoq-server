@@ -40,6 +40,7 @@ stoqsat = "^1.0.1"
 stoqpassbook = "^1.0.1"
 stoqimendes = "^1.1"
 stoqsitef = "^1.22"
+stoqconector = "^0.10.1"
 
 # pypi packages
 blinker = "^1.3"

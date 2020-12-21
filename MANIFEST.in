@@ -1,5 +1,6 @@
 recursive-include stoqserver *.py
 recursive-include * *.po *.mo *.pot POTFILES.list
+recursive-include bin/*
 include data/udev/10-stoq.rules
 include data/sudoers.d/stoqserver
 include data/supervisor/stoqserver.conf
