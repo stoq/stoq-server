@@ -24,6 +24,7 @@ def sale(example_creator, current_user, current_station):
     test_sale.branch = current_station.branch
     test_sale.open_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
     test_sale.confirm_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
+    test_sale.invoice.key = '33200423335270000159650830000000181790066862'
     sale_item = example_creator.create_sale_item(test_sale)
     sale_item.price = 10
     sale_item.base_price = 15
@@ -37,6 +38,64 @@ def sale(example_creator, current_user, current_station):
     person.login_user = current_user
     test_sale.salesperson.person = person
     payment = example_creator.create_payment(group=test_sale.group)
+    payment.payment_type = Payment.TYPE_IN
+    payment.paid_value = 10
+    sale_item.icms_info.v_icms = 1
+    sale_item.icms_info.p_icms = 18
+
+    return test_sale
+
+
+@pytest.fixture
+def sale_with_cnpj(example_creator, current_user, current_station):
+    test_sale = example_creator.create_sale()
+    test_sale.branch = current_station.branch
+    test_sale.open_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
+    test_sale.confirm_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
+    sale_item = example_creator.create_sale_item(test_sale)
+    sale_item.price = 10
+    sale_item.base_price = 15
+    sellable_category = example_creator.create_sellable_category(description='Category 1')
+    sale_item.sellable.category = sellable_category
+    sale_item.sellable.code = '1111111111111'
+    client = example_creator.create_client()
+    company = example_creator.create_company()
+    company.cnpj = '35.600.423/0001-27'
+    client.person.individual = None
+    test_sale.client = client
+    test_sale.client.person.company = company
+    person = example_creator.create_person()
+    person.login_user = current_user
+    test_sale.salesperson.person = person
+    payment = example_creator.create_payment(group=test_sale.group)
+    payment.payment_type = Payment.TYPE_IN
+    payment.paid_value = 10
+    sale_item.icms_info.v_icms = 1
+    sale_item.icms_info.p_icms = 18
+
+    return test_sale
+
+
+@pytest.fixture
+def sale_type_out(example_creator, current_user, current_station):
+    test_sale = example_creator.create_sale()
+    test_sale.branch = current_station.branch
+    test_sale.open_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
+    test_sale.confirm_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
+    sale_item = example_creator.create_sale_item(test_sale)
+    sale_item.price = 10
+    sale_item.base_price = 15
+    sellable_category = example_creator.create_sellable_category(description='Category 1')
+    sale_item.sellable.category = sellable_category
+    sale_item.sellable.code = '1111111111111'
+    client = example_creator.create_client()
+    client.person.individual.cpf = '737.948.760-40'
+    test_sale.client = client
+    person = example_creator.create_person()
+    person.login_user = current_user
+    test_sale.salesperson.person = person
+    payment = example_creator.create_payment(group=test_sale.group)
+    payment.payment_type = Payment.TYPE_OUT
     payment.paid_value = 10
     sale_item.icms_info.v_icms = 1
     sale_item.icms_info.p_icms = 18
@@ -276,8 +335,8 @@ def test_get_sale_item_with_lojas_arg(get_config_mock, b1food_client, current_st
 
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_sale_item_with_lojas_as_list_arg(get_config_mock, b1food_client,
-                                              current_station, sale):
+def test_get_sale_item_with_lojas_filter(get_config_mock, b1food_client,
+                                         current_station, sale):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
@@ -293,7 +352,7 @@ def test_get_sale_item_with_lojas_as_list_arg(get_config_mock, b1food_client,
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_sale_item_with_consumidores_as_list_arg(get_config_mock, b1food_client):
+def test_get_sale_item_with_consumidores_filter(get_config_mock, b1food_client):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
@@ -309,16 +368,13 @@ def test_get_sale_item_with_consumidores_as_list_arg(get_config_mock, b1food_cli
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_sale_item_with_operacaocupom_as_list_arg(get_config_mock, b1food_client):
+def test_get_sale_item_with_operacaocupom_filter(get_config_mock, b1food_client):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-01',
-        'operacaocupom': [
-            'a25dd1ad-7dae-11ea-b5ac-b285fb9a2a4e',
-            '21b5a545-7aa1-11ea-b5ac-b285fb9a2a4e'
-        ]
+        'operacaocupom': ['33200423335270000159650830000000181790066862']
     }
     response = b1food_client.get('b1food/terceiros/restful/itemvenda',
                                  query_string=query_string)
@@ -395,12 +451,8 @@ def test_get_sale_item_successfully(get_config_mock, get_network_info,
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
 def test_get_sale_item_with_cnpj_client_successfully(get_config_mock, b1food_client,
-                                                     store, example_creator, sale):
+                                                     store, example_creator, sale_with_cnpj):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
-    sale.client.person.individual = None
-    company = example_creator.create_company()
-    company.cnpj = '35.600.423/0001-27'
-    sale.client.person.company = company
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01',
@@ -569,8 +621,8 @@ def test_get_sellables_from_branch(get_config_mock, get_network_info, b1food_cli
 
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_payment_with_lojas_as_list_arg(get_config_mock, b1food_client, store,
-                                            current_station, sale):
+def test_get_payment_with_lojas_filter(get_config_mock, b1food_client, store,
+                                       current_station, sale):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
@@ -589,7 +641,7 @@ def test_get_payment_with_lojas_as_list_arg(get_config_mock, b1food_client, stor
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_payment_with_consumidores_as_list_arg(get_config_mock, b1food_client):
+def test_get_payment_with_consumidores_filter(get_config_mock, b1food_client):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
@@ -605,15 +657,14 @@ def test_get_payment_with_consumidores_as_list_arg(get_config_mock, b1food_clien
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_payment_with_operacaocupom_as_list_arg(get_config_mock, b1food_client):
+def test_get_payment_with_operacaocupom_filter(get_config_mock, b1food_client):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-01',
         'operacaocupom': [
-            'a25dd1ad-7dae-11ea-b5ac-b285fb9a2a4e',
-            '21b5a545-7aa1-11ea-b5ac-b285fb9a2a4e'
+            '33200423335270000159650830000000181790066862'
         ]
     }
     response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
@@ -626,16 +677,12 @@ def test_get_payment_with_operacaocupom_as_list_arg(get_config_mock, b1food_clie
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
 def test_get_payment_with_cnpj_client_successfully(get_config_mock, b1food_client,
-                                                   store, example_creator, sale):
+                                                   store, example_creator, sale_with_cnpj):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
-    sale.client.person.individual = None
-    company = example_creator.create_company()
-    company.cnpj = '35.600.423/0001-27'
-    sale.client.person.company = company
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01',
-        'dtfim': '2020-01-03'
+        'dtfim': '2020-01-03',
     }
     response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
                                  query_string=query_string)
@@ -691,7 +738,7 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
                     'tipo': 'CPF'
                 }
             ],
-            'dataContabil': '2020-01-02 00:00:00 ',
+            'dataContabil': '2020-01-02 00:00:00 -0300',
             'hora': '00',
             'idAtendente': salesperson.person.login_user.id,
             'idMovimentoCaixa': sale.id,
@@ -705,9 +752,10 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
                     'id': payment.method.id,
                     'codigo': None,
                     'nome': payment.method.method_name,
-                    'valor': payment.base_value,
-                    'troco': payment.base_value - payment.value,
-                    'valorRecebido': payment.value,
+                    'descricao': payment.method.method_name,
+                    'valor': float(payment.paid_value),
+                    'troco': float(payment.base_value - payment.value),
+                    'valorRecebido': float(payment.value),
                     'idAtendente': sale.salesperson.person.login_user.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
@@ -719,16 +767,35 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
             'operacaoId': sale.id,
             'rede': network['name'],
             'redeId': network['id'],
-            'vlAcrescimo': sale.surcharge_value,
-            'vlTotalReceber': sale.total_amount,
-            'vlTotalRecebido': sale.group.get_total_paid(),
-            'vlDesconto': sale.discount_value,
+            'vlAcrescimo': 0.0,
+            'vlTotalReceber': 0.0,
+            'vlTotalRecebido': 10.0,
+            'vlDesconto': 0.0,
             'vlRepique': 0,
             'vlServicoRecebido': 0,
             'vlTaxaEntrega': 0,
             'vlTrocoFormasPagto': 0
         },
     ]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_with_type_out(get_config_mock, b1food_client,
+                                   store, example_creator, sale_type_out):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03',
+    }
+
+    with pytest.raises(Exception) as error:
+        response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                     query_string=query_string)
+
+        assert response.status_code == 500
+        assert "Inconsistent database, please contact support." in str(error.value)
 
 
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
@@ -749,7 +816,7 @@ def test_get_stations_successfully(get_config_mock, get_network_info,
 
     assert res_item == [
         {
-            'apelido': active_station.name,
+            'apelido': None,
             'ativo': active_station.is_active,
             'codigo': active_station.code,
             'id': active_station.id,
@@ -782,7 +849,7 @@ def test_get_inactive_stations(get_config_mock, get_network_info,
 
     assert res_item == [
         {
-            'apelido': inactive_station.name,
+            'apelido': None,
             'ativo': inactive_station.is_active,
             'codigo': inactive_station.code,
             'id': inactive_station.id,
@@ -820,7 +887,7 @@ def test_get_active_stations_from_branch(get_config_mock, get_network_info, b1fo
     assert len(res) == 1
     assert res == [
         {
-            'apelido': active_station.name,
+            'apelido': None,
             'ativo': active_station.is_active,
             'codigo': active_station.code,
             'id': active_station.id,
@@ -905,7 +972,7 @@ def test_get_receipts_with_operacaocupom_filter(get_config_mock, b1food_client, 
         'Authorization': 'Bearer B1FoodClientId',
         'dtinicio': '2020-01-01',
         'dtfim': '2020-01-03',
-        'operacaocupom': [sale.invoice_id]
+        'operacaocupom': [sale.invoice.key]
     }
     response = b1food_client.get('b1food/terceiros/restful/comprovante',
                                  query_string=query_string)
@@ -970,35 +1037,33 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
             'denominacao': sale.invoice.mode,
             'valor': sale.total_amount,
             'maquinaId': sale.station.id,
-            'desconto': sale.discount_value,
+            'desconto': float(sale.discount_value),
             'acrescimo': sale.surcharge_value,
             'chaveNfe': sale.invoice.key,
             'dataContabil': sale.confirm_date.strftime('%Y-%m-%d'),
-            'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'idOperacao': sale.id,
             'troco': 0,
             'pagamentos': sale.paid,
-            'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+            'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'cancelado': True if sale.cancel_date else False,
             'detalhes': [
                 {
                     'ordem': None,
                     'idMaterial': item.sellable.id,
                     'codigo': item.sellable.code,
-                    'desconto': item.item_discount,
+                    'desconto': float(item.item_discount),
                     'descricao': item.sellable.description,
-                    'quantidade': item.quantity,
-                    'valorBruto': item.base_price * item.quantity,
-                    'valorUnitario': item.base_price,
-                    'valorUnitarioLiquido': item.price,
-                    'valorLiquido': item.price * item.quantity,
-                    'aliquota': item.icms_info.p_icms,
-                    'baseIcms': item.icms_info.v_icms,
+                    'quantidade': float(item.quantity),
+                    'valorBruto': float(item.base_price * item.quantity),
+                    'valorUnitario': float(item.base_price),
+                    'valorUnitarioLiquido': float(item.price),
+                    'valorLiquido': float(item.price * item.quantity),
                     'codNcm': item.sellable.product.ncm,
                     'idOrigem': None,
                     'codOrigem': None,
                     'cfop': str(item.cfop.code),
-                    'acrescimo': None,
+                    'acrescimo': 0.0,
                     'cancelado': True if sale.cancel_date else False,
                     'maquinaId': sale.station.id,
                     'nomeMaquina': sale.station.name,
@@ -1013,10 +1078,11 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
                 {
                     'id': payment.method.id,
                     'codigo': None,
+                    'nome': payment.method.method_name,
                     'descricao': payment.method.method_name,
-                    'valor': payment.base_value,
-                    'troco': payment.base_value - payment.value,
-                    'valorRecebido': payment.value,
+                    'valor': float(payment.paid_value),
+                    'troco': float(payment.base_value - payment.value),
+                    'valorRecebido': float(payment.value),
                     'idAtendente': sale.salesperson.person.login_user.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
@@ -1087,7 +1153,7 @@ def test_get_payment_methods(get_config_mock, get_network_info,
     assert res_item == [{
         'ativo': payment_method.is_active,
         'id': payment_method.id,
-        'codigo': payment_method.id,
+        'codigo': None,
         'nome': payment_method.method_name,
         'redeId': network['id'],
         'lojaId': None
@@ -1117,7 +1183,7 @@ def test_get_payment_methods_active(get_config_mock, get_network_info,
     assert res[0] == {
         'ativo': payment_method_active.is_active,
         'id': payment_method_active.id,
-        'codigo': payment_method_active.id,
+        'codigo': None,
         'nome': payment_method_active.method_name,
         'redeId': network['id'],
         'lojaId': None
@@ -1139,48 +1205,7 @@ def test_get_tills_successfully(get_config_mock, get_network_info,
                                  query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
-    assert res == [
-        {
-            'ativo': True,
-            'id': close_till.id,
-            'codigo': str(close_till.identifier),
-            'dataCriacao': close_till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-            'dataAlteracao': close_till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-            'nome': '',
-            'redeId': network['id'],
-            'lojaId': close_till.branch.id
-        }
-    ]
-
-
-@mock.patch('stoqserver.api.resources.b1food._get_network_info')
-@mock.patch('stoqserver.api.decorators.get_config')
-@pytest.mark.usefixtures('mock_new_store')
-def test_get_tills_with_lojas(get_config_mock, get_network_info, b1food_client,
-                              close_till, current_station, network):
-    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
-    get_network_info.return_value = network
-    query_string = {
-        'Authorization': 'Bearer B1FoodClientId',
-        'lojas': current_station.branch_id
-    }
-
-    response = b1food_client.get('/b1food/terceiros/restful/periodos',
-                                 query_string=query_string)
-    res = json.loads(response.data.decode('utf-8'))
-
-    assert res == [
-        {
-            'ativo': True,
-            'codigo': str(close_till.identifier),
-            'dataCriacao': close_till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-            'dataAlteracao': close_till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-            'id': close_till.id,
-            'lojaId': close_till.branch_id,
-            'nome': '',
-            'redeId': network['id']
-        }
-    ]
+    assert res == []
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
@@ -1275,8 +1300,8 @@ def test_get_discount_categories_successfully(get_config_mock, get_network_info,
         'ativo': True,
         'id': client_category.id,
         'codigo': client_category.id,
-        'dataAlteracao': '',
-        'dataCriacao': '',
+        'dataCriacao': client_category.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'dataAlteracao': client_category.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
         'nome': client_category.name,
         'redeId': network['id'],
         'lojaId': None
@@ -1326,13 +1351,13 @@ def test_get_associated_branches_with_lojas_filter(get_config_mock, get_network_
         {
             'id': user_access.user.id,
             'codigo': user_access.user.username,
-            'dataAlteracao': None,
-            'dataCriacao': None,
+            'dataCriacao': user_access.user.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+            'dataAlteracao': user_access.user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'primeiroNome': 'Algum',
             'sobrenome': 'Nome Qualquer',
-            'apelido': 'Algum',
+            'apelido': None,
             'idCargo': profile.id if profile else None,
-            'codCargo': profile.id if profile else None,
+            'codCargo': None,
             'nomeCargo': profile.name if profile else None,
             'redeId': network['id'],
             'lojaId': user_access.branch.id,

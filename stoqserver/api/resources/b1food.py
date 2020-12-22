@@ -27,15 +27,21 @@ from datetime import datetime
 
 from flask import abort, make_response, jsonify, request
 from storm.expr import And, Join, LeftJoin, Ne, Or
+from storm.info import ClassAlias
 
+from stoqlib.domain.fiscal import Invoice, CfopData
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.payment.method import PaymentMethod
-from stoqlib.domain.person import (Branch, Company, Individual, LoginUser,
+from stoqlib.domain.payment.payment import Payment
+from stoqlib.domain.payment.group import PaymentGroup
+from stoqlib.domain.person import (Branch, Company, Individual, LoginUser, SalesPerson,
                                    Person, EmployeeRole, ClientCategory, Client)
-from stoqlib.domain.sale import Sale
-from stoqlib.domain.sellable import Sellable
+from stoqlib.domain.product import Product
+from stoqlib.domain.system import TransactionEntry
+from stoqlib.domain.sale import Sale, SaleItem
+from stoqlib.domain.sellable import Sellable, SellableCategory
 from stoqlib.domain.station import BranchStation
-from stoqlib.domain.till import Till
+from stoqlib.domain.taxes import InvoiceItemIcms
 from stoqlib.lib.configparser import get_config
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.parameters import sysparam
@@ -97,13 +103,31 @@ def _get_network_info():
     }
 
 
+def _get_payments_info(payments_list, login_user, sale):
+    payments = []
+    for payment in payments_list:
+        payments.append({
+            'id': payment.method.id,
+            'codigo': None,
+            'nome': payment.method.method_name,
+            'descricao': payment.method.method_name,
+            'valor': float(payment.base_value or 0),
+            'troco': float(payment.base_value - payment.value),
+            'valorRecebido': float(payment.value or 0),
+            'idAtendente': login_user.id,
+            'codAtendente': login_user.username,
+            'nomeAtendente': sale.salesperson.person.name,
+        })
+    return payments
+
+
 class B1foodLoginResource(BaseResource):
     routes = ['/b1food/oauth/authenticate']
 
     def get(self):
         data = request.args
         log.debug("/oauth/authenticate query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
         if 'client_id' not in data:
             abort(400, 'Missing client_id')
         client_id = data['client_id']
@@ -129,7 +153,7 @@ class IncomeCenterResource(BaseResource):
     def get(self):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
         return []
 
 
@@ -140,7 +164,7 @@ class B1FoodSaleItemResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
@@ -150,55 +174,97 @@ class B1FoodSaleItemResource(BaseResource):
 
         request_branches = data.get('lojas')
         request_documents = data.get('consumidores')
-        request_invoice_ids = data.get('operacaocupom')
+        request_invoice_keys = data.get('operacaocupom')
 
         branch_ids = _parse_request_list(request_branches)
         documents = _parse_request_list(request_documents)
-        invoice_ids = _parse_request_list(request_invoice_ids)
+        invoice_keys = _parse_request_list(request_invoice_keys)
 
         if data.get('usarDtMov') and data.get('usarDtMov') == '1':
-            query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
+            clauses = [Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date]
         else:
-            query = And(Sale.open_date >= initial_date, Sale.open_date <= end_date)
+            clauses = [Sale.open_date >= initial_date, Sale.open_date <= end_date]
 
-        tables = [Sale]
+        ClientPerson = ClassAlias(Person, 'person_client')
+        ClientIndividual = ClassAlias(Individual, 'individual_client')
+        ClientCompany = ClassAlias(Company, 'company_client')
 
-        if len(branch_ids) > 0 or len(documents) > 0:
-            tables.append(Join(Branch, Sale.branch_id == Branch.id))
+        SalesPersonPerson = ClassAlias(Person, 'person_sales_person')
+        SalesPersonIndividual = ClassAlias(Individual, 'individual_sales_person')
+
+        tables = [
+            Sale,
+            Join(Branch, Sale.branch_id == Branch.id),
+            LeftJoin(Client, Client.id == Sale.client_id),
+            Join(Person, Person.id == Client.person_id),
+            Join(BranchStation, Sale.station_id == BranchStation.id),
+            LeftJoin(ClientPerson, Client.person_id == ClientPerson.id),
+            LeftJoin(ClientIndividual, Client.person_id == ClientIndividual.person_id),
+            LeftJoin(Individual, Client.person_id == Individual.person_id),
+            LeftJoin(ClientCompany, Client.person_id == ClientCompany.person_id),
+            LeftJoin(Company, Client.person_id == Company.person_id),
+            LeftJoin(SalesPerson, SalesPerson.id == Sale.salesperson_id),
+            LeftJoin(SalesPersonPerson, SalesPerson.person_id == SalesPersonPerson.id),
+            LeftJoin(SalesPersonIndividual,
+                     SalesPerson.person_id == SalesPersonIndividual.person_id),
+            Join(LoginUser, LoginUser.person_id == SalesPerson.person_id),
+            Join(Invoice, Sale.invoice_id == Invoice.id),
+        ]
+
+        sale_item_tables = [
+            SaleItem,
+            Join(Sellable, SaleItem.sellable_id == Sellable.id),
+            Join(Product, SaleItem.sellable_id == Product.id),
+            LeftJoin(SellableCategory, Sellable.category_id == SellableCategory.id),
+            LeftJoin(TransactionEntry, SellableCategory.te_id == TransactionEntry.id)
+        ]
+
+        sale_objs = (Sale, ClientCompany, ClientIndividual, LoginUser, Branch, BranchStation,
+                     Client, ClientPerson, SalesPerson, SalesPersonPerson)
+
+        sale_items_objs = (SaleItem, Sellable, SellableCategory, Product, TransactionEntry)
 
         if len(branch_ids) > 0:
-            query = And(query, Branch.id.is_in(branch_ids))
+            clauses.append(Branch.id.is_in(branch_ids))
 
         if len(documents) > 0:
-            tables = tables + [Join(Client, Client.id == Sale.client_id),
-                               Join(Person, Person.id == Client.person_id),
-                               LeftJoin(Individual, Individual.person_id == Person.id),
-                               LeftJoin(Company, Company.person_id == Person.id)]
-            query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
+            clauses.append(Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
 
-        if len(invoice_ids) > 0:
-            query = And(query, Sale.invoice_id.is_in(invoice_ids))
+        if len(invoice_keys) > 0:
+            clauses.append(Invoice.key.is_in(invoice_keys))
 
         if data.get('cancelados') and data.get('cancelados') == '0':
-            query = And(query, Sale.status != Sale.STATUS_CANCELLED)
+            clauses.append(Sale.status != Sale.STATUS_CANCELLED)
 
-        # These args are sent but we do not have them on the domain 'redes'
+        data = list(store.using(*tables).find(sale_objs, And(*clauses)))
 
-        sales = store.using(*tables).find(Sale, query)
+        sale_ids = [i[0].id for i in data]
+        sale_items = list(store.using(*sale_item_tables).find(sale_items_objs,
+                                                              SaleItem.sale_id.is_in(sale_ids)))
+
+        sales = {}
+        for item in sale_items:
+            sales.setdefault(item[0].sale_id, [])
+            sales[item[0].sale_id].append(item[0])
 
         response = []
 
-        for sale in sales:
-            for item in sale.get_items():
+        for row in data:
+            sale, company, individual, login_user = row[:4]
+            for item in sales[sale.id]:
                 discount = item.item_discount
                 sellable = item.sellable
                 station = sale.station
                 salesperson = sale.salesperson
-                document = raw_document(sale.get_client_document() or "")
 
-                if len(document) == 11:
+                cpf = individual and individual.cpf
+                cnpj = company and company.cnpj
+
+                document = cpf or cnpj or ''
+
+                if cpf:
                     document_type = 'CPF'
-                elif len(document) == 14:
+                elif cnpj:
                     document_type = 'CNPJ'
                 else:
                     document_type = ''
@@ -226,15 +292,15 @@ class B1FoodSaleItemResource(BaseResource):
                     'descricao': sellable.description,
                     'grupo': _get_category_info(sellable),
                     'operacaoId': sale.id,
-                    'atendenteId': salesperson.person.login_user.id,
-                    'atendenteCod': salesperson.person.login_user.username,
+                    'atendenteId': login_user.id,
+                    'atendenteCod': login_user.username,
                     'atendenteNome': salesperson.person.name,
                     'isTaxa': False,
                     'isRepique': False,
                     'isGorjeta': False,
                     'isEntrega': False,  # FIXME maybe should be true if external order
                     'consumidores': [{
-                        'documento': document,
+                        'documento': raw_document(document),
                         'tipo': document_type
                     }],
                     'cancelado': sale.status == Sale.STATUS_CANCELLED,
@@ -254,7 +320,7 @@ class B1FoodSellableResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         request_available = data.get('ativo')
         request_branches = data.get('lojas')
@@ -262,9 +328,10 @@ class B1FoodSellableResource(BaseResource):
         branches = store.find(Branch, Branch.id.is_in(branch_ids))
 
         delivery = sysparam.get_object(store, 'DELIVERY_SERVICE')
-        sellables = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id))
         if request_available:
             sellables = Sellable.get_available_sellables(store)
+        else:
+            sellables = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id))
 
         network = _get_network_info()
         response = []
@@ -275,7 +342,7 @@ class B1FoodSellableResource(BaseResource):
                     'idMaterial': sellable.id,
                     'codigo': sellable.code,
                     'descricao': sellable.description,
-                    'unidade': sellable.unit,
+                    'unidade': sellable.unit and sellable.unit.description,
                     'dataAlteracao': sellable.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
                     'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
                     'redeId': network['id'],
@@ -296,7 +363,7 @@ class B1FoodSellableResource(BaseResource):
                             'idMaterial': sellable.id,
                             'codigo': sellable.code,
                             'descricao': sellable.description,
-                            'unidade': sellable.unit,
+                            'unidade': sellable.unit and sellable.unit.description,
                             'dataAlteracao': sellable.te.te_server.strftime(
                                 '%Y-%m-%d %H:%M:%S -0300'),
                             'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
@@ -317,10 +384,22 @@ class B1FoodPaymentsResource(BaseResource):
     method_decorators = [b1food_login_required, store_provider]
     routes = ['/b1food/terceiros/restful/movimentocaixa']
 
+    def _get_payments_sum(self, payments):
+        # FIXME We opted to not use sale.get_total_paid() to prevent extra queries
+        # We reimplemented this private method without out payments, purchase and
+        # renegotiation. For now we raises exceptions hopping that our client do
+        # not use those features
+        out_payments = [p for p in payments if p.payment_type == Payment.TYPE_OUT]
+        if len(out_payments) > 0:
+            raise Exception("Inconsistent database, please contact support.")
+
+        in_payments = [p for p in payments if p.payment_type == Payment.TYPE_IN]
+        return sum([payment.value for payment in in_payments])
+
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
@@ -330,74 +409,105 @@ class B1FoodPaymentsResource(BaseResource):
 
         request_branches = data.get('lojas')
         request_documents = data.get('consumidores')
-        request_invoice_ids = data.get('operacaocupom')
+        request_invoice_keys = data.get('operacaocupom')
 
         branch_ids = _parse_request_list(request_branches)
         documents = _parse_request_list(request_documents)
-        invoice_ids = _parse_request_list(request_invoice_ids)
+        invoice_keys = _parse_request_list(request_invoice_keys)
 
-        query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
+        clauses = [Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date]
 
-        tables = [Sale]
+        ClientPerson = ClassAlias(Person, 'person_client')
+        ClientIndividual = ClassAlias(Individual, 'individual_client')
+        ClientCompany = ClassAlias(Company, 'company_client')
 
-        if len(branch_ids) > 0 or len(documents) > 0:
-            tables.append(Join(Branch, Sale.branch_id == Branch.id))
+        SalesPersonPerson = ClassAlias(Person, 'person_sales_person')
+        SalesPersonIndividual = ClassAlias(Individual, 'individual_sales_person')
+
+        tables = [
+            Sale,
+            Join(Branch, Sale.branch_id == Branch.id),
+            LeftJoin(Client, Client.id == Sale.client_id),
+            Join(Person, Person.id == Client.person_id),
+            Join(BranchStation, Sale.station_id == BranchStation.id),
+            LeftJoin(ClientPerson, Client.person_id == ClientPerson.id),
+            LeftJoin(ClientIndividual, Client.person_id == ClientIndividual.person_id),
+            LeftJoin(Individual, Client.person_id == Individual.person_id),
+            LeftJoin(ClientCompany, Client.person_id == ClientCompany.person_id),
+            LeftJoin(Company, Client.person_id == Company.person_id),
+            LeftJoin(SalesPerson, SalesPerson.id == Sale.salesperson_id),
+            LeftJoin(SalesPersonPerson, SalesPerson.person_id == SalesPersonPerson.id),
+            LeftJoin(SalesPersonIndividual,
+                     SalesPerson.person_id == SalesPersonIndividual.person_id),
+            Join(LoginUser, LoginUser.person_id == SalesPerson.person_id),
+            Join(PaymentGroup, PaymentGroup.id == Sale.group_id),
+            Join(Invoice, Sale.invoice_id == Invoice.id),
+        ]
+
+        payment_tables = [
+            Payment,
+            Join(PaymentMethod, Payment.method_id == PaymentMethod.id),
+            Join(PaymentGroup, Payment.group_id == PaymentGroup.id),
+        ]
+
+        sale_objs = (Sale, ClientCompany, ClientIndividual, LoginUser, Branch, PaymentGroup,
+                     BranchStation, Client, ClientPerson, SalesPerson, SalesPersonPerson)
+
+        payment_objs = (Payment, PaymentMethod, PaymentGroup)
 
         if len(branch_ids) > 0:
-            query = And(query, Branch.id.is_in(branch_ids))
+            clauses.append(Branch.id.is_in(branch_ids))
 
         if len(documents) > 0:
-            tables = tables + [Join(Client, Client.id == Sale.client_id),
-                               Join(Person, Person.id == Client.person_id),
-                               LeftJoin(Individual, Individual.person_id == Person.id),
-                               LeftJoin(Company, Company.person_id == Person.id)]
-            query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
+            clauses.append(Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
 
-        if len(invoice_ids) > 0:
-            query = And(query, Sale.invoice_id.is_in(invoice_ids))
+        if len(invoice_keys) > 0:
+            clauses.append(Invoice.key.is_in(invoice_keys))
 
-        sales = store.using(*tables).find(Sale, query)
+        data = list(store.using(*tables).find(sale_objs, And(*clauses)))
+
+        group_ids = [i[0].group_id for i in data]
+
+        payments_list = list(store.using(*payment_tables).find(payment_objs,
+                                                               Payment.group_id.is_in(group_ids)))
+
+        sale_payments = {}
+        for payment in payments_list:
+            sale_payments.setdefault(payment[0].group_id, [])
+            sale_payments[payment[0].group_id].append(payment[0])
 
         response = []
 
-        for sale in sales:
-            document = raw_document(sale.get_client_document() or "")
-            if len(document) == 11:
+        for row in data:
+            sale, company, individual, login_user, branch, group = row[:6]
+            cpf = individual and individual.cpf
+            cnpj = company and company.cnpj
+
+            document = cpf or cnpj or ''
+
+            if cpf:
                 document_type = 'CPF'
-            elif len(document) == 14:
+            elif cnpj:
                 document_type = 'CNPJ'
             else:
                 document_type = ''
 
             network = _get_network_info()
 
-            payments = []
-            for payment in sale.group.payments:
-                payments.append({
-                    'id': payment.method.id,
-                    'codigo': None,
-                    'nome': payment.method.method_name,
-                    'valor': float(payment.paid_value),
-                    'troco': float(payment.base_value - payment.value),
-                    'valorRecebido': float(payment.value) or 0,
-                    'idAtendente': sale.salesperson.person.login_user.id,
-                    'codAtendente': sale.salesperson.person.login_user.username,
-                    'nomeAtendente': sale.salesperson.person.name,
-                })
             res_item = {
                 'idMovimentoCaixa': sale.id,
                 'redeId': network['id'],
                 'rede': network['name'],
-                'lojaId': sale.branch.id,
-                'loja': sale.branch.name,
+                'lojaId': branch.id,
+                'loja': branch.name,
                 'hora': sale.confirm_date.strftime('%H'),
-                'idAtendente': sale.salesperson.person.login_user.id,
-                'codAtendente': sale.salesperson.person.login_user.username,
+                'idAtendente': login_user.id,
+                'codAtendente': login_user.username,
                 'nomeAtendente': sale.salesperson.person.name,
                 'vlDesconto': float(sale.discount_value),
                 'vlAcrescimo': float(sale.surcharge_value),
                 'vlTotalReceber': float(sale.total_amount),
-                'vlTotalRecebido': float(sale.group.get_total_paid()),
+                'vlTotalRecebido': float(self._get_payments_sum(sale_payments[sale.group_id])),
                 'vlTrocoFormasPagto': 0,
                 'vlServicoRecebido': 0,
                 'vlRepique': 0,
@@ -408,12 +518,16 @@ class B1FoodPaymentsResource(BaseResource):
                 'nomeMaquina': sale.station.name,
                 'maquinaCod': sale.station.code,
                 'maquinaPortaFiscal': None,
-                'meiosPagamento': payments,
+                'meiosPagamento': _get_payments_info(sale_payments[sale.group_id],
+                                                     login_user, sale),
                 'consumidores': [{
-                    'documento': document,
+                    'documento': raw_document(document),
                     'tipo': document_type,
                 }],
-                'dataContabil': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                # FIXME B1Food expect this date to be the same as the emission date
+                # we want the emission date of nfe_data for this field
+                # https://gitlab.com/stoqtech/private/stoq-plugin-nfe/-/issues/111
+                'dataContabil': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
             }
 
             response.append(res_item)
@@ -428,7 +542,7 @@ class B1FoodPaymentMethodResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         request_is_active = data.get('ativo')
 
@@ -443,7 +557,7 @@ class B1FoodPaymentMethodResource(BaseResource):
             res_item = {
                 'ativo': payment_method.is_active,
                 'id': payment_method.id,
-                'codigo': payment_method.id,
+                'codigo': None,
                 'nome': payment_method.method_name,
                 'redeId': network['id'],
                 'lojaId': None
@@ -460,28 +574,25 @@ class B1FoodStationResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         request_branches = data.get('lojas')
         active = data.get('ativo')
 
         branch_ids = _parse_request_list(request_branches)
         tables = [BranchStation]
-        query = None
+        clauses = []
 
         if active is not None:
             is_active = active == '1'
-            query = BranchStation.is_active == is_active
+            clauses.append(BranchStation.is_active == is_active)
 
         if len(branch_ids) > 0:
             tables.append(Join(Branch, BranchStation.branch_id == Branch.id))
-            if query is not None:
-                query = And(query, Branch.id.is_in(branch_ids))
-            else:
-                query = Branch.id.is_in(branch_ids)
+            clauses.append(Branch.id.is_in(branch_ids))
 
-        if query:
-            stations = store.using(*tables).find(BranchStation, query)
+        if len(clauses) > 0:
+            stations = store.using(*tables).find(BranchStation, And(*clauses))
         else:
             stations = store.using(*tables).find(BranchStation)
 
@@ -494,7 +605,7 @@ class B1FoodStationResource(BaseResource):
                 'id': station.id,
                 'codigo': station.code,
                 'nome': station.name,
-                'apelido': station.name,
+                'apelido': None,
                 'portaFiscal': None,
                 'redeId': network['id'],
                 'lojaId': station.branch.id,
@@ -512,7 +623,7 @@ class B1FoodReceiptsResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
@@ -522,47 +633,106 @@ class B1FoodReceiptsResource(BaseResource):
 
         request_branches = data.get('lojas')
         request_documents = data.get('consumidores')
-        request_invoice_ids = data.get('operacaocupom')
+        request_invoice_keys = data.get('operacaocupom')
 
         branch_ids = _parse_request_list(request_branches)
         documents = _parse_request_list(request_documents)
-        invoice_ids = _parse_request_list(request_invoice_ids)
+        invoice_keys = _parse_request_list(request_invoice_keys)
 
         if data.get('usarDtMov') and data.get('usarDtMov') == '1':
-            query = And(Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date)
+            clauses = [Sale.confirm_date >= initial_date, Sale.confirm_date <= end_date]
         else:
-            query = And(Sale.open_date >= initial_date, Sale.open_date <= end_date)
+            clauses = [Sale.open_date >= initial_date, Sale.open_date <= end_date]
 
-        tables = [Sale]
+        ClientPerson = ClassAlias(Person, 'person_client')
+        ClientIndividual = ClassAlias(Individual, 'individual_client')
+        ClientCompany = ClassAlias(Company, 'company_client')
 
-        if len(branch_ids) > 0 or len(documents) > 0:
-            tables.append(Join(Branch, Sale.branch_id == Branch.id))
+        SalesPersonPerson = ClassAlias(Person, 'person_sales_person')
+        SalesPersonIndividual = ClassAlias(Individual, 'individual_sales_person')
+
+        tables = [
+            Sale,
+            Join(Branch, Sale.branch_id == Branch.id),
+            LeftJoin(Client, Client.id == Sale.client_id),
+            Join(Person, Person.id == Client.person_id),
+            Join(BranchStation, Sale.station_id == BranchStation.id),
+            LeftJoin(ClientPerson, Client.person_id == ClientPerson.id),
+            LeftJoin(ClientIndividual, Client.person_id == ClientIndividual.person_id),
+            LeftJoin(Individual, Client.person_id == Individual.person_id),
+            LeftJoin(ClientCompany, Client.person_id == ClientCompany.person_id),
+            LeftJoin(Company, Client.person_id == Company.person_id),
+            LeftJoin(SalesPerson, SalesPerson.id == Sale.salesperson_id),
+            LeftJoin(SalesPersonPerson, SalesPerson.person_id == SalesPersonPerson.id),
+            LeftJoin(SalesPersonIndividual,
+                     SalesPerson.person_id == SalesPersonIndividual.person_id),
+            Join(LoginUser, LoginUser.person_id == SalesPerson.person_id),
+            Join(PaymentGroup, PaymentGroup.id == Sale.group_id),
+            Join(Invoice, Invoice.id == Sale.invoice_id),
+        ]
+
+        sale_item_tables = [
+            SaleItem,
+            Join(Sellable, SaleItem.sellable_id == Sellable.id),
+            Join(Product, SaleItem.sellable_id == Product.id),
+            LeftJoin(SellableCategory, Sellable.category_id == SellableCategory.id),
+            LeftJoin(TransactionEntry, SellableCategory.te_id == TransactionEntry.id),
+            LeftJoin(InvoiceItemIcms, InvoiceItemIcms.id == SaleItem.icms_info_id),
+            LeftJoin(CfopData, CfopData.id == SaleItem.cfop_id)
+        ]
+
+        payment_tables = [
+            Payment,
+            Join(PaymentMethod, Payment.method_id == PaymentMethod.id),
+            Join(PaymentGroup, Payment.group_id == PaymentGroup.id),
+        ]
+
+        sale_objs = (Sale, ClientCompany, ClientIndividual, LoginUser, Invoice, Branch,
+                     PaymentGroup, BranchStation, Client, ClientPerson, SalesPerson,
+                     SalesPersonPerson)
+
+        sale_items_objs = (SaleItem, Sellable, SellableCategory, Product, CfopData,
+                           TransactionEntry, InvoiceItemIcms)
+
+        payment_objs = (Payment, PaymentMethod, PaymentGroup)
 
         if len(branch_ids) > 0:
-            query = And(query, Branch.id.is_in(branch_ids))
+            clauses.append(Branch.id.is_in(branch_ids))
 
         if len(documents) > 0:
-            tables = tables + [Join(Client, Client.id == Sale.client_id),
-                               Join(Person, Person.id == Client.person_id),
-                               LeftJoin(Individual, Individual.person_id == Person.id),
-                               LeftJoin(Company, Company.person_id == Person.id)]
-            query = And(query, Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
+            clauses.append(Or(Individual.cpf.is_in(documents), Company.cnpj.is_in(documents)))
 
-        if len(invoice_ids) > 0:
-            query = And(query, Sale.invoice_id.is_in(invoice_ids))
+        if len(invoice_keys) > 0:
+            clauses.append(Invoice.key.is_in(invoice_keys))
 
         if data.get('cancelados') and data.get('cancelados') == '0':
-            query = And(query, Sale.status != Sale.STATUS_CANCELLED)
+            clauses.append(Sale.status != Sale.STATUS_CANCELLED)
 
-        # These args are sent but we do not have them on the domain 'redes'
+        data = list(store.using(*tables).find(sale_objs, And(*clauses)))
 
-        sales = store.using(*tables).find(Sale, query)
+        sale_ids = [i[0].id for i in data]
+        group_ids = [i[0].group_id for i in data]
+        sale_items = list(store.using(*sale_item_tables).find(sale_items_objs,
+                                                              SaleItem.sale_id.is_in(sale_ids)))
+        payments_list = list(store.using(*payment_tables).find(payment_objs,
+                                                               Payment.group_id.is_in(group_ids)))
+
+        sale_payments = {}
+        for payment in payments_list:
+            sale_payments.setdefault(payment[0].group_id, [])
+            sale_payments[payment[0].group_id].append(payment[0])
+
+        sales = {}
+        for item in sale_items:
+            sales.setdefault(item[0].sale_id, [])
+            sales[item[0].sale_id].append(item[0])
 
         response = []
 
-        for sale in sales:
+        for row in data:
+            sale, company, individual, login_user, invoice = row[:5]
             items = []
-            for item in sale.get_items():
+            for item in sales[sale.id]:
                 discount = item.item_discount
                 product = item.sellable.product
                 items.append({
@@ -575,14 +745,12 @@ class B1FoodReceiptsResource(BaseResource):
                     'valorUnitario': float(item.base_price),
                     'valorUnitarioLiquido': float(item.price),
                     'valorLiquido': float(item.price * item.quantity),
-                    'aliquota': float(item.icms_info.p_icms or 0),
-                    'baseIcms': float(item.icms_info.v_icms or 0),
                     'codNcm': product.ncm,
                     'idOrigem': None,
                     'codOrigem': None,
                     'cfop': str(item.cfop.code),
-                    'desconto': float(discount),
-                    'acrescimo': None,
+                    'desconto': float(max(discount, 0)),
+                    'acrescimo': float(-1 * min(discount, 0)),
                     'cancelado': sale.status == Sale.STATUS_CANCELLED,
                     'maquinaId': sale.station.id,
                     'nomeMaquina': sale.station.name,
@@ -592,40 +760,33 @@ class B1FoodReceiptsResource(BaseResource):
                     'isGorjeta': None,
                     'isEntrega': None,
                 })
-            payments = []
-            for payment in sale.group.payments:
-                payments.append({
-                    'id': payment.method.id,
-                    'codigo': None,
-                    'descricao': payment.method.method_name,
-                    'valor': float(payment.base_value),
-                    'troco': float(payment.base_value - payment.value),
-                    'valorRecebido': float(payment.value),
-                    'idAtendente': sale.salesperson.person.login_user.id,
-                    'codAtendente': sale.salesperson.person.login_user.username,
-                    'nomeAtendente': sale.salesperson.person.name,
-                })
+
+            payment_methods = _get_payments_info(sale_payments[sale.group_id], login_user, sale)
+            change = sum(payment['troco'] for payment in payment_methods)
 
             res_item = {
                 'maquinaCod': sale.station.code,
                 'nomeMaquina': sale.station.name,
-                'nfNumero': sale.invoice.invoice_number,
-                'nfSerie': sale.invoice.series,
-                'denominacao': sale.invoice.mode,
+                'nfNumero': invoice.invoice_number,
+                'nfSerie': invoice.series,
+                'denominacao': invoice.mode,
                 'valor': float(sale.total_amount),
                 'maquinaId': sale.station.id,
                 'desconto': float(sale.discount_value or 0),
                 'acrescimo': float(sale.surcharge_value or 0),
-                'chaveNfe': sale.invoice.key,
+                'chaveNfe': invoice.key,
+                # FIXME B1Food expect this date to be the same as the emission date
+                # we want the emission date of nfe_data for this field
+                # https://gitlab.com/stoqtech/private/stoq-plugin-nfe/-/issues/111
                 'dataContabil': sale.confirm_date.strftime('%Y-%m-%d'),
-                'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-                'idOperacao': sale.id,  # sale.id or invoice.id ??
-                'troco': 0,
+                'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'idOperacao': sale.id,
+                'troco': change,
                 'pagamentos': float(sale.paid),
-                'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
+                'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
                 'cancelado': sale.status == Sale.STATUS_CANCELLED,
                 'detalhes': items,
-                'meios': payments,
+                'meios': payment_methods,
             }
 
             response.append(res_item)
@@ -640,39 +801,9 @@ class B1FoodTillResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
-        request_branches = data.get('lojas')
-
-        branch_ids = _parse_request_list(request_branches)
-        tables = [Till]
-        query = None
-
-        if len(branch_ids) > 0:
-            tables.append(Join(Branch, Till.branch_id == Branch.id))
-            query = Branch.id.is_in(branch_ids)
-
-        if query:
-            tills = store.using(*tables).find(Till, query)
-        else:
-            tills = store.using(*tables).find(Till)
-
-        network = _get_network_info()
-
-        response = []
-        for till in tills:
-            response.append({
-                'ativo': True,
-                'id': till.id,
-                'codigo': str(till.identifier),
-                'dataCriacao': till.opening_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-                'dataAlteracao': till.closing_date.strftime('%Y-%m-%d %H:%M:%S %Z'),
-                'nome': '',
-                'redeId': network['id'],
-                'lojaId': till.branch.id
-            })
-
-        return response
+        return []
 
 
 class B1FoodRolesResource(BaseResource):
@@ -682,7 +813,7 @@ class B1FoodRolesResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         roles = store.find(EmployeeRole)
 
@@ -694,8 +825,8 @@ class B1FoodRolesResource(BaseResource):
                 'ativo': True,
                 'id': role.id,
                 'codigo': role.id,
-                'dataCriacao': '',
-                'dataAlteracao': '',
+                'dataCriacao': role.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'dataAlteracao': role.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
                 'nome': role.name,
                 'redeId': network['id'],
                 'lojaId': None
@@ -711,7 +842,7 @@ class B1FoodBranchResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         tables = [Branch]
         query = None
@@ -753,7 +884,7 @@ class B1FoodDiscountCategoryResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         categories = store.find(ClientCategory)
 
@@ -765,8 +896,8 @@ class B1FoodDiscountCategoryResource(BaseResource):
                 'ativo': True,
                 'id': category.id,
                 'codigo': category.id,
-                'dataAlteracao': '',
-                'dataCriacao': '',
+                'dataCriacao': category.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'dataAlteracao': category.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
                 'nome': category.name,
                 'redeId': network['id'],
                 'lojaId': None
@@ -782,7 +913,7 @@ class B1FoodLoginUserResource(BaseResource):
     def get(self, store):
         data = request.args
         log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, self.get_json())
+                  data, request.headers, request.data)
 
         request_branches = data.get('lojas')
         branch_ids = _parse_request_list(request_branches)
@@ -815,13 +946,13 @@ class B1FoodLoginUserResource(BaseResource):
             response.append({
                 'id': user_access.user.id,
                 'codigo': user_access.user.username,
-                'dataAlteracao': None,
-                'dataCriacao': None,
+                'dataCriacao': user_access.user.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'dataAlteracao': user_access.user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
                 'primeiroNome': firstname,
                 'sobrenome': lastname,
-                'apelido': firstname,
+                'apelido': None,
                 'idCargo': profile.id if profile else None,
-                'codCargo': profile.id if profile else None,
+                'codCargo': None,
                 'nomeCargo': profile.name if profile else None,
                 'redeId': network['id'],
                 'lojaId': user_access.branch.id,
