@@ -15,6 +15,9 @@ coverage: lint
 flask:
 	./bin/stoqserver flask
 
+flask-gunicorn:
+	gunicorn stoqserver.gunicorn -w 1 -b localhost:6971 -k gevent --access-logfile -
+
 lint:
 	pyflakes stoqserver tests
 	pycodestyle stoqserver tests

@@ -2,6 +2,7 @@
   "stoqserver/api/decorators.py": 93.1,
   "stoqserver/api/resources/client.py": 94.23,
   "stoqserver/app.py": 53.57,
+  "stoqserver/gunicorn.py": 0.00,
   "stoqserver/lib/baseresource.py": 59.74,
   "stoqserver/lib/checks.py": 76.19,
   "stoqserver/lib/duplicatibackup.py": 0.0,

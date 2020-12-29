@@ -63,8 +63,9 @@ def register_routes(flask_api):
         flask_api.add_resource(cls, *cls.routes)
 
 
-def bootstrap_app():
+def bootstrap_app(debug=False):
     app = Flask(__name__)
+    app.debug = debug
 
     # Indexing some session data by the USER_HASH will help to avoid maintaining
     # sessions between two different databases. This could lead to some errors in
@@ -93,6 +94,22 @@ def bootstrap_app():
                                     'exception': traceback_exception,
                                     'traceback_hash': traceback_hash}),
                         500, mimetype='application/json')
+
+    if not is_developer_mode():
+        sentry.raven_client = Sentry(app, dsn=SENTRY_URL, client=raven_client)
+
+    @app.after_request
+    def after_request(response):
+        # Add all the CORS headers the POS needs to have its ajax requests
+        # accepted by the browser
+        origin = request.headers.get('origin')
+        if not origin:
+            origin = request.args.get('origin', request.form.get('origin', '*'))
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS, DELETE'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
 
     return app
 
@@ -127,23 +144,7 @@ def run_flaskserver(port, debug=False, multiclient=False):
     except ImportError:
         pass
 
-    app = bootstrap_app()
-    app.debug = debug
-    if not is_developer_mode():
-        sentry.raven_client = Sentry(app, dsn=SENTRY_URL, client=raven_client)
-
-    @app.after_request
-    def after_request(response):
-        # Add all the CORS headers the POS needs to have its ajax requests
-        # accepted by the browser
-        origin = request.headers.get('origin')
-        if not origin:
-            origin = request.args.get('origin', request.form.get('origin', '*'))
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS, DELETE'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        return response
+    app = bootstrap_app(debug)
 
     from stoqserver.lib.restful import has_sat, has_nfe
     logger.info('Starting wsgi server (has_sat=%s, has_nfe=%s)', has_sat, has_nfe)
