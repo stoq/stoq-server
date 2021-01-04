@@ -46,7 +46,7 @@ from stoqlib.lib.configparser import get_config
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.parameters import sysparam
 
-from stoqserver.api.decorators import store_provider, b1food_login_required
+from stoqserver.api.decorators import store_provider, b1food_login_required, info_logger
 from stoqserver.lib.baseresource import BaseResource
 
 log = logging.getLogger(__name__)
@@ -122,12 +122,11 @@ def _get_payments_info(payments_list, login_user, sale):
 
 
 class B1foodLoginResource(BaseResource):
+    method_decorators = [info_logger]
     routes = ['/b1food/oauth/authenticate']
 
     def get(self):
         data = request.args
-        log.debug("/oauth/authenticate query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
         if 'client_id' not in data:
             abort(400, 'Missing client_id')
         client_id = data['client_id']
@@ -147,24 +146,19 @@ class B1foodLoginResource(BaseResource):
 
 
 class IncomeCenterResource(BaseResource):
-    method_decorators = [b1food_login_required]
+    method_decorators = [b1food_login_required, info_logger]
     routes = ['/b1food/terceiros/restful/centrosrenda']
 
     def get(self):
-        data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
         return []
 
 
 class B1FoodSaleItemResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/itemvenda']
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
@@ -314,13 +308,11 @@ class B1FoodSaleItemResource(BaseResource):
 
 
 class B1FoodSellableResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/material']
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         request_available = data.get('ativo')
         request_branches = data.get('lojas')
@@ -381,7 +373,7 @@ class B1FoodSellableResource(BaseResource):
 
 
 class B1FoodPaymentsResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/movimentocaixa']
 
     def _get_payments_sum(self, payments):
@@ -398,8 +390,6 @@ class B1FoodPaymentsResource(BaseResource):
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
@@ -536,13 +526,11 @@ class B1FoodPaymentsResource(BaseResource):
 
 
 class B1FoodPaymentMethodResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/meio-pagamento']
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         request_is_active = data.get('ativo')
 
@@ -568,13 +556,11 @@ class B1FoodPaymentMethodResource(BaseResource):
 
 
 class B1FoodStationResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/terminais']
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         request_branches = data.get('lojas')
         active = data.get('ativo')
@@ -617,13 +603,11 @@ class B1FoodStationResource(BaseResource):
 
 
 class B1FoodReceiptsResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/comprovante']
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
@@ -795,26 +779,18 @@ class B1FoodReceiptsResource(BaseResource):
 
 
 class B1FoodTillResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/periodos']
 
     def get(self, store):
-        data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
-
         return []
 
 
 class B1FoodRolesResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/cargos']
 
     def get(self, store):
-        data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
-
         roles = store.find(EmployeeRole)
 
         network = _get_network_info()
@@ -836,13 +812,11 @@ class B1FoodRolesResource(BaseResource):
 
 
 class B1FoodBranchResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/rede-loja']
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         tables = [Branch]
         query = None
@@ -878,14 +852,10 @@ class B1FoodBranchResource(BaseResource):
 
 
 class B1FoodDiscountCategoryResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/tiposdescontos']
 
     def get(self, store):
-        data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
-
         categories = store.find(ClientCategory)
 
         network = _get_network_info()
@@ -907,13 +877,11 @@ class B1FoodDiscountCategoryResource(BaseResource):
 
 
 class B1FoodLoginUserResource(BaseResource):
-    method_decorators = [b1food_login_required, store_provider]
+    method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/funcionarios']
 
     def get(self, store):
         data = request.args
-        log.debug("query string: %s, header: %s, body: %s",
-                  data, request.headers, request.data)
 
         request_branches = data.get('lojas')
         branch_ids = _parse_request_list(request_branches)

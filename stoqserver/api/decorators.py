@@ -23,6 +23,7 @@
 #
 
 import functools
+import logging
 
 from stoqlib.lib.component import provide_utility
 from flask import abort, request
@@ -32,6 +33,8 @@ from stoqlib.database.interfaces import ICurrentUser
 from stoqlib.domain.person import LoginUser
 from stoqlib.domain.token import AccessToken
 from stoqlib.lib.configparser import get_config
+
+log = logging.getLogger(__name__)
 
 
 def login_required(f):
@@ -81,5 +84,15 @@ def store_provider(f):
             except Exception as e:
                 store.retval = False
                 raise e
+
+    return wrapper
+
+
+def info_logger(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        log.debug("/oauth/authenticate query string: %s, header: %s, body: %s",
+                  request.args, request.headers, request.data)
+        return f(*args, **kwargs)
 
     return wrapper
