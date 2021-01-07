@@ -23,7 +23,8 @@
 #
 
 import logging
-from datetime import datetime
+import datetime
+from uuid import UUID
 
 from flask import abort, make_response, jsonify, request
 from storm.expr import And, Join, LeftJoin, Ne, Or
@@ -82,10 +83,20 @@ def _parse_request_list(request_list):
     return return_list
 
 
+def _check_if_uuid(branch_ids):
+    for branch_id in branch_ids:
+        try:
+            UUID(branch_id)
+        except ValueError:
+            message = 'os IDs das lojas devem ser do tipo UUID'
+            log.error(message)
+            abort(400, message)
+
+
 def _get_category_info(sellable):
     return {
         'idGrupo': sellable.category and sellable.category.id,
-        'codigo': '',
+        'codigo': sellable.category and sellable.category.id,
         'descricao': sellable.category and sellable.category.description,
         'idGrupoPai': sellable.category and sellable.category.category_id,
         'dataAlteracao': sellable.category and
@@ -108,9 +119,9 @@ def _get_payments_info(payments_list, login_user, sale):
     for payment in payments_list:
         payments.append({
             'id': payment.method.id,
-            'codigo': None,
+            'codigo': _get_payment_method_code(payment.method),
             'nome': payment.method.method_name,
-            'descricao': payment.method.method_name,
+            'descricao': _get_payment_method_description(payment.method),
             'valor': float(payment.base_value or 0),
             'troco': float(payment.base_value - payment.value),
             'valorRecebido': float(payment.value or 0),
@@ -119,6 +130,48 @@ def _get_payments_info(payments_list, login_user, sale):
             'nomeAtendente': sale.salesperson.person.name,
         })
     return payments
+
+
+def _get_client_category_code(client_category):
+    return client_category and client_category.id
+
+
+def _get_sellable_code(sellable):
+    # FIXME: it must be just code
+    # return sellable.code or sellable.barcode
+    return sellable.code
+
+
+def _get_station_code(station):
+    return station.id
+
+
+def _get_payment_method_code(payment_method):
+    return payment_method.id
+
+
+def _get_payment_method_description(payment_method):
+    return payment_method.method_name
+
+
+def _get_station_nickname(station):
+    return station.name
+
+
+def _get_person_names(person):
+    name = person.name
+    if ' ' in name:
+        firstname, lastname = name.split(' ', maxsplit=1)
+    else:
+        firstname = name
+        lastname = '.'
+
+    return {
+        'primeiroNome': firstname,
+        'segundoNome': None,
+        'sobrenome': lastname,
+        'apelido': firstname,
+    }
 
 
 class B1foodLoginResource(BaseResource):
@@ -163,14 +216,17 @@ class B1FoodSaleItemResource(BaseResource):
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
 
-        initial_date = datetime.strptime(data['dtinicio'], '%Y-%m-%d')
-        end_date = datetime.strptime(data['dtfim'], '%Y-%m-%d')
+        initial_date = datetime.datetime.strptime(data['dtinicio'], '%Y-%m-%d')
+        end_date = datetime.datetime.combine(datetime.datetime.strptime(
+            data['dtfim'], '%Y-%m-%d').date(), datetime.time.max)
 
         request_branches = data.get('lojas')
         request_documents = data.get('consumidores')
         request_invoice_keys = data.get('operacaocupom')
 
         branch_ids = _parse_request_list(request_branches)
+        _check_if_uuid(branch_ids)
+
         documents = _parse_request_list(request_documents)
         invoice_keys = _parse_request_list(request_invoice_keys)
 
@@ -190,7 +246,7 @@ class B1FoodSaleItemResource(BaseResource):
             Sale,
             Join(Branch, Sale.branch_id == Branch.id),
             LeftJoin(Client, Client.id == Sale.client_id),
-            Join(Person, Person.id == Client.person_id),
+            LeftJoin(Person, Person.id == Client.person_id),
             Join(BranchStation, Sale.station_id == BranchStation.id),
             LeftJoin(ClientPerson, Client.person_id == ClientPerson.id),
             LeftJoin(ClientIndividual, Client.person_id == ClientIndividual.person_id),
@@ -229,6 +285,9 @@ class B1FoodSaleItemResource(BaseResource):
 
         if data.get('cancelados') and data.get('cancelados') == '0':
             clauses.append(Sale.status != Sale.STATUS_CANCELLED)
+
+        if data.get('cancelados') and data.get('cancelados') == '1':
+            clauses.append(Sale.status == Sale.STATUS_CANCELLED)
 
         data = list(store.using(*tables).find(sale_objs, And(*clauses)))
 
@@ -277,12 +336,12 @@ class B1FoodSaleItemResource(BaseResource):
                     'acrescimo': 0,
                     'maquinaId': station.id,
                     'nomeMaquina': station.name,
-                    'maquinaCod': station.code,
+                    'maquinaCod': _get_station_code(station),
                     'quantidade': float(item.quantity),
                     'redeId': network['id'],
                     'lojaId': sale.branch.id,
                     'idMaterial': sellable.id,
-                    'codMaterial': sellable.code,
+                    'codMaterial': _get_sellable_code(sellable),
                     'descricao': sellable.description,
                     'grupo': _get_category_info(sellable),
                     'operacaoId': sale.id,
@@ -299,7 +358,10 @@ class B1FoodSaleItemResource(BaseResource):
                     }],
                     'cancelado': sale.status == Sale.STATUS_CANCELLED,
                     'dtLancamento': sale.confirm_date.strftime('%Y-%m-%d'),
-                    'horaLancamento': sale.confirm_date.strftime('%H:%M')
+                    'horaLancamento': sale.confirm_date.strftime('%H:%M'),
+                    'tipoDescontoId': sale.client_category and sale.client_category.id,
+                    'tipoDescontoCod': _get_client_category_code(sale.client_category),
+                    'tipoDescontoNome': sale.client_category and sale.client_category.name,
                 }
 
                 response.append(res_item)
@@ -311,63 +373,83 @@ class B1FoodSellableResource(BaseResource):
     method_decorators = [b1food_login_required, store_provider, info_logger]
     routes = ['/b1food/terceiros/restful/material']
 
+    def _get_response_item(self, sellable, branch_id):
+        res_item = {
+            'idMaterial': sellable.id,
+            'codigo': _get_sellable_code(sellable),
+            'descricao': sellable.description,
+            'unidade': sellable.unit and sellable.unit.description,
+            'dataAlteracao': sellable.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+            'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
+            'redeId': self.network['id'],
+            'lojaId': branch_id,
+            'isTaxa': False,
+            'isRepique': False,
+            'isGorjeta': False,
+            'isEntrega': False,
+            'grupo': _get_category_info(sellable)
+        }
+        return res_item
+
     def get(self, store):
         data = request.args
 
         request_available = data.get('ativo')
         request_branches = data.get('lojas')
         branch_ids = _parse_request_list(request_branches)
-        branches = store.find(Branch, Branch.id.is_in(branch_ids))
+
+        database_branches = store.find(Branch)
+        database_branch_ids = [branch.id for branch in database_branches]
+
+        not_found_ids = [branch_id for branch_id in branch_ids
+                         if branch_id not in database_branch_ids]
+
+        if not_found_ids:
+            message = 'Branch(es) %s not found' % not_found_ids
+            log.error(message)
+            abort(404, message)
 
         delivery = sysparam.get_object(store, 'DELIVERY_SERVICE')
-        if request_available:
+        if request_available == '1':
             sellables = Sellable.get_available_sellables(store)
+        elif request_available == '0':
+            # We want to exclude not available sellables and the ones
+            # that are not products, example "Entrega"
+            sellables = store.find(Sellable, And(Ne(Sellable.id, delivery.sellable.id),
+                                                 Ne(Sellable.description, 'Entrega'),
+                                                 Ne(Sellable.status, Sellable.STATUS_AVAILABLE)))
         else:
-            sellables = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id))
+            sellables = store.find(Sellable, And(Ne(Sellable.id, delivery.sellable.id),
+                                                 Ne(Sellable.description, 'Entrega')))
 
-        network = _get_network_info()
+        self.network = _get_network_info()
         response = []
 
-        for sellable in sellables:
-            if not request_branches:
-                res_item = {
-                    'idMaterial': sellable.id,
-                    'codigo': sellable.code,
-                    'descricao': sellable.description,
-                    'unidade': sellable.unit and sellable.unit.description,
-                    'dataAlteracao': sellable.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
-                    'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
-                    'redeId': network['id'],
-                    'lojaId': None,
-                    'isTaxa': False,
-                    'isRepique': False,
-                    'isGorjeta': False,
-                    'isEntrega': False,
-                    'grupo': _get_category_info(sellable)
-                }
+        if not branch_ids:
+            for sellable in sellables:
+                res_item = self._get_response_item(sellable, branch_id=None)
                 response.append(res_item)
+            return response
+
+        query = ProductBranchOverride.branch_id.is_in(branch_ids)
+        pbos = store.find(ProductBranchOverride, query)
+
+        branch_sellable_ids = {}
+        for pbo in pbos:
+            branch_sellable_ids.setdefault(pbo.branch_id, [])
+            branch_sellable_ids[pbo.branch_id].append(pbo.product_id)
+
+        for branch_id in branch_ids:
+            if not branch_sellable_ids.get(branch_id):
+                branch_sellables = sellables
             else:
-                for branch in branches:
-                    query = And(ProductBranchOverride.product_id == sellable.id,
-                                ProductBranchOverride.branch_id == branch.id)
-                    if store.find(ProductBranchOverride, query):
-                        res_item = {
-                            'idMaterial': sellable.id,
-                            'codigo': sellable.code,
-                            'descricao': sellable.description,
-                            'unidade': sellable.unit and sellable.unit.description,
-                            'dataAlteracao': sellable.te.te_server.strftime(
-                                '%Y-%m-%d %H:%M:%S -0300'),
-                            'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
-                            'redeId': network['id'],
-                            'lojaId': branch.id,
-                            'isTaxa': False,
-                            'isRepique': False,
-                            'isGorjeta': False,
-                            'isEntrega': False,
-                            'grupo': _get_category_info(sellable)
-                        }
-                        response.append(res_item)
+                sellable_ids = branch_sellable_ids[branch_id]
+                branch_sellables = [sellable for sellable in sellables
+                                    if sellable.id in sellable_ids]
+
+            for sellable in branch_sellables:
+                res_item = self._get_response_item(sellable, branch_id=branch_id)
+                response.append(res_item)
 
         return response
 
@@ -394,14 +476,16 @@ class B1FoodPaymentsResource(BaseResource):
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
 
-        initial_date = datetime.strptime(data['dtinicio'], '%Y-%m-%d')
-        end_date = datetime.strptime(data['dtfim'], '%Y-%m-%d')
+        initial_date = datetime.datetime.strptime(data['dtinicio'], '%Y-%m-%d')
+        end_date = datetime.datetime.combine(datetime.datetime.strptime(
+            data['dtfim'], '%Y-%m-%d').date(), datetime.time.max)
 
         request_branches = data.get('lojas')
         request_documents = data.get('consumidores')
         request_invoice_keys = data.get('operacaocupom')
 
         branch_ids = _parse_request_list(request_branches)
+        _check_if_uuid(branch_ids)
         documents = _parse_request_list(request_documents)
         invoice_keys = _parse_request_list(request_invoice_keys)
 
@@ -418,7 +502,7 @@ class B1FoodPaymentsResource(BaseResource):
             Sale,
             Join(Branch, Sale.branch_id == Branch.id),
             LeftJoin(Client, Client.id == Sale.client_id),
-            Join(Person, Person.id == Client.person_id),
+            LeftJoin(Person, Person.id == Client.person_id),
             Join(BranchStation, Sale.station_id == BranchStation.id),
             LeftJoin(ClientPerson, Client.person_id == ClientPerson.id),
             LeftJoin(ClientIndividual, Client.person_id == ClientIndividual.person_id),
@@ -454,6 +538,12 @@ class B1FoodPaymentsResource(BaseResource):
         if len(invoice_keys) > 0:
             clauses.append(Invoice.key.is_in(invoice_keys))
 
+        if data.get('cancelados') and data.get('cancelados') == '0':
+            clauses.append(Sale.status != Sale.STATUS_CANCELLED)
+
+        if data.get('cancelados') and data.get('cancelados') == '1':
+            clauses.append(Sale.status == Sale.STATUS_CANCELLED)
+
         data = list(store.using(*tables).find(sale_objs, And(*clauses)))
 
         group_ids = [i[0].group_id for i in data]
@@ -484,6 +574,9 @@ class B1FoodPaymentsResource(BaseResource):
 
             network = _get_network_info()
 
+            payment_methods = _get_payments_info(sale_payments[sale.group_id], login_user, sale)
+            change = sum(payment['troco'] for payment in payment_methods)
+
             res_item = {
                 'idMovimentoCaixa': sale.id,
                 'redeId': network['id'],
@@ -491,6 +584,7 @@ class B1FoodPaymentsResource(BaseResource):
                 'lojaId': branch.id,
                 'loja': branch.name,
                 'hora': sale.confirm_date.strftime('%H'),
+                'cancelado': sale.status == Sale.STATUS_CANCELLED,
                 'idAtendente': login_user.id,
                 'codAtendente': login_user.username,
                 'nomeAtendente': sale.salesperson.person.name,
@@ -498,7 +592,7 @@ class B1FoodPaymentsResource(BaseResource):
                 'vlAcrescimo': float(sale.surcharge_value),
                 'vlTotalReceber': float(sale.total_amount),
                 'vlTotalRecebido': float(self._get_payments_sum(sale_payments[sale.group_id])),
-                'vlTrocoFormasPagto': 0,
+                'vlTrocoFormasPagto': change,
                 'vlServicoRecebido': 0,
                 'vlRepique': 0,
                 'vlTaxaEntrega': 0,
@@ -506,7 +600,7 @@ class B1FoodPaymentsResource(BaseResource):
                 'operacaoId': sale.id,
                 'maquinaId': sale.station.id,
                 'nomeMaquina': sale.station.name,
-                'maquinaCod': sale.station.code,
+                'maquinaCod': _get_station_code(sale.station),
                 'maquinaPortaFiscal': None,
                 'meiosPagamento': _get_payments_info(sale_payments[sale.group_id],
                                                      login_user, sale),
@@ -518,6 +612,12 @@ class B1FoodPaymentsResource(BaseResource):
                 # we want the emission date of nfe_data for this field
                 # https://gitlab.com/stoqtech/private/stoq-plugin-nfe/-/issues/111
                 'dataContabil': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'periodoId': None,
+                'periodoCod': None,
+                'periodoNome': None,
+                'centroRendaId': None,
+                'centroRendaCod': None,
+                'centroRendaNome': None,
             }
 
             response.append(res_item)
@@ -535,8 +635,10 @@ class B1FoodPaymentMethodResource(BaseResource):
         request_is_active = data.get('ativo')
 
         payment_methods = store.find(PaymentMethod)
-        if request_is_active:
+        if request_is_active == '1':
             payment_methods = PaymentMethod.get_active_methods(store)
+        if request_is_active == '0':
+            payment_methods = payment_methods.find(is_active=False)
 
         network = _get_network_info()
 
@@ -545,7 +647,7 @@ class B1FoodPaymentMethodResource(BaseResource):
             res_item = {
                 'ativo': payment_method.is_active,
                 'id': payment_method.id,
-                'codigo': None,
+                'codigo': _get_payment_method_code(payment_method),
                 'nome': payment_method.method_name,
                 'redeId': network['id'],
                 'lojaId': None
@@ -566,6 +668,7 @@ class B1FoodStationResource(BaseResource):
         active = data.get('ativo')
 
         branch_ids = _parse_request_list(request_branches)
+        _check_if_uuid(branch_ids)
         tables = [BranchStation]
         clauses = []
 
@@ -589,9 +692,9 @@ class B1FoodStationResource(BaseResource):
             response.append({
                 'ativo': station.is_active,
                 'id': station.id,
-                'codigo': station.code,
+                'codigo': station.id,
                 'nome': station.name,
-                'apelido': None,
+                'apelido': _get_station_nickname(station),
                 'portaFiscal': None,
                 'redeId': network['id'],
                 'lojaId': station.branch.id,
@@ -612,14 +715,16 @@ class B1FoodReceiptsResource(BaseResource):
         required_params = ['dtinicio', 'dtfim']
         _check_required_params(data, required_params)
 
-        initial_date = datetime.strptime(data['dtinicio'], '%Y-%m-%d')
-        end_date = datetime.strptime(data['dtfim'], '%Y-%m-%d')
+        initial_date = datetime.datetime.strptime(data['dtinicio'], '%Y-%m-%d')
+        end_date = datetime.datetime.combine(datetime.datetime.strptime(
+            data['dtfim'], '%Y-%m-%d').date(), datetime.time.max)
 
         request_branches = data.get('lojas')
         request_documents = data.get('consumidores')
         request_invoice_keys = data.get('operacaocupom')
 
         branch_ids = _parse_request_list(request_branches)
+        _check_if_uuid(branch_ids)
         documents = _parse_request_list(request_documents)
         invoice_keys = _parse_request_list(request_invoice_keys)
 
@@ -692,6 +797,9 @@ class B1FoodReceiptsResource(BaseResource):
         if data.get('cancelados') and data.get('cancelados') == '0':
             clauses.append(Sale.status != Sale.STATUS_CANCELLED)
 
+        if data.get('cancelados') and data.get('cancelados') == '1':
+            clauses.append(Sale.status == Sale.STATUS_CANCELLED)
+
         data = list(store.using(*tables).find(sale_objs, And(*clauses)))
 
         sale_ids = [i[0].id for i in data]
@@ -722,7 +830,7 @@ class B1FoodReceiptsResource(BaseResource):
                 items.append({
                     'ordem': None,
                     'idMaterial': item.sellable.id,
-                    'codigo': item.sellable.code,
+                    'codigo': _get_sellable_code(item.sellable),
                     'descricao': item.sellable.description,
                     'quantidade': float(item.quantity),
                     'valorBruto': float(item.base_price * item.quantity),
@@ -738,7 +846,7 @@ class B1FoodReceiptsResource(BaseResource):
                     'cancelado': sale.status == Sale.STATUS_CANCELLED,
                     'maquinaId': sale.station.id,
                     'nomeMaquina': sale.station.name,
-                    'maquinaCod': sale.station.code,
+                    'maquinaCod': _get_station_code(sale.station),
                     'isTaxa': None,
                     'isRepique': None,
                     'isGorjeta': None,
@@ -749,7 +857,7 @@ class B1FoodReceiptsResource(BaseResource):
             change = sum(payment['troco'] for payment in payment_methods)
 
             res_item = {
-                'maquinaCod': sale.station.code,
+                'maquinaCod': _get_station_code(sale.station),
                 'nomeMaquina': sale.station.name,
                 'nfNumero': invoice.invoice_number,
                 'nfSerie': invoice.series,
@@ -791,6 +899,13 @@ class B1FoodRolesResource(BaseResource):
     routes = ['/b1food/terceiros/restful/cargos']
 
     def get(self, store):
+        data = request.args
+        request_is_active = data.get('ativo')
+        # Since our domain does not have an is_active attribute for EmployeeRole,
+        # treat them all as actives
+        if request_is_active == '0':
+            return []
+
         roles = store.find(EmployeeRole)
 
         network = _get_network_info()
@@ -856,6 +971,13 @@ class B1FoodDiscountCategoryResource(BaseResource):
     routes = ['/b1food/terceiros/restful/tiposdescontos']
 
     def get(self, store):
+        data = request.args
+        request_is_active = data.get('ativo')
+        # Since our domain does not have an is_active attribute for EmployeeRole,
+        # treat them all as actives
+        if request_is_active == '0':
+            return []
+
         categories = store.find(ClientCategory)
 
         network = _get_network_info()
@@ -883,31 +1005,32 @@ class B1FoodLoginUserResource(BaseResource):
     def get(self, store):
         data = request.args
 
+        request_is_active = data.get('ativo')
         request_branches = data.get('lojas')
         branch_ids = _parse_request_list(request_branches)
+        _check_if_uuid(branch_ids)
 
-        active_users = LoginUser.get_active_users(store)
+        users = store.find(LoginUser)
+        if request_is_active == '1':
+            users = LoginUser.get_active_users(store)
+        elif request_is_active == '0':
+            users = users.find(is_active=False)
 
         user_access_list = []
         if len(branch_ids) > 0:
-            for user in active_users:
+            for user in users:
                 associeted_branches = user.get_associated_branches()
                 for user_access in associeted_branches:
                     if user_access.branch.id in branch_ids:
                         user_access_list.append(user_access)
         else:
-            for user in active_users:
+            for user in users:
                 for user_access in user.get_associated_branches():
                     user_access_list.append(user_access)
 
         response = []
         for user_access in user_access_list:
-            name = user_access.user.person.name
-            if ' ' in name:
-                firstname, lastname = name.split(' ', maxsplit=1)
-            else:
-                firstname = name
-                lastname = ''
+            person_names = _get_person_names(user_access.user.person)
             profile = user_access.user.profile
             network = _get_network_info()
 
@@ -916,15 +1039,18 @@ class B1FoodLoginUserResource(BaseResource):
                 'codigo': user_access.user.username,
                 'dataCriacao': user_access.user.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
                 'dataAlteracao': user_access.user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
-                'primeiroNome': firstname,
-                'sobrenome': lastname,
-                'apelido': None,
+                'primeiroNome': person_names['primeiroNome'],
+                'segundoNome': person_names['segundoNome'],
+                'sobrenome': person_names['sobrenome'],
+                'apelido': person_names['apelido'],
+                # FIXME: Assert every one has profile in database or
+                # create a default profile for all?
                 'idCargo': profile.id if profile else None,
-                'codCargo': None,
+                'codCargo': profile.id if profile else None,
                 'nomeCargo': profile.name if profile else None,
                 'redeId': network['id'],
                 'lojaId': user_access.branch.id,
-                'dtContratacao': None,
+                'ativo': user_access.user.is_active,
             })
 
         return response

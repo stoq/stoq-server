@@ -934,7 +934,7 @@ description = "Integration with SEFAZ system to emit the NF-e or NFC-e"
 name = "stoqnfe"
 optional = false
 python-versions = ">=3.5,<4"
-version = "1.2.0"
+version = "1.3.2"
 
 [package.dependencies]
 MarkupSafe = ">=1.1.1,<2.0.0"
@@ -1946,8 +1946,8 @@ stoqlink = [
     {file = "stoqlink-1.11.3.tar.gz", hash = "sha256:0a8c6d8861b0b3f69db9e42e35a3488c59b15a22b4b53f4dd1e7b58135810a08"},
 ]
 stoqnfe = [
-    {file = "stoqnfe-1.2.0-py3-none-any.whl", hash = "sha256:71095363aa7760de4423e0de8bede45e64cd5d8628d15c71b20ef4037c785e5e"},
-    {file = "stoqnfe-1.2.0.tar.gz", hash = "sha256:f0c0a48ed8120a91526c6a1aeac80a14f9da31510edb1c7c01f801839da0ac11"},
+    {file = "stoqnfe-1.3.2-py3-none-any.whl", hash = "sha256:aa70132efd9d2be12388ff9d92199d3312cf3baaf011a109abb28cb249144d9e"},
+    {file = "stoqnfe-1.3.2.tar.gz", hash = "sha256:2c2d492e07bf1f425a287b44100b262dd60b629d723a4072bae22d260e03ecd0"},
 ]
 stoqnonfiscal = [
     {file = "stoqnonfiscal-1.0.0-py3-none-any.whl", hash = "sha256:b487b2ef83f42ab10fca2457ebacd5564d8988c355460840fde8158bd1b6181a"},

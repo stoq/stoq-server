@@ -15,7 +15,8 @@ from stoqlib.domain.till import Till
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.parameters import sysparam
 
-from stoqserver.api.resources.b1food import generate_b1food_token
+from stoqserver.api.resources.b1food import (_check_if_uuid, _get_category_info,
+                                             generate_b1food_token)
 
 
 @pytest.fixture
@@ -104,6 +105,35 @@ def sale_type_out(example_creator, current_user, current_station):
 
 
 @pytest.fixture
+def cancelled_sale(example_creator, current_user, current_station):
+    sale = example_creator.create_sale()
+    sale.status = Sale.STATUS_CANCELLED
+    sale.branch = current_station.branch
+    sale.open_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
+    sale.confirm_date = datetime.strptime('2020-01-02', '%Y-%m-%d')
+    sale.invoice.key = '33200423335270000159650830000000181790066862'
+    sale_item = example_creator.create_sale_item(sale)
+    sale_item.price = 10
+    sale_item.base_price = 15
+    sellable_category = example_creator.create_sellable_category(description='Category 1')
+    sale_item.sellable.category = sellable_category
+    sale_item.sellable.code = '22222'
+    client = example_creator.create_client()
+    client.person.individual.cpf = '737.948.760-40'
+    sale.client = client
+    person = example_creator.create_person()
+    person.login_user = current_user
+    sale.salesperson.person = person
+    payment = example_creator.create_payment(group=sale.group)
+    payment.payment_type = Payment.TYPE_IN
+    payment.paid_value = 10
+    sale_item.icms_info.v_icms = 1
+    sale_item.icms_info.p_icms = 18
+
+    return sale
+
+
+@pytest.fixture
 def sellable(example_creator):
     sellable = example_creator.create_sellable()
 
@@ -165,6 +195,18 @@ def inactive_station(example_creator, branch_with_inactive_station):
 def inactive_station2(example_creator, branch_with_active_station):
     return example_creator.create_station(branch=branch_with_active_station,
                                           is_active=False, name='inactive station 2')
+
+
+@mock.patch('stoqserver.api.resources.b1food.UUID')
+def test_check_if_uuid_valid(abort):
+    _check_if_uuid(['123'])
+    assert abort.call_args_list[0][0][0] == '123'
+
+
+@mock.patch('stoqserver.api.resources.b1food.abort')
+def test_check_if_uuid_invalid(abort):
+    _check_if_uuid(['123'])
+    assert abort.call_args_list[0][0] == (400, 'os IDs das lojas devem ser do tipo UUID')
 
 
 @pytest.mark.parametrize('size', (1, 10, 30, 128))
@@ -420,7 +462,7 @@ def test_get_sale_item_successfully(get_config_mock, get_network_info,
         'dtLancamento': '2020-01-02',
         'grupo': {
             'ativo': True,
-            'codigo': '',
+            'codigo': sellable.category.id,
             'dataAlteracao': sellable.category.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'descricao': sellable.category.description,
             'idGrupo': sellable.category.id,
@@ -435,7 +477,7 @@ def test_get_sale_item_successfully(get_config_mock, get_network_info,
         'isRepique': False,
         'isTaxa': False,
         'lojaId': sale.branch.id,
-        'maquinaCod': station.code,
+        'maquinaCod': station.id,
         'maquinaId': station.id,
         'nomeMaquina': station.name,
         'operacaoId': sale.id,
@@ -444,7 +486,10 @@ def test_get_sale_item_successfully(get_config_mock, get_network_info,
         'valorBruto': 15.0,
         'valorLiquido': 10.0,
         'valorUnitario': 15.0,
-        'valorUnitarioLiquido': 10.0
+        'valorUnitarioLiquido': 10.0,
+        'tipoDescontoId': None,
+        'tipoDescontoCod': None,
+        'tipoDescontoNome': None
     }]
 
 
@@ -558,15 +603,113 @@ def test_get_sellables(get_config_mock, get_network_info, b1food_client,
         'isRepique': False,
         'isGorjeta': False,
         'isEntrega': False,
-        'grupo': {
-            'idGrupo': None,
-            'codigo': '',
-            'descricao': None,
-            'idGrupoPai': None,
-            'dataAlteracao': None,
-            'ativo': True
-        }
+        'grupo': _get_category_info(sellable)
     }]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_sellables_with_lojas_filter(get_config_mock, get_network_info, b1food_client,
+                                         store, sale, current_station, sellable, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+
+    branch_id = current_station.branch.id
+    ProductBranchOverride(store=store, product=sellable.product, branch_id=branch_id)
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'lojas': [current_station.branch.id]
+    }
+    response = b1food_client.get('b1food/terceiros/restful/material',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == 1
+
+    res_item = [item for item in res if item['idMaterial'] == sellable.id]
+    assert res_item == [{
+        'idMaterial': sellable.id,
+        'codigo': sellable.code,
+        'descricao': sellable.description,
+        'unidade': sellable.unit,
+        'dataAlteracao': sellable.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
+        'redeId': network['id'],
+        'lojaId': branch_id,
+        'isTaxa': False,
+        'isRepique': False,
+        'isGorjeta': False,
+        'isEntrega': False,
+        'grupo': _get_category_info(sellable)
+    }]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_sellables_with_lojas_filter_without_pbo(get_config_mock, get_network_info,
+                                                     b1food_client, store, sale, current_station,
+                                                     sellable, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+
+    delivery = sysparam.get_object(store, 'DELIVERY_SERVICE')
+    sellables = store.find(Sellable, Ne(Sellable.id, delivery.sellable.id))
+    branch_id = current_station.branch.id
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'lojas': [current_station.branch.id]
+    }
+    response = b1food_client.get('b1food/terceiros/restful/material',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == sellables.count()
+
+    res_item = [item for item in res if item['idMaterial'] == sellable.id]
+    assert res_item == [{
+        'idMaterial': sellable.id,
+        'codigo': sellable.code,
+        'descricao': sellable.description,
+        'unidade': sellable.unit,
+        'dataAlteracao': sellable.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'ativo': sellable.status == Sellable.STATUS_AVAILABLE,
+        'redeId': network['id'],
+        'lojaId': branch_id,
+        'isTaxa': False,
+        'isRepique': False,
+        'isGorjeta': False,
+        'isEntrega': False,
+        'grupo': _get_category_info(sellable)
+    }]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_sellables_with_lojas_filter_branch_not_found(get_config_mock, get_network_info,
+                                                          b1food_client, store, sale,
+                                                          current_station, sellable, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+
+    branch_id = 'e78a5f80-9b17-4b31-85e9-f3ebbdfc15fa'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'lojas': [branch_id]
+    }
+    response = b1food_client.get('b1food/terceiros/restful/material',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 404
+    msg = "Branch(es) ['{}'] not found".format(branch_id)
+    assert msg in res['message']
 
 
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
@@ -582,7 +725,7 @@ def test_get_sellables_available(get_config_mock, get_network_info, b1food_clien
 
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
-        'ativo': True
+        'ativo': 1
     }
     response = b1food_client.get('b1food/terceiros/restful/material',
                                  query_string=query_string)
@@ -598,25 +741,27 @@ def test_get_sellables_available(get_config_mock, get_network_info, b1food_clien
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
-def test_get_sellables_from_branch(get_config_mock, get_network_info, b1food_client,
-                                   store, example_creator, sale, sellable, network):
+def test_get_sellables_unavailable(get_config_mock, get_network_info, b1food_client,
+                                   store, sale, sellable, network):
     get_config_mock.return_value.get.return_value = "B1FoodClientId"
     get_network_info.return_value = network
 
-    branch = example_creator.create_branch()
-    ProductBranchOverride(store=store, product_id=sellable.id, branch_id=branch.id)
+    sellable.status = Sellable.STATUS_CLOSED
+    unavailable_sellables = store.find(Sellable, Sellable.status != Sellable.STATUS_AVAILABLE)
 
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
-        'lojas': branch.id
+        'ativo': 0
     }
     response = b1food_client.get('b1food/terceiros/restful/material',
                                  query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
     assert response.status_code == 200
-    assert len(res) == 1
-    assert res[0]['lojaId'] == branch.id
+    assert len(res) == unavailable_sellables.count()
+
+    res_available = [item for item in res if item['ativo'] is True]
+    assert len(res_available) == 0
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
@@ -740,17 +885,18 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
             ],
             'dataContabil': '2020-01-02 00:00:00 -0300',
             'hora': '00',
+            'cancelado': sale.status == Sale.STATUS_CANCELLED,
             'idAtendente': salesperson.person.login_user.id,
             'idMovimentoCaixa': sale.id,
             'loja': sale.branch.name,
             'lojaId': sale.branch.id,
-            'maquinaCod': payment.station.code,
+            'maquinaCod': payment.station.id,
             'maquinaId': sale.station.id,
             'maquinaPortaFiscal': None,
             'meiosPagamento': [
                 {
                     'id': payment.method.id,
-                    'codigo': None,
+                    'codigo': payment.method.id,
                     'nome': payment.method.method_name,
                     'descricao': payment.method.method_name,
                     'valor': float(payment.paid_value),
@@ -774,7 +920,167 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
             'vlRepique': 0,
             'vlServicoRecebido': 0,
             'vlTaxaEntrega': 0,
-            'vlTrocoFormasPagto': 0
+            'vlTrocoFormasPagto': 0,
+            'periodoId': None,
+            'periodoCod': None,
+            'periodoNome': None,
+            'centroRendaId': None,
+            'centroRendaCod': None,
+            'centroRendaNome': None
+        },
+    ]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payments_active(get_config_mock, get_network_info, b1food_client,
+                             store, cancelled_sale, sale, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03',
+        'ativo': 1
+    }
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+    salesperson = sale.salesperson
+    payment = sale.group.payments[0]
+    document = raw_document(sale.get_client_document())
+    assert response.status_code == 200
+    assert res == [
+        {
+            'codAtendente': salesperson.person.login_user.username,
+            'consumidores': [
+                {
+                    'documento': document,
+                    'tipo': 'CPF'
+                }
+            ],
+            'dataContabil': '2020-01-02 00:00:00 -0300',
+            'hora': '00',
+            'cancelado': sale.status == Sale.STATUS_CANCELLED,
+            'idAtendente': salesperson.person.login_user.id,
+            'idMovimentoCaixa': sale.id,
+            'loja': sale.branch.name,
+            'lojaId': sale.branch.id,
+            'maquinaCod': payment.station.id,
+            'maquinaId': sale.station.id,
+            'maquinaPortaFiscal': None,
+            'meiosPagamento': [
+                {
+                    'id': payment.method.id,
+                    'codigo': payment.method.id,
+                    'nome': payment.method.method_name,
+                    'descricao': payment.method.method_name,
+                    'valor': float(payment.paid_value),
+                    'troco': float(payment.base_value - payment.value),
+                    'valorRecebido': float(payment.value),
+                    'idAtendente': sale.salesperson.person.login_user.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                }
+            ],
+            'nomeAtendente': sale.salesperson.person.name,
+            'nomeMaquina': sale.station.name,
+            'numPessoas': 1,
+            'operacaoId': sale.id,
+            'rede': network['name'],
+            'redeId': network['id'],
+            'vlAcrescimo': 0.0,
+            'vlTotalReceber': 0.0,
+            'vlTotalRecebido': 10.0,
+            'vlDesconto': 0.0,
+            'vlRepique': 0,
+            'vlServicoRecebido': 0,
+            'vlTaxaEntrega': 0,
+            'vlTrocoFormasPagto': 0,
+            'periodoId': None,
+            'periodoCod': None,
+            'periodoNome': None,
+            'centroRendaId': None,
+            'centroRendaCod': None,
+            'centroRendaNome': None
+        },
+    ]
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payments_inactive(get_config_mock, get_network_info, b1food_client,
+                               store, sale, cancelled_sale, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03',
+        'ativo': 0
+    }
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+    salesperson = cancelled_sale.salesperson
+    payment = cancelled_sale.group.payments[0]
+    document = raw_document(cancelled_sale.get_client_document())
+    assert response.status_code == 200
+    assert res == [
+        {
+            'codAtendente': salesperson.person.login_user.username,
+            'consumidores': [
+                {
+                    'documento': document,
+                    'tipo': 'CPF'
+                }
+            ],
+            'dataContabil': '2020-01-02 00:00:00 -0300',
+            'hora': '00',
+            'cancelado': cancelled_sale.status == Sale.STATUS_CANCELLED,
+            'idAtendente': salesperson.person.login_user.id,
+            'idMovimentoCaixa': cancelled_sale.id,
+            'loja': cancelled_sale.branch.name,
+            'lojaId': cancelled_sale.branch.id,
+            'maquinaCod': payment.station.id,
+            'maquinaId': cancelled_sale.station.id,
+            'maquinaPortaFiscal': None,
+            'meiosPagamento': [
+                {
+                    'id': payment.method.id,
+                    'codigo': payment.method.id,
+                    'nome': payment.method.method_name,
+                    'descricao': payment.method.method_name,
+                    'valor': float(payment.paid_value),
+                    'troco': float(payment.base_value - payment.value),
+                    'valorRecebido': float(payment.value),
+                    'idAtendente': cancelled_sale.salesperson.person.login_user.id,
+                    'codAtendente': cancelled_sale.salesperson.person.login_user.username,
+                    'nomeAtendente': cancelled_sale.salesperson.person.name,
+                }
+            ],
+            'nomeAtendente': cancelled_sale.salesperson.person.name,
+            'nomeMaquina': cancelled_sale.station.name,
+            'numPessoas': 1,
+            'operacaoId': cancelled_sale.id,
+            'rede': network['name'],
+            'redeId': network['id'],
+            'vlAcrescimo': 0.0,
+            'vlTotalReceber': 0.0,
+            'vlTotalRecebido': 10.0,
+            'vlDesconto': 0.0,
+            'vlRepique': 0,
+            'vlServicoRecebido': 0,
+            'vlTaxaEntrega': 0,
+            'vlTrocoFormasPagto': 0,
+            'periodoId': None,
+            'periodoCod': None,
+            'periodoNome': None,
+            'centroRendaId': None,
+            'centroRendaCod': None,
+            'centroRendaNome': None
         },
     ]
 
@@ -798,6 +1104,45 @@ def test_get_payment_with_type_out(get_config_mock, b1food_client,
         assert "Inconsistent database, please contact support." in str(error.value)
 
 
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payments_cancelled_false(get_config_mock, b1food_client, store, sale):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    sale.status = Sale.STATUS_CANCELLED
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03',
+        'cancelados': 0
+    }
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert res == []
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payments_cancelled_true(get_config_mock, b1food_client, store, sale):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    sale.status = Sale.STATUS_CANCELLED
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'dtinicio': '2020-01-01',
+        'dtfim': '2020-01-03',
+        'cancelados': 1
+    }
+    response = b1food_client.get('b1food/terceiros/restful/movimentocaixa',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == 1
+    assert res[0]['cancelado'] is True
+
+
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
 @pytest.mark.usefixtures('mock_new_store')
@@ -816,9 +1161,9 @@ def test_get_stations_successfully(get_config_mock, get_network_info,
 
     assert res_item == [
         {
-            'apelido': None,
+            'apelido': active_station.name,
             'ativo': active_station.is_active,
-            'codigo': active_station.code,
+            'codigo': active_station.id,
             'id': active_station.id,
             'lojaId': active_station.branch.id,
             'nome': active_station.name,
@@ -849,9 +1194,9 @@ def test_get_inactive_stations(get_config_mock, get_network_info,
 
     assert res_item == [
         {
-            'apelido': None,
+            'apelido': inactive_station.name,
             'ativo': inactive_station.is_active,
-            'codigo': inactive_station.code,
+            'codigo': inactive_station.id,
             'id': inactive_station.id,
             'lojaId': inactive_station.branch.id,
             'nome': inactive_station.name,
@@ -887,9 +1232,9 @@ def test_get_active_stations_from_branch(get_config_mock, get_network_info, b1fo
     assert len(res) == 1
     assert res == [
         {
-            'apelido': None,
+            'apelido': active_station.name,
             'ativo': active_station.is_active,
-            'codigo': active_station.code,
+            'codigo': active_station.id,
             'id': active_station.id,
             'lojaId': active_station.branch.id,
             'nome': active_station.name,
@@ -1026,11 +1371,12 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
                                  query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
     item = sale.get_items()[0]
+    discount = item.item_discount
     payment = sale.group.payments[0]
     assert response.status_code == 200
     assert res == [
         {
-            'maquinaCod': sale.station.code,
+            'maquinaCod': sale.station.id,
             'nomeMaquina': sale.station.name,
             'nfNumero': sale.invoice.invoice_number,
             'nfSerie': sale.invoice.series,
@@ -1038,13 +1384,13 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
             'valor': sale.total_amount,
             'maquinaId': sale.station.id,
             'desconto': float(sale.discount_value),
-            'acrescimo': sale.surcharge_value,
+            'acrescimo': float(-1 * min(discount, 0)),
             'chaveNfe': sale.invoice.key,
             'dataContabil': sale.confirm_date.strftime('%Y-%m-%d'),
             'dataEmissao': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'idOperacao': sale.id,
-            'troco': 0,
-            'pagamentos': sale.paid,
+            'troco': 0.0,
+            'pagamentos': float(sale.paid),
             'dataMovimento': sale.confirm_date.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'cancelado': True if sale.cancel_date else False,
             'detalhes': [
@@ -1067,7 +1413,7 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
                     'cancelado': True if sale.cancel_date else False,
                     'maquinaId': sale.station.id,
                     'nomeMaquina': sale.station.name,
-                    'maquinaCod': sale.station.code,
+                    'maquinaCod': sale.station.id,
                     'isTaxa': None,
                     'isRepique': None,
                     'isGorjeta': None,
@@ -1077,7 +1423,7 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
             'meios': [
                 {
                     'id': payment.method.id,
-                    'codigo': None,
+                    'codigo': payment.method.id,
                     'nome': payment.method.method_name,
                     'descricao': payment.method.method_name,
                     'valor': float(payment.paid_value),
@@ -1153,7 +1499,7 @@ def test_get_payment_methods(get_config_mock, get_network_info,
     assert res_item == [{
         'ativo': payment_method.is_active,
         'id': payment_method.id,
-        'codigo': None,
+        'codigo': payment_method.id,
         'nome': payment_method.method_name,
         'redeId': network['id'],
         'lojaId': None
@@ -1172,7 +1518,7 @@ def test_get_payment_methods_active(get_config_mock, get_network_info,
 
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
-        'ativo': True
+        'ativo': 1
     }
     response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
                                  query_string=query_string)
@@ -1183,8 +1529,39 @@ def test_get_payment_methods_active(get_config_mock, get_network_info,
     assert res[0] == {
         'ativo': payment_method_active.is_active,
         'id': payment_method_active.id,
-        'codigo': None,
+        'codigo': payment_method_active.id,
         'nome': payment_method_active.method_name,
+        'redeId': network['id'],
+        'lojaId': None
+    }
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_methods_inactive(get_config_mock, get_network_info,
+                                      b1food_client, store, sale, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+
+    payment_method = store.find(PaymentMethod, method_name='money').one()
+    payment_method.is_active = False
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 0
+    }
+    response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == 1
+    assert res[0] == {
+        'ativo': payment_method.is_active,
+        'id': payment_method.id,
+        'codigo': payment_method.id,
+        'nome': payment_method.method_name,
         'redeId': network['id'],
         'lojaId': None
     }
@@ -1228,6 +1605,44 @@ def test_get_roles_successfully(get_config_mock, b1food_client):
     assert 'nome' in res[0]
     assert 'redeId' in res[0]
     assert 'lojaId' in res[0]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_roles_active(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 1
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/cargos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert len(res) > 0
+    assert 'ativo' in res[0]
+    assert 'id' in res[0]
+    assert 'codigo' in res[0]
+    assert 'dataCriacao' in res[0]
+    assert 'dataAlteracao' in res[0]
+    assert 'nome' in res[0]
+    assert 'redeId' in res[0]
+    assert 'lojaId' in res[0]
+
+
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_roles_inactive(get_config_mock, b1food_client):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 0
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/cargos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
 
 
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
@@ -1308,6 +1723,54 @@ def test_get_discount_categories_successfully(get_config_mock, get_network_info,
     }
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_discount_categories_active(get_config_mock, get_network_info,
+                                        b1food_client, network, client_category):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 1
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/tiposdescontos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert len(res) > 0
+    assert res[0] == {
+        'ativo': True,
+        'id': client_category.id,
+        'codigo': client_category.id,
+        'dataCriacao': client_category.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'dataAlteracao': client_category.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'nome': client_category.name,
+        'redeId': network['id'],
+        'lojaId': None
+    }
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_discount_categories_inactive(get_config_mock, get_network_info,
+                                          b1food_client, network, client_category):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 0
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/tiposdescontos',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
 @mock.patch('stoqserver.api.decorators.get_config')
 def test_get_associated_branches_successfully(get_config_mock, b1food_client, current_user):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
@@ -1355,12 +1818,60 @@ def test_get_associated_branches_with_lojas_filter(get_config_mock, get_network_
             'dataAlteracao': user_access.user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
             'primeiroNome': 'Algum',
             'sobrenome': 'Nome Qualquer',
-            'apelido': None,
+            'segundoNome': None,
+            'apelido': 'Algum',
             'idCargo': profile.id if profile else None,
-            'codCargo': None,
+            'codCargo': profile.id if profile else None,
             'nomeCargo': profile.name if profile else None,
             'redeId': network['id'],
             'lojaId': user_access.branch.id,
-            'dtContratacao': None,
+            'ativo': user_access.user.is_active
         }
     ]
+
+
+@pytest.mark.usefixtures('mock_new_store')
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_associated_branches_is_active_false(get_config_mock, get_network_info,
+                                                 b1food_client, current_user, network):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    user_branch_access = current_user.get_associated_branches()
+    user_access = user_branch_access[0]
+    user_access.user.is_active = False
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 1
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/funcionarios',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
+
+
+@pytest.mark.usefixtures('mock_new_store')
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+def test_get_associated_branches_is_active_true(get_config_mock, get_network_info,
+                                                b1food_client, current_user, network):
+    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    user_branch_access = current_user.get_associated_branches()
+    user_access = user_branch_access[0]
+    user_access.user.is_active = True
+    user_access.user.person.name = 'Algum Nome Qualquer'
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 0
+    }
+
+    response = b1food_client.get('/b1food/terceiros/restful/funcionarios',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert res == []
