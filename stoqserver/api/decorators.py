@@ -67,7 +67,7 @@ def b1food_login_required(f):
     def wrapper(*args, **kwargs):
         # B1Food documentation says that it is args but we use the headers
         auth = request.headers.get('Authorization', '').split('Bearer ')
-        if not auth:
+        if len(auth) != 2:
             auth = request.args.get('Authorization', '').split('Bearer ')
         config = get_config()
         access_token = config.get("B1Food", "access_token") or ""
