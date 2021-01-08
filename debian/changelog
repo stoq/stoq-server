@@ -1,3 +1,9 @@
+stoq-server (2.2.0) xenial; urgency=medium
+
+  * Release 2.2.0
+
+ -- stoq <stoq@dancorde-note>  Fri, 15 Jan 2021 10:49:52 -0300
+
 stoq-server (2.1.3) xenial; urgency=medium
 
   * Release 2.1.3

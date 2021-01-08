@@ -31,7 +31,7 @@ from flask import request
 from flask_restful import Resource
 from serial.serialutil import SerialException
 
-from stoqdrivers.exceptions import InvalidReplyException
+from stoqdrivers.exceptions import InvalidReplyException, PrinterError
 from stoqlib.api import api
 from stoqlib.domain.devices import DeviceSettings
 from stoqlib.domain.token import AccessToken
@@ -103,7 +103,7 @@ class BaseResource(Resource):
         try:
             printer = api.device_manager.printer
             return printer.is_drawer_open()
-        except (SerialException, InvalidReplyException):
+        except (SerialException, InvalidReplyException, PrinterError):
             if printer:
                 printer._port.close()
             api.device_manager._printer = None
@@ -113,7 +113,7 @@ class BaseResource(Resource):
                     printer = api.device_manager.printer
                     printer.is_drawer_open()
                     break
-                except SerialException:
+                except (SerialException, PrinterError):
                     gevent.sleep(1)
             else:
                 # Reopening printer failed. re-raise the original exception

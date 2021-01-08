@@ -22,13 +22,17 @@
 # Author(s): Stoq Team <dev@stoq.com.br>
 #
 
+import logging
 from serial.serialutil import SerialException
+import socket
 
-from stoqdrivers.exceptions import InvalidReplyException
+from stoqdrivers.exceptions import InvalidReplyException, PrinterError
 from stoqlib.database.runtime import get_current_station
 
 from ..signals import CheckPinpadStatusEvent, CheckSatStatusEvent
 from .lock import lock_pinpad, lock_printer, lock_sat
+
+logger = logging.getLogger(__name__)
 
 
 @lock_printer
@@ -36,7 +40,10 @@ def check_drawer(store=None):
     from .restful import DrawerResource
     try:
         return DrawerResource.ensure_printer(get_current_station(store), retries=1)
-    except (SerialException, InvalidReplyException):
+    except (SerialException, InvalidReplyException, PrinterError):
+        return None
+    except socket.timeout as error:
+        logger.warning(error)
         return None
 
 
