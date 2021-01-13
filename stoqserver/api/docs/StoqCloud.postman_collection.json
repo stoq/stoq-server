@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "c3abf9d5-5206-4fed-877a-9a31ed4fcd76",
+		"_postman_id": "bb004743-47c6-4c28-9ef5-c81e588a883d",
 		"name": "StoqCloud",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -1522,6 +1522,10 @@
 		{
 			"key": "branch_id",
 			"value": "65971281-f458-11ea-9adf-d2f3835c9433"
+		},
+		{
+			"key": "open_date",
+			"value": "2021-01-13 10:46:21"
 		}
 	]
 }

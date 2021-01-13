@@ -1236,6 +1236,11 @@ class SaleResource(BaseResource, SaleResourceMixin):
         group = PaymentGroup(store=store)
         discount_value = data.get('discount_value', 0) or 0
         passbook_client = data.get('passbook_client_info')
+        if data.get('open_date'):
+            open_date = datetime.datetime.strptime(data['open_date'], '%Y-%m-%d %H:%M:%S')
+        else:
+            open_date = localnow()
+
         sale = Sale(
             store=store,
             id=sale_id,
@@ -1245,7 +1250,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
             client=client,
             client_category_id=client_category_id,
             group=group,
-            open_date=localnow(),
+            open_date=open_date,
             coupon_id=None,
             discount_value=discount_value,
         )
