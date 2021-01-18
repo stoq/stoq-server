@@ -28,7 +28,7 @@ test:
     - export LC_ALL=pt_BR.UTF-8
     - python3 -m venv env
     - source env/bin/activate
-    - pip install -U setuptools pip wheel importlib-metadata==2.1.0
+    - pip install -U setuptools==51.1.2 pip wheel importlib-metadata==2.1.0
     - pip install -U poetry
     # providing credentials using poetry config http-basic or environment variables didn't work
     # (as suggested by poetry docs https://python-poetry.org/docs/repositories/)
@@ -53,7 +53,10 @@ test:
     - rm -rf dist
     - python3 -m venv env
     - source env/bin/activate
-    - pip install -U setuptools pip wheel importlib-metadata==2.1.0
+    # some bug was introduced in setuptools>=51.1.2,<=51.3.3 and some packages (such as cairocffi)
+    # can't be installed with python 3.5 so we have to pin the version here
+    # importlib-metadata dropped support for python 3.5 so we have to pin an old version
+    - pip install -U setuptools==51.1.2 pip wheel importlib-metadata==2.1.0
     - pip install -U poetry
     - make requirements.txt
     - sed -i 's|\(gitlab.com\)|__token__:'"${GITLAB_PYPI_TOKEN}"'@\1|' pyproject.toml
