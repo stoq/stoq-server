@@ -36,8 +36,9 @@ from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.payment.group import PaymentGroup
 from stoqlib.domain.person import (Branch, Company, Individual, LoginUser, SalesPerson,
-                                   Person, EmployeeRole, ClientCategory, Client)
+                                   Person, ClientCategory, Client)
 from stoqlib.domain.product import Product
+from stoqlib.domain.profile import UserProfile
 from stoqlib.domain.system import TransactionEntry
 from stoqlib.domain.sale import Sale, SaleItem
 from stoqlib.domain.sellable import Sellable, SellableCategory
@@ -901,24 +902,24 @@ class B1FoodRolesResource(BaseResource):
     def get(self, store):
         data = request.args
         request_is_active = data.get('ativo')
-        # Since our domain does not have an is_active attribute for EmployeeRole,
+        # Since our domain does not have an is_active attribute for UserProfile,
         # treat them all as actives
         if request_is_active == '0':
             return []
 
-        roles = store.find(EmployeeRole)
+        profiles = store.find(UserProfile)
 
         network = _get_network_info()
 
         response = []
-        for role in roles:
+        for profile in profiles:
             response.append({
                 'ativo': True,
-                'id': role.id,
-                'codigo': role.id,
-                'dataCriacao': role.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
-                'dataAlteracao': role.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
-                'nome': role.name,
+                'id': profile.id,
+                'codigo': profile.id,
+                'dataCriacao': profile.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'dataAlteracao': profile.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'nome': profile.name,
                 'redeId': network['id'],
                 'lojaId': None
             })

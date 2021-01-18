@@ -1585,9 +1585,13 @@ def test_get_tills_successfully(get_config_mock, get_network_info,
     assert res == []
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_roles_successfully(get_config_mock, b1food_client):
+def test_get_user_profile_successfully(get_config_mock, get_network_info, b1food_client,
+                                       current_user, network):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    profile = current_user.profile
+    get_network_info.return_value = network
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
     }
@@ -1597,19 +1601,25 @@ def test_get_roles_successfully(get_config_mock, b1food_client):
     res = json.loads(response.data.decode('utf-8'))
 
     assert len(res) > 0
-    assert 'ativo' in res[0]
-    assert 'id' in res[0]
-    assert 'codigo' in res[0]
-    assert 'dataCriacao' in res[0]
-    assert 'dataAlteracao' in res[0]
-    assert 'nome' in res[0]
-    assert 'redeId' in res[0]
-    assert 'lojaId' in res[0]
+    assert res[0] == {
+        'ativo': True,
+        'id': profile.id,
+        'codigo': profile.id,
+        'dataCriacao': profile.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'dataAlteracao': profile.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'nome': profile.name,
+        'redeId': network['id'],
+        'lojaId': None,
+    }
 
 
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_roles_active(get_config_mock, b1food_client):
+def test_get_user_profile_active(get_config_mock, get_network_info, b1food_client,
+                                 current_user, network):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
+    get_network_info.return_value = network
+    profile = current_user.profile
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
         'ativo': 1
@@ -1620,18 +1630,20 @@ def test_get_roles_active(get_config_mock, b1food_client):
     res = json.loads(response.data.decode('utf-8'))
 
     assert len(res) > 0
-    assert 'ativo' in res[0]
-    assert 'id' in res[0]
-    assert 'codigo' in res[0]
-    assert 'dataCriacao' in res[0]
-    assert 'dataAlteracao' in res[0]
-    assert 'nome' in res[0]
-    assert 'redeId' in res[0]
-    assert 'lojaId' in res[0]
+    assert res[0] == {
+        'ativo': True,
+        'id': profile.id,
+        'codigo': profile.id,
+        'dataCriacao': profile.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'dataAlteracao': profile.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'nome': profile.name,
+        'redeId': network['id'],
+        'lojaId': None,
+    }
 
 
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_roles_inactive(get_config_mock, b1food_client):
+def test_get_user_profile_inactive(get_config_mock, b1food_client):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
