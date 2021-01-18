@@ -228,7 +228,7 @@ def test_b1food_success_login(get_config_mock, b1food_client):
 
     assert 'access_token' in res
     assert res['token_type'] == 'Bearer'
-    assert res['expires_in'] == float('inf')
+    assert res['expires_in'] == -1
 
 
 @mock.patch('stoqserver.api.resources.b1food.get_config')

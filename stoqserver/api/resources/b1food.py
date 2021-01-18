@@ -194,7 +194,7 @@ class B1foodLoginResource(BaseResource):
 
         return make_response(jsonify({
             'token_type': 'Bearer',
-            'expires_in': float('inf'),
+            'expires_in': -1,
             'access_token': access_token
         }), 200)
 
