@@ -8,6 +8,7 @@ from storm.expr import Ne
 from stoqlib.domain.overrides import ProductBranchOverride
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.payment import Payment
+from stoqlib.domain.person import LoginUser
 from stoqlib.domain.sale import Sale
 from stoqlib.domain.sellable import Sellable
 from stoqlib.domain.station import BranchStation
@@ -16,7 +17,7 @@ from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.parameters import sysparam
 
 from stoqserver.api.resources.b1food import (_check_if_uuid, _get_category_info,
-                                             generate_b1food_token)
+                                             _get_person_names, generate_b1food_token)
 
 
 @pytest.fixture
@@ -1783,75 +1784,50 @@ def test_get_discount_categories_inactive(get_config_mock, get_network_info,
     assert res == []
 
 
-@mock.patch('stoqserver.api.decorators.get_config')
-def test_get_associated_branches_successfully(get_config_mock, b1food_client, current_user):
-    get_config_mock.return_value.get.return_value = 'B1FoodClientId'
-
-    query_string = {
-        'Authorization': 'Bearer B1FoodClientId',
-    }
-    user_branch_access = current_user.get_associated_branches()
-    user_access = user_branch_access[0]
-
-    response = b1food_client.get('/b1food/terceiros/restful/funcionarios',
-                                 query_string=query_string)
-    res = json.loads(response.data.decode('utf-8'))
-
-    assert res[0]['id'] == user_access.user.id
-    assert res[0]['lojaId'] == user_access.branch.id
-
-
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
-@pytest.mark.usefixtures('mock_new_store')
-def test_get_associated_branches_with_lojas_filter(get_config_mock, get_network_info,
-                                                   b1food_client, current_user, network):
+def test_get_login_users(get_config_mock, get_network_info, store,
+                         b1food_client, network, current_user):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
     get_network_info.return_value = network
-    user_branch_access = current_user.get_associated_branches()
-    user_access = user_branch_access[0]
-    user_access.user.person.name = 'Algum Nome Qualquer'
-    profile = user_access.user.profile
 
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
-        'lojas': [user_access.branch.id]
     }
 
     response = b1food_client.get('/b1food/terceiros/restful/funcionarios',
                                  query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
-    assert res == [
-        {
-            'id': user_access.user.id,
-            'codigo': user_access.user.username,
-            'dataCriacao': user_access.user.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
-            'dataAlteracao': user_access.user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
-            'primeiroNome': 'Algum',
-            'sobrenome': 'Nome Qualquer',
-            'segundoNome': None,
-            'apelido': 'Algum',
-            'idCargo': profile.id if profile else None,
-            'codCargo': profile.id if profile else None,
-            'nomeCargo': profile.name if profile else None,
-            'redeId': network['id'],
-            'lojaId': user_access.branch.id,
-            'ativo': user_access.user.is_active
-        }
-    ]
+    assert len(res) == store.find(LoginUser).count()
+    person_names = _get_person_names(current_user.person)
+    current_user_res = {
+        'id': current_user.id,
+        'codigo': current_user.username,
+        'dataCriacao': current_user.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'dataAlteracao': current_user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+        'primeiroNome': person_names['primeiroNome'],
+        'segundoNome': person_names['segundoNome'],
+        'sobrenome': person_names['sobrenome'],
+        'apelido': person_names['apelido'],
+        'idCargo': current_user.profile.id,
+        'codCargo': current_user.profile.id,
+        'nomeCargo': current_user.profile.name,
+        'redeId': network['id'],
+        'lojaId': None,
+        'ativo': current_user.is_active
+    }
+    assert current_user_res in res
 
 
 @pytest.mark.usefixtures('mock_new_store')
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_associated_branches_is_active_false(get_config_mock, get_network_info,
-                                                 b1food_client, current_user, network):
+def test_get_login_users_active(get_config_mock, get_network_info, store,
+                                b1food_client, current_user, network):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
     get_network_info.return_value = network
-    user_branch_access = current_user.get_associated_branches()
-    user_access = user_branch_access[0]
-    user_access.user.is_active = False
+    current_user.is_active = False
 
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',
@@ -1862,20 +1838,17 @@ def test_get_associated_branches_is_active_false(get_config_mock, get_network_in
                                  query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
 
-    assert res == []
+    assert len(res) == store.find(LoginUser, is_active=True).count()
+    assert not any(res_item['id'] == current_user.id for res_item in res)
 
 
 @pytest.mark.usefixtures('mock_new_store')
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
 @mock.patch('stoqserver.api.decorators.get_config')
-def test_get_associated_branches_is_active_true(get_config_mock, get_network_info,
-                                                b1food_client, current_user, network):
+def test_get_login_users_inactive(get_config_mock, get_network_info,
+                                  b1food_client, current_user, network):
     get_config_mock.return_value.get.return_value = 'B1FoodClientId'
     get_network_info.return_value = network
-    user_branch_access = current_user.get_associated_branches()
-    user_access = user_branch_access[0]
-    user_access.user.is_active = True
-    user_access.user.person.name = 'Algum Nome Qualquer'
 
     query_string = {
         'Authorization': 'Bearer B1FoodClientId',

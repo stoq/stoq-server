@@ -1005,11 +1005,7 @@ class B1FoodLoginUserResource(BaseResource):
 
     def get(self, store):
         data = request.args
-
         request_is_active = data.get('ativo')
-        request_branches = data.get('lojas')
-        branch_ids = _parse_request_list(request_branches)
-        _check_if_uuid(branch_ids)
 
         users = store.find(LoginUser)
         if request_is_active == '1':
@@ -1017,29 +1013,18 @@ class B1FoodLoginUserResource(BaseResource):
         elif request_is_active == '0':
             users = users.find(is_active=False)
 
-        user_access_list = []
-        if len(branch_ids) > 0:
-            for user in users:
-                associeted_branches = user.get_associated_branches()
-                for user_access in associeted_branches:
-                    if user_access.branch.id in branch_ids:
-                        user_access_list.append(user_access)
-        else:
-            for user in users:
-                for user_access in user.get_associated_branches():
-                    user_access_list.append(user_access)
-
+        network = _get_network_info()
         response = []
-        for user_access in user_access_list:
-            person_names = _get_person_names(user_access.user.person)
-            profile = user_access.user.profile
-            network = _get_network_info()
+
+        for user in users:
+            person_names = _get_person_names(user.person)
+            profile = user.profile
 
             response.append({
-                'id': user_access.user.id,
-                'codigo': user_access.user.username,
-                'dataCriacao': user_access.user.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
-                'dataAlteracao': user_access.user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'id': user.id,
+                'codigo': user.username,
+                'dataCriacao': user.te.te_time.strftime('%Y-%m-%d %H:%M:%S -0300'),
+                'dataAlteracao': user.te.te_server.strftime('%Y-%m-%d %H:%M:%S -0300'),
                 'primeiroNome': person_names['primeiroNome'],
                 'segundoNome': person_names['segundoNome'],
                 'sobrenome': person_names['sobrenome'],
@@ -1050,8 +1035,8 @@ class B1FoodLoginUserResource(BaseResource):
                 'codCargo': profile.id if profile else None,
                 'nomeCargo': profile.name if profile else None,
                 'redeId': network['id'],
-                'lojaId': user_access.branch.id,
-                'ativo': user_access.user.is_active,
+                'lojaId': None,
+                'ativo': user.is_active,
             })
 
         return response
