@@ -40,7 +40,7 @@ bundle_deb: bundle_dist requirements.txt
 		python -m venv env && \
 		. env/bin/activate && \
 		pip install -U kiwi-gtk && \
-		pip install -U pip wheel setuptools && \
+		pip install -U pip wheel setuptools==51.1.2 && \
 		pip install -U poetry && \
 		pip install -r requirements.txt && \
 		cp setup_old.py setup.py && \
