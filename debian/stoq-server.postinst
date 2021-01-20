@@ -111,8 +111,8 @@ EOF
         supervisorctl restart stoqserver || true
 
         # Fix bundle's virtualenv symbolic links
-        ln -fs /usr/bin/python3 /usr/lib/stoq-virtualenv/bin/python
-        ln -fs /usr/lib/stoq-virtualenv/bin/python /usr/lib/stoq-virtualenv/bin/python3
+        ln -fs /usr/bin/python3 /usr/lib/stoq-virtualenv/bin/python || true
+        ln -fs /usr/lib/stoq-virtualenv/bin/python /usr/lib/stoq-virtualenv/bin/python3 || true
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
