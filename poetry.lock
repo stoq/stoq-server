@@ -802,7 +802,7 @@ qrcode = ">=5.3,<5.4"
 
 [[package]]
 name = "stoqifood"
-version = "1.1.2"
+version = "1.1.4"
 description = "Stoq plugin for external order"
 category = "main"
 optional = false
@@ -1895,8 +1895,8 @@ stoqdrivers = [
     {file = "stoqdrivers-2.1.0.tar.gz", hash = "sha256:31a55080b4d28e22dc7c21f9229656800b8224f255e41da5fed7601b6c5da128"},
 ]
 stoqifood = [
-    {file = "stoqifood-1.1.2-py3-none-any.whl", hash = "sha256:17778cd21245f9024bcba979fad20487df5e821580f8b79494ce95b57d7b3321"},
-    {file = "stoqifood-1.1.2.tar.gz", hash = "sha256:3826b65af73f3549d030f473fc3e0f2e9e3f43d1b20b08451edcad520d955012"},
+    {file = "stoqifood-1.1.4-py3-none-any.whl", hash = "sha256:6e35ec5355547ba7a006b3df5d0e0521c3bd9a9130d0b9e46b538c8f6ca29092"},
+    {file = "stoqifood-1.1.4.tar.gz", hash = "sha256:81e126ad2265f7a9ebcd52a9dc41742cb2061f285508e946660d97199dee15e1"},
 ]
 stoqimendes = [
     {file = "stoqimendes-1.2.2-py3-none-any.whl", hash = "sha256:190f6f1567be62a5221446727dbff2faf75af9f275cbb23281d1aef3d0384929"},
