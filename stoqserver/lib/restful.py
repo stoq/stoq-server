@@ -533,8 +533,11 @@ class TillResource(BaseResource):
                         summary.user_value -= till.initial_cash_amount
 
         balance = till.get_balance()
-        if balance:
+        if balance > 0:
             till.add_debit_entry(balance, _('Blind till closing'))
+        elif balance < 0:
+            # This till is missing money!
+            till.add_credit_entry(abs(balance), _('Blind till closing'))
         till.close_till(self.get_current_user(store))
 
     def _handle_close_till(self, store, till, till_summaries, include_receipt_image=False):
