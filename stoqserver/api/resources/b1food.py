@@ -27,11 +27,12 @@ import datetime
 from uuid import UUID
 
 from flask import abort, make_response, jsonify, request
-from storm.expr import And, Join, LeftJoin, Ne, Or
+from storm.expr import And, Join, LeftJoin, Ne, Or, Select
 from storm.info import ClassAlias
 
 from stoqlib.domain.fiscal import Invoice, CfopData
 from stoqlib.domain.overrides import ProductBranchOverride
+from stoqlib.domain.payment.card import CreditCardData, CreditProvider
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.payment.group import PaymentGroup
@@ -115,24 +116,6 @@ def _get_network_info():
     }
 
 
-def _get_payments_info(payments_list, login_user, sale):
-    payments = []
-    for payment in payments_list:
-        payments.append({
-            'id': payment.method.id,
-            'codigo': _get_payment_method_code(payment.method),
-            'nome': payment.method.method_name,
-            'descricao': _get_payment_method_description(payment.method),
-            'valor': float(payment.base_value or 0),
-            'troco': float(payment.base_value - payment.value),
-            'valorRecebido': float(payment.value or 0),
-            'idAtendente': login_user.id,
-            'codAtendente': login_user.username,
-            'nomeAtendente': sale.salesperson.person.name,
-        })
-    return payments
-
-
 def _get_client_category_code(client_category):
     return client_category and client_category.id
 
@@ -145,14 +128,6 @@ def _get_sellable_code(sellable):
 
 def _get_station_code(station):
     return station.id
-
-
-def _get_payment_method_code(payment_method):
-    return payment_method.id
-
-
-def _get_payment_method_description(payment_method):
-    return payment_method.method_name
 
 
 def _get_station_nickname(station):
@@ -173,6 +148,98 @@ def _get_person_names(person):
         'sobrenome': lastname,
         'apelido': firstname,
     }
+
+
+card_type_map = {
+    'credit': 'CREDITO',
+    'debit': 'DEBITO'
+}
+
+# FIXME: Include the values for the following providers:
+# PGTO ONLINE RIOMAR
+# TRANSFERENCIA PICPAY
+# TRANSFERENCIA PIX
+card_name_map = {
+    'CREDITO IFOOD': 'PGTO ONLINE IFOOD',
+    'CREDITO RAPPI': 'PGTO ONLINE ZAPPAY'
+}
+
+method_name_map = {
+    'bill': 'BOLETO',
+    'check': 'CHEQUE',
+    'credit': 'CREDITO',
+    'deposit': 'DEPOSITO',
+    'money': 'DINHEIRO',
+    'multiple': 'MULTIPLO',
+    'online': 'ONLINE',
+    'store_credit': 'CARTAO DA LOJA',
+    'trade': 'TROCA'
+}
+
+
+def _get_card_name(card_type, provider_short_name):
+    card_name = ' '.join([card_type_map[card_type], provider_short_name]).upper()
+    return card_name_map.get(card_name, card_name)
+
+
+def _get_card_description(card_type, provider_short_name):
+    return _get_card_name(card_type, provider_short_name)
+
+
+def _get_payment_method_name(payment_method_name):
+    return method_name_map[payment_method_name]
+
+
+def _get_payment_method_code(payment_method):
+    return payment_method.id
+
+
+def _get_payment_method_description(payment_method):
+    return _get_payment_method_name(payment_method.method_name)
+
+
+def _get_credit_provider_code(credit_provider):
+    return credit_provider.id
+
+
+def _get_credit_provider_description(credit_provider):
+    return credit_provider.short_name
+
+
+def _get_payments_info(payments_list, login_user, sale):
+    payments = []
+    for payment in payments_list:
+        if payment.method.method_name == 'card':
+            payments.append({
+                'id': payment.card_data.provider_id,
+                'codigo': _get_credit_provider_code(payment.card_data.provider),
+                'nome': _get_card_name(payment.card_data.card_type,
+                                       payment.card_data.provider.short_name),
+                'descricao': _get_card_description(payment.card_data.card_type,
+                                                   payment.card_data.provider.short_name),
+                'valor': float(payment.base_value or 0),
+                'troco': float(payment.base_value - payment.value),
+                'valorRecebido': float(payment.value or 0),
+                'idAtendente': login_user.id,
+                'codAtendente': login_user.username,
+                'nomeAtendente': sale.salesperson.person.name,
+            })
+            continue
+
+        payments.append({
+            'id': payment.method.id,
+            'codigo': _get_payment_method_code(payment.method),
+            'nome': _get_payment_method_name(payment.method.method_name),
+            'descricao': _get_payment_method_description(payment.method),
+            'valor': float(payment.base_value or 0),
+            'troco': float(payment.base_value - payment.value),
+            'valorRecebido': float(payment.value or 0),
+            'idAtendente': login_user.id,
+            'codAtendente': login_user.username,
+            'nomeAtendente': sale.salesperson.person.name,
+        })
+
+    return payments
 
 
 class B1foodLoginResource(BaseResource):
@@ -603,8 +670,7 @@ class B1FoodPaymentsResource(BaseResource):
                 'nomeMaquina': sale.station.name,
                 'maquinaCod': _get_station_code(sale.station),
                 'maquinaPortaFiscal': None,
-                'meiosPagamento': _get_payments_info(sale_payments[sale.group_id],
-                                                     login_user, sale),
+                'meiosPagamento': payment_methods,
                 'consumidores': [{
                     'documento': raw_document(document),
                     'tipo': document_type,
@@ -636,6 +702,7 @@ class B1FoodPaymentMethodResource(BaseResource):
         request_is_active = data.get('ativo')
 
         payment_methods = store.find(PaymentMethod)
+        card_payment_method = payment_methods.find(method_name='card').one()
         if request_is_active == '1':
             payment_methods = PaymentMethod.get_active_methods(store)
         if request_is_active == '0':
@@ -645,11 +712,41 @@ class B1FoodPaymentMethodResource(BaseResource):
 
         response = []
         for payment_method in payment_methods:
+            # PaymentMethod 'card' will be replaced by its referring CreditProviders
+            if payment_method == card_payment_method:
+                continue
+
             res_item = {
                 'ativo': payment_method.is_active,
                 'id': payment_method.id,
                 'codigo': _get_payment_method_code(payment_method),
-                'nome': payment_method.method_name,
+                'nome': _get_payment_method_name(payment_method.method_name),
+                'redeId': network['id'],
+                'lojaId': None
+            }
+            response.append(res_item)
+
+        select = Select((CreditCardData.card_type, CreditCardData.provider_id),
+                        distinct=True)
+        result = store.execute(select)
+        for item in result:
+            card_type = item[0]
+            provider_id = item[1]
+            provider = store.get(CreditProvider, provider_id)
+            is_provider_active = card_payment_method and card_payment_method.is_active \
+                and provider.visible
+
+            if request_is_active == '1' and not is_provider_active:
+                continue
+
+            if request_is_active == '0' and is_provider_active:
+                continue
+
+            res_item = {
+                'ativo': is_provider_active,
+                'id': provider_id,
+                'codigo': _get_credit_provider_code(provider),
+                'nome': _get_card_name(card_type, provider.short_name),
                 'redeId': network['id'],
                 'lojaId': None
             }

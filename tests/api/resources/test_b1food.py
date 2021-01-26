@@ -3,9 +3,10 @@ import pytest
 
 from unittest import mock
 from datetime import datetime
-from storm.expr import Ne
+from storm.expr import Ne, Select
 
 from stoqlib.domain.overrides import ProductBranchOverride
+from stoqlib.domain.payment.card import CreditCardData, CreditProvider
 from stoqlib.domain.payment.method import PaymentMethod
 from stoqlib.domain.payment.payment import Payment
 from stoqlib.domain.person import LoginUser
@@ -16,8 +17,16 @@ from stoqlib.domain.till import Till
 from stoqlib.lib.formatters import raw_document
 from stoqlib.lib.parameters import sysparam
 
-from stoqserver.api.resources.b1food import (_check_if_uuid, _get_category_info,
-                                             _get_person_names, generate_b1food_token)
+from stoqserver.api.resources.b1food import (_check_if_uuid,
+                                             _get_card_name,
+                                             _get_card_description,
+                                             _get_category_info,
+                                             _get_credit_provider_code,
+                                             _get_credit_provider_description,
+                                             _get_payment_method_description,
+                                             _get_payment_method_name,
+                                             _get_person_names,
+                                             generate_b1food_token)
 
 
 @pytest.fixture
@@ -39,9 +48,12 @@ def sale(example_creator, current_user, current_station):
     person = example_creator.create_person()
     person.login_user = current_user
     test_sale.salesperson.person = person
-    payment = example_creator.create_payment(group=test_sale.group)
-    payment.payment_type = Payment.TYPE_IN
+    payment = example_creator.create_payment(group=test_sale.group, payment_type=Payment.TYPE_IN)
     payment.paid_value = 10
+    card_payment = example_creator.create_card_payment(payment_type=Payment.TYPE_IN,
+                                                       payment_value=5)
+    card_payment.group = test_sale.group
+    card_payment.paid_value = 5
     sale_item.icms_info.v_icms = 1
     sale_item.icms_info.p_icms = 18
 
@@ -208,6 +220,11 @@ def test_check_if_uuid_valid(abort):
 def test_check_if_uuid_invalid(abort):
     _check_if_uuid(['123'])
     assert abort.call_args_list[0][0] == (400, 'os IDs das lojas devem ser do tipo UUID')
+
+
+def test_get_credit_provider_description(example_creator):
+    credit_provider = example_creator.create_credit_provider(short_name='Test')
+    assert _get_credit_provider_description(credit_provider) == 'Test'
 
 
 @pytest.mark.parametrize('size', (1, 10, 30, 128))
@@ -873,6 +890,7 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
     res = json.loads(response.data.decode('utf-8'))
     salesperson = sale.salesperson
     payment = sale.group.payments[0]
+    card_payment = sale.group.payments[1]
     document = raw_document(sale.get_client_document())
     assert response.status_code == 200
     assert res == [
@@ -898,11 +916,25 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
                 {
                     'id': payment.method.id,
                     'codigo': payment.method.id,
-                    'nome': payment.method.method_name,
-                    'descricao': payment.method.method_name,
+                    'nome': _get_payment_method_name(payment.method.method_name),
+                    'descricao': _get_payment_method_description(payment.method),
                     'valor': float(payment.paid_value),
                     'troco': float(payment.base_value - payment.value),
                     'valorRecebido': float(payment.value),
+                    'idAtendente': sale.salesperson.person.login_user.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                },
+                {
+                    'id': card_payment.card_data.provider_id,
+                    'codigo': _get_credit_provider_code(card_payment.card_data.provider),
+                    'nome': _get_card_name(card_payment.card_data.card_type,
+                                           card_payment.card_data.provider.short_name),
+                    'descricao': _get_card_description(card_payment.card_data.card_type,
+                                                       card_payment.card_data.provider.short_name),
+                    'valor': float(card_payment.paid_value),
+                    'troco': float(card_payment.base_value - card_payment.value),
+                    'valorRecebido': float(card_payment.value),
                     'idAtendente': sale.salesperson.person.login_user.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
@@ -916,7 +948,7 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
             'redeId': network['id'],
             'vlAcrescimo': 0.0,
             'vlTotalReceber': 0.0,
-            'vlTotalRecebido': 10.0,
+            'vlTotalRecebido': 15.0,
             'vlDesconto': 0.0,
             'vlRepique': 0,
             'vlServicoRecebido': 0,
@@ -950,6 +982,7 @@ def test_get_payments_active(get_config_mock, get_network_info, b1food_client,
     res = json.loads(response.data.decode('utf-8'))
     salesperson = sale.salesperson
     payment = sale.group.payments[0]
+    card_payment = sale.group.payments[1]
     document = raw_document(sale.get_client_document())
     assert response.status_code == 200
     assert res == [
@@ -975,11 +1008,25 @@ def test_get_payments_active(get_config_mock, get_network_info, b1food_client,
                 {
                     'id': payment.method.id,
                     'codigo': payment.method.id,
-                    'nome': payment.method.method_name,
-                    'descricao': payment.method.method_name,
+                    'nome': _get_payment_method_name(payment.method.method_name),
+                    'descricao': _get_payment_method_description(payment.method),
                     'valor': float(payment.paid_value),
                     'troco': float(payment.base_value - payment.value),
                     'valorRecebido': float(payment.value),
+                    'idAtendente': sale.salesperson.person.login_user.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                },
+                {
+                    'id': card_payment.card_data.provider_id,
+                    'codigo': _get_credit_provider_code(card_payment.card_data.provider),
+                    'nome': _get_card_name(card_payment.card_data.card_type,
+                                           card_payment.card_data.provider.short_name),
+                    'descricao': _get_card_description(card_payment.card_data.card_type,
+                                                       card_payment.card_data.provider.short_name),
+                    'valor': float(card_payment.paid_value),
+                    'troco': float(card_payment.base_value - card_payment.value),
+                    'valorRecebido': float(card_payment.value),
                     'idAtendente': sale.salesperson.person.login_user.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
@@ -993,7 +1040,7 @@ def test_get_payments_active(get_config_mock, get_network_info, b1food_client,
             'redeId': network['id'],
             'vlAcrescimo': 0.0,
             'vlTotalReceber': 0.0,
-            'vlTotalRecebido': 10.0,
+            'vlTotalRecebido': 15.0,
             'vlDesconto': 0.0,
             'vlRepique': 0,
             'vlServicoRecebido': 0,
@@ -1052,8 +1099,8 @@ def test_get_payments_inactive(get_config_mock, get_network_info, b1food_client,
                 {
                     'id': payment.method.id,
                     'codigo': payment.method.id,
-                    'nome': payment.method.method_name,
-                    'descricao': payment.method.method_name,
+                    'nome': _get_payment_method_name(payment.method.method_name),
+                    'descricao': _get_payment_method_description(payment.method),
                     'valor': float(payment.paid_value),
                     'troco': float(payment.base_value - payment.value),
                     'valorRecebido': float(payment.value),
@@ -1374,6 +1421,7 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
     item = sale.get_items()[0]
     discount = item.item_discount
     payment = sale.group.payments[0]
+    card_payment = sale.group.payments[1]
     assert response.status_code == 200
     assert res == [
         {
@@ -1425,11 +1473,25 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
                 {
                     'id': payment.method.id,
                     'codigo': payment.method.id,
-                    'nome': payment.method.method_name,
-                    'descricao': payment.method.method_name,
+                    'nome': _get_payment_method_name(payment.method.method_name),
+                    'descricao': _get_payment_method_description(payment.method),
                     'valor': float(payment.paid_value),
                     'troco': float(payment.base_value - payment.value),
                     'valorRecebido': float(payment.value),
+                    'idAtendente': sale.salesperson.person.login_user.id,
+                    'codAtendente': sale.salesperson.person.login_user.username,
+                    'nomeAtendente': sale.salesperson.person.name,
+                },
+                {
+                    'id': card_payment.card_data.provider_id,
+                    'codigo': _get_credit_provider_code(card_payment.card_data.provider),
+                    'nome': _get_card_name(card_payment.card_data.card_type,
+                                           card_payment.card_data.provider.short_name),
+                    'descricao': _get_card_description(card_payment.card_data.card_type,
+                                                       card_payment.card_data.provider.short_name),
+                    'valor': float(card_payment.paid_value),
+                    'troco': float(card_payment.base_value - card_payment.value),
+                    'valorRecebido': float(card_payment.value),
                     'idAtendente': sale.salesperson.person.login_user.id,
                     'codAtendente': sale.salesperson.person.login_user.username,
                     'nomeAtendente': sale.salesperson.person.name,
@@ -1487,21 +1549,40 @@ def test_get_payment_methods(get_config_mock, get_network_info,
     get_network_info.return_value = network
     payment_methods = store.find(PaymentMethod)
     payment_method = store.find(PaymentMethod, method_name='money').one()
+    provider = CreditProvider(store=store, short_name='TESTE')
+    CreditCardData(store=store, card_type='credit', provider=provider)
 
     query_string = {'Authorization': 'Bearer B1FoodClientId'}
     response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
                                  query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
-
     assert response.status_code == 200
-    assert len(res) == payment_methods.count()
 
-    res_item = [item for item in res if item['id'] == payment_method.id]
-    assert res_item == [{
+    select = Select((CreditCardData.card_type, CreditCardData.provider_id), distinct=True)
+    credit_providers = store.execute(select)
+    # -1 because 'card' payment_method is replaced by the credit providers
+    assert len(res) == payment_methods.count() + credit_providers.rowcount - 1
+
+    res_item_payment_method = [item for item in res if item['id'] == payment_method.id]
+    assert res_item_payment_method == [{
         'ativo': payment_method.is_active,
         'id': payment_method.id,
         'codigo': payment_method.id,
-        'nome': payment_method.method_name,
+        'nome': _get_payment_method_name(payment_method.method_name),
+        'redeId': network['id'],
+        'lojaId': None
+    }]
+
+    credit_provider = credit_providers.get_one()
+    card_type = credit_provider[0]
+    provider_id = credit_provider[1]
+    provider = store.get(CreditProvider, provider_id)
+    res_item_credit_provider = [item for item in res if item['id'] == provider_id]
+    assert res_item_credit_provider == [{
+        'ativo': provider.visible,
+        'id': provider_id,
+        'codigo': _get_credit_provider_code(provider),
+        'nome': _get_card_name(card_type, provider.short_name),
         'redeId': network['id'],
         'lojaId': None
     }]
@@ -1524,17 +1605,64 @@ def test_get_payment_methods_active(get_config_mock, get_network_info,
     response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
                                  query_string=query_string)
     res = json.loads(response.data.decode('utf-8'))
-
     assert response.status_code == 200
-    assert len(res) == len(payment_methods_active)
+
+    select = Select((CreditCardData.card_type, CreditCardData.provider_id), distinct=True)
+    credit_providers_count = store.execute(select).rowcount
+    assert len(res) == len(payment_methods_active) + credit_providers_count - 1
+
     assert res[0] == {
         'ativo': payment_method_active.is_active,
         'id': payment_method_active.id,
         'codigo': payment_method_active.id,
-        'nome': payment_method_active.method_name,
+        'nome': _get_payment_method_name(payment_method_active.method_name),
         'redeId': network['id'],
         'lojaId': None
     }
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_methods_active_card_inactive(get_config_mock, get_network_info,
+                                                  b1food_client, store, sale, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+    payment_methods = store.find(PaymentMethod)
+
+    card_payment_method = payment_methods.find(method_name='card').one()
+    card_payment_method.is_active = False
+
+    payment_methods_active = payment_methods.find(is_active=True)
+    payment_method_active = payment_methods_active.any()
+
+    provider_visible = CreditProvider(store=store, short_name='VISIBLE PROVIDER', visible=True)
+    CreditCardData(store=store, card_type='credit', provider=provider_visible)
+    provider_not_visible = CreditProvider(store=store, short_name='NOT VISIBLE PROVIDER',
+                                          visible=False)
+    CreditCardData(store=store, card_type='credit', provider=provider_not_visible)
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 1
+    }
+    response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+    assert response.status_code == 200
+    assert len(res) == payment_methods_active.count()
+
+    assert not any(res_item['id'] == card_payment_method.id for res_item in res)
+
+    res_item = {
+        'ativo': payment_method_active.is_active,
+        'id': payment_method_active.id,
+        'codigo': payment_method_active.id,
+        'nome': _get_payment_method_name(payment_method_active.method_name),
+        'redeId': network['id'],
+        'lojaId': None
+    }
+    assert res_item in res
 
 
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
@@ -1558,14 +1686,70 @@ def test_get_payment_methods_inactive(get_config_mock, get_network_info,
 
     assert response.status_code == 200
     assert len(res) == 1
+
     assert res[0] == {
         'ativo': payment_method.is_active,
         'id': payment_method.id,
         'codigo': payment_method.id,
-        'nome': payment_method.method_name,
+        'nome': _get_payment_method_name(payment_method.method_name),
         'redeId': network['id'],
         'lojaId': None
     }
+
+
+@mock.patch('stoqserver.api.resources.b1food._get_network_info')
+@mock.patch('stoqserver.api.decorators.get_config')
+@pytest.mark.usefixtures('mock_new_store')
+def test_get_payment_methods_inactive_card_active(get_config_mock, get_network_info,
+                                                  b1food_client, store, sale, network):
+    get_config_mock.return_value.get.return_value = "B1FoodClientId"
+    get_network_info.return_value = network
+    payment_methods = store.find(PaymentMethod)
+
+    inactive_payment_method = payment_methods.find(method_name='money').one()
+    inactive_payment_method.is_active = False
+
+    card_payment_method = payment_methods.find(method_name='card')
+    card_payment_method.is_active = True
+
+    provider_visible = CreditProvider(store=store, short_name='VISIBLE PROVIDER', visible=True)
+    CreditCardData(store=store, card_type='credit', provider=provider_visible)
+    provider_not_visible = CreditProvider(store=store, short_name='NOT VISIBLE PROVIDER',
+                                          visible=False)
+    credit_card_data = CreditCardData(store=store, card_type='credit',
+                                      provider=provider_not_visible)
+
+    query_string = {
+        'Authorization': 'Bearer B1FoodClientId',
+        'ativo': 0
+    }
+    response = b1food_client.get('b1food/terceiros/restful/meio-pagamento',
+                                 query_string=query_string)
+    res = json.loads(response.data.decode('utf-8'))
+
+    assert response.status_code == 200
+    assert len(res) == 2
+
+    res_item_payment_method = {
+        'ativo': inactive_payment_method.is_active,
+        'id': inactive_payment_method.id,
+        'codigo': inactive_payment_method.id,
+        'nome': _get_payment_method_name(inactive_payment_method.method_name),
+        'redeId': network['id'],
+        'lojaId': None
+    }
+    assert res_item_payment_method in res
+
+    res_item_credit_provider = {
+        'ativo': False,
+        'id': provider_not_visible.id,
+        'codigo': provider_not_visible.id,
+        'nome': _get_card_name(credit_card_data.card_type,
+                               provider_not_visible.short_name),
+        'redeId': network['id'],
+        'lojaId': None
+    }
+    assert res_item_credit_provider in res
 
 
 @mock.patch('stoqserver.api.resources.b1food._get_network_info')
