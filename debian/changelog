@@ -1,3 +1,9 @@
+stoq-server (2.3.9) xenial; urgency=medium
+
+  * Release 2.3.9
+
+ -- Luis <luis@stoqws-2>  Wed, 27 Jan 2021 17:39:23 -0300
+
 stoq-server (2.3.8) xenial; urgency=medium
 
   * Release 2.3.8
