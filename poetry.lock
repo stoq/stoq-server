@@ -848,7 +848,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlib"
-version = "7.4.2"
+version = "7.5.0"
 description = ""
 category = "main"
 optional = false
@@ -1904,8 +1904,8 @@ stoqimendes = [
     {file = "stoqimendes-1.2.2.tar.gz", hash = "sha256:f60cef55afb521bf3444d7ae48caf5e48b439737324fddeebb1d485ce94ab4e6"},
 ]
 stoqlib = [
-    {file = "stoqlib-7.4.2-py3-none-any.whl", hash = "sha256:8a292ed84aec095bc880b89f4ca48c552794373dded8684fa2db4025a5e2aa2a"},
-    {file = "stoqlib-7.4.2.tar.gz", hash = "sha256:73357bc6679db890061efd27ba53aa85e8932efa353f1d8fed7b46b25512a3b4"},
+    {file = "stoqlib-7.5.0-py3-none-any.whl", hash = "sha256:bc1f423b0ec3b062cb71ba17021191b275f3d5874665479cdb32779a7d03c446"},
+    {file = "stoqlib-7.5.0.tar.gz", hash = "sha256:0f6e6f9fb347079d2d5db09841aa8f210827236f4cec2046597f04db19bfd2fe"},
 ]
 stoqlink = [
     {file = "stoqlink-1.11.3-py3-none-any.whl", hash = "sha256:295d76096d77af386b59f5fd24ae832c056bdee2e4ae4fe1da07241172a53190"},

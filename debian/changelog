@@ -1,3 +1,9 @@
+stoq-server (2.4.0) xenial; urgency=medium
+
+  * Release 2.4.0
+
+ -- rafael <rafael@stoqws-03>  Thu, 28 Jan 2021 11:41:48 -0300
+
 stoq-server (2.3.9) xenial; urgency=medium
 
   * Release 2.3.9
