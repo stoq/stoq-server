@@ -887,18 +887,33 @@ class SaleResourceMixin:
         - Sale/Advance already saved checking
     """
 
-    def _check_already_saved(self, store, klass, obj_id, should_print_receipts):
-        existing_sale = store.get(klass, obj_id)
-        if existing_sale:
+    def _check_already_saved(self, store, klass, obj_id, should_print_receipts,
+                             external_order_id=None, order_number=None):
+        sale = store.get(klass, obj_id)
+        if sale:
             log.info('Sale already saved: %s' % obj_id)
             log.info('send CheckCouponTransmittedEvent signal')
             # XXX: This might not really work for AdvancePayment, we need to test this. It might
             # need specific handling.
-            is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(existing_sale)[0][1]
+            is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(sale)[0][1]
             if is_coupon_transmitted:
                 if should_print_receipts:
-                    return self._handle_coupon_printing_fail(existing_sale)
-                return {'sale_id': obj_id}, 200
+                    return self._handle_coupon_printing_fail(sale)
+
+                retval = signal('GetInvoiceDataEvent').send(sale)
+                invoice_data = retval[0][1] if retval else {}
+                kps_image = None
+                if (sale.station.has_kps_enabled and sale.get_kitchen_items()
+                        and not external_order_id):
+                    kps_image = self._print_kps(sale, order_number)
+
+                return {
+                    'id': sale.id,
+                    'client_id': sale.client_id,
+                    'invoice_data': invoice_data,
+                    'transmitted': is_coupon_transmitted,
+                    'kps_image': kps_image,
+                }
 
             raise AssertionError(_('Sale already saved'))
 
@@ -1173,8 +1188,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
         return data
 
     @staticmethod
-    def _print_kps(data, sale):
-        order_number = data.get('order_number')
+    def _print_kps(sale, order_number):
         if order_number in {'0', '', None}:
             log.error('Invalid order number: %s', order_number)
             abort(400, "Invalid order number")
@@ -1193,6 +1207,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         client_category_id = data.get('price_table')
         should_print_receipts = data.get('print_receipts', True)
         postpone_emission = data.get('postpone_emission', False)
+        external_order_id = data.get('external_order_id')
+        order_number = data.get('order_number')
 
         log.debug("POST /sale station: %s payload: %s",
                   self.get_current_station(store), data)
@@ -1200,7 +1216,8 @@ class SaleResource(BaseResource, SaleResourceMixin):
         client, client_document, coupon_document = self._get_client_and_document(store, data)
 
         sale_id = data.get('sale_id')
-        early_response = self._check_already_saved(store, Sale, sale_id, should_print_receipts)
+        early_response = self._check_already_saved(store, Sale, sale_id, should_print_receipts,
+                                                   external_order_id, order_number)
         if early_response:
             return early_response
 
@@ -1312,7 +1329,6 @@ class SaleResource(BaseResource, SaleResourceMixin):
         group.confirm()
         sale.order(user)
 
-        external_order_id = data.get('external_order_id')
         if external_order_id:
             log.info("emitting event FinishExternalOrderEvent %s", external_order_id)
             try:
@@ -1358,7 +1374,7 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
         kps_image = None
         if sale.station.has_kps_enabled and sale.get_kitchen_items() and not external_order_id:
-            kps_image = self._print_kps(data, sale)
+            kps_image = self._print_kps(sale, order_number)
 
         transmitted = invoice_data.get('transmitted', False) if invoice_data else False
 
