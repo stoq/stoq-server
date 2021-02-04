@@ -890,32 +890,33 @@ class SaleResourceMixin:
     def _check_already_saved(self, store, klass, obj_id, should_print_receipts,
                              external_order_id=None, order_number=None):
         sale = store.get(klass, obj_id)
-        if sale:
-            log.info('Sale already saved: %s' % obj_id)
-            log.info('send CheckCouponTransmittedEvent signal')
-            # XXX: This might not really work for AdvancePayment, we need to test this. It might
-            # need specific handling.
-            is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(sale)[0][1]
-            if is_coupon_transmitted:
-                if should_print_receipts:
-                    return self._handle_coupon_printing_fail(sale)
+        if not sale:
+            return
 
-                retval = signal('GetInvoiceDataEvent').send(sale)
-                invoice_data = retval[0][1] if retval else {}
-                kps_image = None
-                if (sale.station.has_kps_enabled and sale.get_kitchen_items()
-                        and not external_order_id):
-                    kps_image = self._print_kps(sale, order_number)
+        log.info('Sale already saved: %s' % obj_id)
+        log.info('send CheckCouponTransmittedEvent signal')
+        # XXX: This might not really work for AdvancePayment, we need to test this. It might
+        # need specific handling.
+        is_coupon_transmitted = signal('CheckCouponTransmittedEvent').send(sale)[0][1]
+        if is_coupon_transmitted and should_print_receipts:
+            # This will return an print error and the user will be presented with a message to print
+            # again
+            return self._handle_coupon_printing_fail(sale)
 
-                return {
-                    'id': sale.id,
-                    'client_id': sale.client_id,
-                    'invoice_data': invoice_data,
-                    'transmitted': is_coupon_transmitted,
-                    'kps_image': kps_image,
-                }
+        retval = signal('GetInvoiceDataEvent').send(sale)
+        invoice_data = retval[0][1] if retval else {}
+        kps_image = None
+        if (sale.station.has_kps_enabled and sale.get_kitchen_items()
+                and not external_order_id):
+            kps_image = self._print_kps(sale, order_number)
 
-            raise AssertionError(_('Sale already saved'))
+        return {
+            'id': sale.id,
+            'client_id': sale.client_id,
+            'invoice_data': invoice_data,
+            'transmitted': is_coupon_transmitted,
+            'kps_image': kps_image,
+        }
 
     def _get_client_and_document(self, store, data):
         client_id = data.get('client_id')

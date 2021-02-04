@@ -44,7 +44,7 @@ from stoqlib.lib.translation import dgettext
 
 from stoqserver import sentry
 from stoqserver.sentry import raven_client, sentry_report, SENTRY_URL
-from stoqserver.utils import get_user_hash
+from stoqserver.utils import get_user_hash, JsonEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,9 @@ def bootstrap_app(debug=False):
     # the POS in which the user making the sale does not exist.
     app.config['SECRET_KEY'] = get_user_hash()
     app.config['PROPAGATE_EXCEPTIONS'] = True
+    app.config['RESTFUL_JSON'] = {
+        'cls': JsonEncoder,
+    }
     flask_api = Api(app)
 
     register_routes(flask_api)
