@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "bb004743-47c6-4c28-9ef5-c81e588a883d",
+		"_postman_id": "b2dd4137-e87c-4244-aac9-a6dcd861cca5",
 		"name": "StoqCloud",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -1424,6 +1424,41 @@
 					]
 				}
 			]
+		},
+		{
+			"name": "Invoice",
+			"item": [
+				{
+					"name": "nfe_purchase",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"imported_nfe_id\": \"{{imported_nfe_id}}\",\n  \"branch_id\": \"{{branch_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/{{instance}}/api/v1/invoice/import",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"{{instance}}",
+								"api",
+								"v1",
+								"invoice",
+								"import"
+							]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [
@@ -1526,6 +1561,10 @@
 		{
 			"key": "open_date",
 			"value": "2021-01-13 10:46:21"
+		},
+		{
+			"key": "imported_nfe_id",
+			"value": ""
 		}
 	]
 }

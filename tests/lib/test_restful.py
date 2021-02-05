@@ -1,18 +1,16 @@
-import requests
 from decimal import Decimal
 from unittest import mock
 
 import pytest
-
+import requests
 from stoqifood.domain import ExternalOrder
 from stoqlib.domain.overrides import ProductBranchOverride
-from stoqlib.domain.sale import Sale
 from stoqlib.domain.person import Individual
+from stoqlib.domain.sale import Sale
 from stoqlib.domain.till import Till
 from storm.expr import Desc
 
 from stoqserver.lib import restful
-
 
 # We must import restful if we want to run some tests individually. Otherwise, only patches that
 # mock stoqlib.lib.restful work when running pytest with -k

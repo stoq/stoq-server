@@ -88,6 +88,7 @@ from stoqserver.api.resources.b1food import (B1foodLoginResource, IncomeCenterRe
 from stoqserver.api.resources.branch import BranchResource
 from stoqserver.api.resources.client import ClientResource
 from stoqserver.api.resources.inventory import InventoryResource
+from stoqserver.api.resources.invoice import NfePurchaseResource
 from stoqserver.api.resources.sellable import SellableResource
 from stoqserver.api.resources.webhook import WebhookEvent
 
@@ -105,6 +106,7 @@ ClientResource
 InventoryResource
 SellableResource
 WebhookEvent
+NfePurchaseResource
 
 _ = functools.partial(dgettext, 'stoqserver')
 PDV_VERSION = None

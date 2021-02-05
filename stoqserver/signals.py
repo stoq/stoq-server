@@ -55,3 +55,5 @@ EventStreamEstablishedEvent = signal('EventStreamEstablishedEvent')
 GenerateExternalOrderReceiptImageEvent = signal('GenerateExternalOrderReceiptImageEvent')
 
 WebhookEvent = signal('WebhookEvent')
+
+GetImportedNFeByIdEvent = signal('GetImportedNFeByIdEvent')

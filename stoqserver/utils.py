@@ -25,9 +25,12 @@
 import datetime
 import decimal
 import json
+import os.path
 from hashlib import md5
 
 from stoqlib.api import api
+
+import stoqserver
 
 
 class JsonEncoder(json.JSONEncoder):
@@ -43,3 +46,10 @@ class JsonEncoder(json.JSONEncoder):
 
 def get_user_hash():
     return md5(api.sysparam.get_string('USER_HASH').encode('UTF-8')).hexdigest()
+
+
+def get_pytests_datadir(*subdirs):
+    data_dir = os.path.join(
+        os.path.dirname(os.path.dirname(stoqserver.__file__)), 'tests/data/', *subdirs)
+
+    return data_dir
