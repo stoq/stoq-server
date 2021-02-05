@@ -89,6 +89,7 @@ from stoqserver.api.resources.branch import BranchResource
 from stoqserver.api.resources.client import ClientResource
 from stoqserver.api.resources.inventory import InventoryResource
 from stoqserver.api.resources.invoice import NfePurchaseResource
+from stoqserver.api.resources.imported_nfe import ImportedNfeResource
 from stoqserver.api.resources.sellable import SellableResource
 from stoqserver.api.resources.webhook import WebhookEvent
 
@@ -103,6 +104,7 @@ B1foodLoginResource
 IncomeCenterResource
 BranchResource
 ClientResource
+ImportedNfeResource
 InventoryResource
 SellableResource
 WebhookEvent
