@@ -41,6 +41,7 @@ from psycogreen.gevent import patch_psycopg
 monkey.patch_all()
 patch_psycopg()
 
+import stoq
 from stoqserver import app
 from stoqserver.main import setup_stoq, setup_logging
 
@@ -48,8 +49,8 @@ import sys
 # sys.argv comes with the arguments passed to gunicorn, but stoq will not work well with those.
 sys.argv = []
 
-setup_stoq()
-setup_logging()
+setup_stoq(register_station=True, name='stoqflask', version=stoq.version)
+setup_logging(app_name='stoq-flask')
 
 app.is_multiclient = True
 application = app.bootstrap_app(debug=False)

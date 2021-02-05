@@ -461,6 +461,7 @@ class PingResource(BaseResource):
     routes = ['/ping']
 
     def get(self):
+        log.info('Got ping from client')
         return 'pong from stoqserver'
 
 
