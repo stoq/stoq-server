@@ -62,6 +62,7 @@ viivakoodi = "^0.8.0"
 PyKCS11 = "^1.5.9"
 # cffi depends on this but it is not installing correctly
 pycparser = "^2.20"
+Flask-Log-Request-ID = "^0.10.1"
 
 [tool.poetry.dev-dependencies]
 Babel = "^2.8.0"

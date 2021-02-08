@@ -36,6 +36,11 @@ from gevent.pywsgi import WSGIServer
 from raven.contrib.flask import Sentry
 from werkzeug.serving import run_with_reloader
 
+try:
+    from flask_log_request_id import RequestID
+except ImportError:
+    RequestID = None
+
 from stoqlib.api import api
 from stoqlib.database.runtime import get_current_station
 from stoqlib.lib.dateutils import localnow
@@ -76,6 +81,8 @@ def bootstrap_app(debug=False):
         'cls': JsonEncoder,
     }
     flask_api = Api(app)
+    if RequestID:
+        RequestID(app)
 
     register_routes(flask_api)
 

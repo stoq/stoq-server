@@ -35,6 +35,11 @@ import sys
 import time
 import xmlrpc.client
 
+try:
+    from flask_log_request_id import RequestIDLogFilter
+except ImportError:
+    RequestIDLogFilter = None
+
 import stoq
 from stoqlib.lib.component import provide_utility
 from stoq.lib.options import get_option_parser
@@ -103,10 +108,15 @@ def setup_stoq(register_station=False, name='stoqserver',
 
 
 def setup_logging(app_name='stoq-server', is_debug=None):
+    log_format = '%(asctime)s %(name)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s'
+
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.DEBUG if is_debug else logging.INFO)
-    formatter = logging.Formatter(
-        '%(asctime)s %(name)s [%(processName)s(%(process)s)]: %(levelname)s - %(message)s')
+    if RequestIDLogFilter:
+        ch.addFilter(RequestIDLogFilter())
+        log_format = log_format.replace('processName', 'request_id')
+
+    formatter = logging.Formatter(log_format)
     ch.setFormatter(formatter)
 
     root = logging.getLogger()
