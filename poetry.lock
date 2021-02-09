@@ -671,7 +671,7 @@ testing = ["fields", "hunter", "process-tests (==2.0.2)", "six", "pytest-xdist",
 
 [[package]]
 name = "pytest-stoq"
-version = "0.7.1"
+version = "0.7.2"
 description = "A plugin to pytest stoq"
 category = "dev"
 optional = false
@@ -862,7 +862,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlib"
-version = "7.8.1"
+version = "7.8.2"
 description = ""
 category = "main"
 optional = false
@@ -1867,7 +1867,7 @@ pytest-cov = [
     {file = "pytest_cov-2.11.1-py2.py3-none-any.whl", hash = "sha256:bdb9fdb0b85a7cc825269a4c56b48ccaa5c7e365054b6038772c32ddcdc969da"},
 ]
 pytest-stoq = [
-    {file = "pytest-stoq-0.7.1.tar.gz", hash = "sha256:2a27f11cbf5333a0623a042e7e5701715b486b0c6333ee31e51b79f3262b0b43"},
+    {file = "pytest-stoq-0.7.2.tar.gz", hash = "sha256:756a61a2ec0c1d57681eb783bf67fab735d26192f64dc9a0f0b902bccac53252"},
 ]
 python-dateutil = [
     {file = "python-dateutil-2.8.1.tar.gz", hash = "sha256:73ebfe9dbf22e832286dafa60473e4cd239f8592f699aa5adaf10050e6e1823c"},
@@ -1942,8 +1942,8 @@ stoqimendes = [
     {file = "stoqimendes-1.2.2.tar.gz", hash = "sha256:f60cef55afb521bf3444d7ae48caf5e48b439737324fddeebb1d485ce94ab4e6"},
 ]
 stoqlib = [
-    {file = "stoqlib-7.8.1-py3-none-any.whl", hash = "sha256:a5ea1d4bab3bc9ad37d15c840f8562b5fab2155f0d03fbcf1ec69af9707e42ed"},
-    {file = "stoqlib-7.8.1.tar.gz", hash = "sha256:23c0107ae80ef6d7b11a171c94e9ac4a122b5dd3a6a88fe81f03f0b5462067a4"},
+    {file = "stoqlib-7.8.2-py3-none-any.whl", hash = "sha256:8d55cfdd2c30912e985c3990268469e1c77e2f447558c08ce1c306c8b2443b7b"},
+    {file = "stoqlib-7.8.2.tar.gz", hash = "sha256:51e6af79d5bde0de99688db2e57c1b0cf1f1775be2780c4dfb5944bc939789e0"},
 ]
 stoqlink = [
     {file = "stoqlink-1.11.3-py3-none-any.whl", hash = "sha256:295d76096d77af386b59f5fd24ae832c056bdee2e4ae4fe1da07241172a53190"},

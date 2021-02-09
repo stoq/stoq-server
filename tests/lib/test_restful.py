@@ -137,6 +137,12 @@ def mock_get_plugin_manager(monkeypatch, plugin_manager):
 
 
 @pytest.fixture
+def mock_can_emit_nfe(monkeypatch):
+    monkeypatch.setattr('stoqnfe.nfeui.can_emit_nfe',
+                        mock.Mock(return_value=False))
+
+
+@pytest.fixture
 def passbook_client():
     return {
         'name': 'Test client',
@@ -259,7 +265,7 @@ def ifood_order(store, order_details):
 @pytest.mark.parametrize('order_number', ('0', '', None))
 @pytest.mark.usefixtures('kps_station', 'open_till', 'mock_new_store')
 def test_kps_sale_with_invalid_order_number(
-    mock_kps_event_send, client, order_number, sale_payload, sellable,
+    mock_kps_event_send, mock_can_emit_nfe, client, order_number, sale_payload, sellable,
 ):
     sellable.requires_kitchen_production = True
     sale_payload['order_number'] = order_number
@@ -272,7 +278,8 @@ def test_kps_sale_with_invalid_order_number(
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
 @pytest.mark.usefixtures('current_station', 'open_till', 'mock_new_store')
-def test_kps_sale_with_kps_station_disabled(mock_kps_event_send, client, sale_payload):
+def test_kps_sale_with_kps_station_disabled(mock_kps_event_send, mock_can_emit_nfe,
+                                            client, sale_payload):
     response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
@@ -281,7 +288,8 @@ def test_kps_sale_with_kps_station_disabled(mock_kps_event_send, client, sale_pa
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
 @pytest.mark.usefixtures('open_till', 'kps_station', 'mock_new_store')
-def test_kps_sale_without_kitchen_items(mock_kps_event_send, client, sale_payload):
+def test_kps_sale_without_kitchen_items(mock_kps_event_send, mock_can_emit_nfe,
+                                        client, sale_payload):
     response = client.post('/sale', json=sale_payload)
 
     assert mock_kps_event_send.call_count == 0
@@ -290,7 +298,8 @@ def test_kps_sale_without_kitchen_items(mock_kps_event_send, client, sale_payloa
 
 @mock.patch('stoqserver.lib.restful.PrintKitchenCouponEvent.send')
 @pytest.mark.usefixtures('kps_station', 'open_till', 'mock_new_store')
-def test_kps_sale(mock_kps_event_send, client, sale_payload, sellable):
+def test_kps_sale(mock_kps_event_send, mock_can_emit_nfe, client,
+                  sale_payload, sellable):
     sellable.requires_kitchen_production = True
 
     response = client.post('/sale', json=sale_payload)
@@ -305,7 +314,7 @@ def test_kps_sale(mock_kps_event_send, client, sale_payload, sellable):
 
 
 @pytest.mark.usefixtures('kps_station', 'open_till', 'mock_new_store')
-def test_sale_with_discount(client, sale_payload, store):
+def test_sale_with_discount(mock_can_emit_nfe, client, sale_payload, store):
     sale_payload['products'][0]['quantity'] = 10
     sale_payload['payments'][0]['value'] = 100
     sale_payload['discount_value'] = 25
@@ -322,7 +331,8 @@ def test_sale_with_discount(client, sale_payload, store):
 @mock.patch('stoqserver.lib.restful.StartPassbookSaleEvent.send')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_remove_passbook_stamps(
-    mock_passbook_send_event, client, sale_payload, passbook_client, current_station, current_user
+    mock_passbook_send_event, mock_can_emit_nfe, client, sale_payload,
+    passbook_client, current_station, current_user
 ):
     data = {
         'value': 10,
@@ -350,7 +360,8 @@ def test_remove_passbook_stamps(
 @mock.patch('stoqserver.lib.restful.StartPassbookSaleEvent.send')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_dont_remove_passbook_stamps(
-    mock_passbook_send_event, client, sale_payload, passbook_client, current_station, current_user
+    mock_passbook_send_event, mock_can_emit_nfe, client, sale_payload,
+    passbook_client, current_station, current_user
 ):
     passbook_client['passbook_client_info']['points'] = '5'
 
@@ -366,7 +377,8 @@ def test_dont_remove_passbook_stamps(
 @mock.patch('stoqserver.lib.restful.StartPassbookSaleEvent.send')
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
 def test_dont_remove_passbook_stamps_if_type_points(
-    mock_passbook_send_event, client, sale_payload, passbook_client, current_station, current_user
+    mock_passbook_send_event, mock_can_emit_nfe, client, sale_payload,
+    passbook_client, current_station, current_user
 ):
     passbook_client['passbook_client_info']['type'] = 'points'
 
@@ -380,7 +392,7 @@ def test_dont_remove_passbook_stamps_if_type_points(
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_sale_with_package(client, sale_payload, example_creator, store):
+def test_sale_with_package(mock_can_emit_nfe, client, sale_payload, example_creator, store):
     child1 = example_creator.create_product(price=88, description='child1', stock=5, code='98')
     child2 = example_creator.create_product(price=8, description='child2', stock=5, code='99')
 
@@ -409,7 +421,8 @@ def test_sale_with_package(client, sale_payload, example_creator, store):
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_sale_with_package_discount_in_price(client, sale_payload, example_creator, store):
+def test_sale_with_package_discount_in_price(mock_can_emit_nfe, client, sale_payload,
+                                             example_creator, store):
     child1 = example_creator.create_product(price=88, description='child1', stock=5, code='98')
     child2 = example_creator.create_product(price=8, description='child2', stock=5, code='99')
 
@@ -438,7 +451,8 @@ def test_sale_with_package_discount_in_price(client, sale_payload, example_creat
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_sale_with_package_surcharge_in_price(client, sale_payload, example_creator, store):
+def test_sale_with_package_surcharge_in_price(mock_can_emit_nfe, client, sale_payload,
+                                              example_creator, store):
     child1 = example_creator.create_product(price=88, description='child1', stock=5, code='98')
     child2 = example_creator.create_product(price=8, description='child2', stock=5, code='99')
 
@@ -469,7 +483,8 @@ def test_sale_with_package_surcharge_in_price(client, sale_payload, example_crea
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_sale_new_client(client, sale_payload_new_client, example_creator, store):
+def test_sale_new_client(mock_can_emit_nfe, client, sale_payload_new_client,
+                         example_creator, store):
     response = client.post('/sale', json=sale_payload_new_client)
     sale = store.find(Sale).order_by(Desc(Sale.open_date)).first()
     individual = store.find(Individual, cpf=sale_payload_new_client['client_document']).one()
@@ -481,7 +496,8 @@ def test_sale_new_client(client, sale_payload_new_client, example_creator, store
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_sale_with_delivery(client, sale_payload_new_client, example_creator, store):
+def test_sale_with_delivery(mock_can_emit_nfe, client, sale_payload_new_client,
+                            example_creator, store):
     sale_payload_new_client['delivery'] = {
         'freight_type': 'cif',
         'price': 15,
@@ -847,7 +863,8 @@ def test_post_sale_with_ifood_order(
 
 
 @pytest.mark.usefixtures('open_till', 'mock_new_store')
-def test_post_sale_ifood_order_without_order_id(client, sale_payload, ifood_order):
+def test_post_sale_ifood_order_without_order_id(mock_can_emit_nfe, client,
+                                                sale_payload, ifood_order):
 
     response = client.post('/sale', json=sale_payload)
 
