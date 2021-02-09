@@ -30,7 +30,7 @@ import traceback
 
 import gevent
 from blinker import signal
-from flask import Flask, Response, request
+from flask import Flask, Response, request, current_app
 from flask_restful import Api
 from gevent.pywsgi import WSGIServer
 from raven.contrib.flask import Sentry
@@ -55,8 +55,6 @@ logger = logging.getLogger(__name__)
 
 _ = functools.partial(dgettext, 'stoqserver')
 
-is_multiclient = False
-
 
 def register_routes(flask_api):
     # FIXME here we are importing BaseResource from the restful module because we need all
@@ -68,9 +66,19 @@ def register_routes(flask_api):
         flask_api.add_resource(cls, *cls.routes)
 
 
-def bootstrap_app(debug=False):
+def is_multiclient():
+    try:
+        return current_app.multiclient
+    except RuntimeError:
+        # This is running outside an application context, meaning it is in a separate worker.
+        # This means it is indeed NOT a multiclient application
+        return False
+
+
+def bootstrap_app(debug=False, multiclient=False):
     app = Flask(__name__)
     app.debug = debug
+    app.multiclient = multiclient
 
     # Indexing some session data by the USER_HASH will help to avoid maintaining
     # sessions between two different databases. This could lead to some errors in
@@ -137,14 +145,11 @@ def run_flaskserver(port, debug=False, multiclient=False):
     # Force pt_BR for now.
     configure_locale('pt_BR')
 
-    global is_multiclient
-    is_multiclient = multiclient
-
     from .workers import WORKERS
     # For now we're disabling workers when stoqserver is serving multiple clients (multiclient mode)
     # FIXME: a proper solution would be to modify the workflow so that the clients ask the server
     # about devices health, the till status, etc. instead of the other way around.
-    if not is_multiclient:
+    if not multiclient:
         for function in WORKERS:
             gevent.spawn(function, get_current_station(api.get_default_store()))
 
@@ -154,7 +159,7 @@ def run_flaskserver(port, debug=False, multiclient=False):
     except ImportError:
         pass
 
-    app = bootstrap_app(debug)
+    app = bootstrap_app(debug, multiclient)
 
     from stoqserver.lib.restful import has_sat, has_nfe
     logger.info('Starting wsgi server (has_sat=%s, has_nfe=%s)', has_sat, has_nfe)

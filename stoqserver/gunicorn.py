@@ -52,5 +52,4 @@ sys.argv = []
 setup_stoq(register_station=True, name='stoqflask', version=stoq.version)
 setup_logging(app_name='stoq-flask')
 
-app.is_multiclient = True
-application = app.bootstrap_app(debug=False)
+application = app.bootstrap_app(debug=False, multiclient=True)

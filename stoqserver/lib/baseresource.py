@@ -85,7 +85,7 @@ class BaseResource(Resource):
     @classmethod
     def ensure_printer(cls, station, retries=20):
         # In multiclient mode there is no local printer
-        if is_multiclient:
+        if is_multiclient():
             return
 
         assert printer_lock.locked()

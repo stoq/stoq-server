@@ -51,7 +51,7 @@ class base_lock_decorator:
     def __call__(self, func):
 
         def new_func(*args, **kwargs):
-            if not is_multiclient:
+            if not is_multiclient():
                 # Only acquire the lock if running in single client mode. Multi client mode cannot
                 # have any locks in the requests
                 acquired = self.lock.acquire(blocking=self._block)
@@ -81,8 +81,7 @@ def lock_printer(func):
     This will make sure that only one callsite is using the printer at a time.
     """
     def new_func(*args, **kwargs):
-
-        if not is_multiclient:
+        if not is_multiclient():
             if printer_lock.locked():
                 log.info('Waiting printer lock release in func %s', func)
             # Only acquire the lock if running in single client mode. Multi client mode cannot

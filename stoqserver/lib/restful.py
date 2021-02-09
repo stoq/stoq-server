@@ -373,7 +373,7 @@ class DataResource(BaseResource):
             settings.update(response[1])
 
         sat_status = pinpad_status = printer_status = True
-        if not is_multiclient:
+        if not is_multiclient():
             try:
                 sat_status = check_sat()
             except LockFailedException:
@@ -784,7 +784,7 @@ class TefResource(BaseResource):
 
         try:
             # Only lock printer in single client mode
-            if not is_multiclient:
+            if not is_multiclient():
                 with printer_lock:
                     self.ensure_printer(station)
         except Exception:
@@ -796,7 +796,7 @@ class TefResource(BaseResource):
             return
 
         # FIXME: If we fix sitef/ntk, we should be able to use only sender = station
-        if is_multiclient:
+        if is_multiclient():
             # When running in multi client mode, we want the callbacks to only get the signals
             # emmited for the current station.
             sender = station
