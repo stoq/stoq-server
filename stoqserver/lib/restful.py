@@ -27,7 +27,6 @@ import datetime
 import decimal
 import functools
 import io
-import json
 import logging
 from decimal import Decimal
 from typing import Dict, Optional
@@ -70,7 +69,7 @@ from storm.expr import LeftJoin, Join, And, Eq, Ne, Coalesce, Sum
 
 from stoqserver.app import is_multiclient
 from stoqserver.lib.baseresource import BaseResource
-from stoqserver.lib.eventstream import EventStream, EventStreamBrokenException
+from stoqserver.lib.eventstream import EventStream, EventStreamBrokenException, STREAM_BROKEN
 from .checks import check_drawer, check_pinpad, check_sat
 from .constants import PROVIDER_MAP
 from .lock import lock_pinpad, lock_printer, lock_sat, printer_lock, LockFailedException
@@ -770,7 +769,7 @@ class TefResource(BaseResource):
             station = self.get_current_station(store)
             reply = EventStream.ask_question(station, question)
 
-        if reply is EventStreamBrokenException:
+        if reply is STREAM_BROKEN:
             raise EventStreamBrokenException()
         return reply
 
@@ -848,7 +847,7 @@ class TefReplyResource(BaseResource):
     def post(self, store):
         data = self.get_json()
         station = self.get_current_station(store)
-        EventStream.add_event_reply(station.id, json.loads(data['value']))
+        EventStream.add_event_reply(station.id, data['value'])
 
 
 class TefCancelCurrentOperation(BaseResource):

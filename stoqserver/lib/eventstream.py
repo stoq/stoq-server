@@ -29,17 +29,34 @@ import json
 import logging
 
 from flask import make_response, request, Response
-from gevent.event import Event
-from gevent.queue import Queue, Empty
 from psycopg2 import DataError
+import redis
+from werkzeug.local import LocalProxy
 
 from stoqlib.api import api
+from stoqlib.lib.configparser import get_config
+from stoqlib.lib.decorators import cached_function
 from stoqlib.domain.station import BranchStation
 from stoqserver.lib.baseresource import BaseResource
 from ..signals import EventStreamEstablishedEvent, TefCheckPendingEvent
 from ..utils import JsonEncoder
 
 log = logging.getLogger(__name__)
+
+STREAM_BROKEN = b'STREAM_BROKEN'
+STREAM_FORCE_CLOSE = b'STREAM_FORCE_CLOSE'
+STREAM_ALL_BRANCHES = b'STREAM_ALL_BRANCHES'
+
+
+@cached_function()
+def get_redis_server():
+    config = get_config()
+    assert config
+
+    url = config.get('General', 'redis_server') or 'redis://localhost'
+    return redis.from_url(url)
+
+redis_server = LocalProxy(get_redis_server)
 
 
 # pyflakes
@@ -78,16 +95,6 @@ class EventStream(BaseResource):
     all of them will receive all events
     """
 
-    # Some queues that messages will be added to and latter be sent to the connected stations in the
-    # stream. Note that there can be only one client for each station
-    _streams = {}  # type: Dict[str, Queue]
-
-    # The replies that is comming from the station.
-    _replies = {}  # type: Dict[str, Queue]
-
-    # Indicates if there is a payment process waiting for a reply from a station.
-    _waiting_reply = {}  # type: Dict[str, Event]
-
     routes = ['/stream']
 
     @classmethod
@@ -95,17 +102,17 @@ class EventStream(BaseResource):
         """If station specified, put a event only on the client stream.
         Otherwise, put it in all streams
         """
-
+        payload = json.dumps(data, cls=JsonEncoder)
         if station:
             if station.is_api:
                 return
-            if station.id not in cls._streams:
+
+            receivers = redis_server.publish(station.id, payload)
+            if receivers == 0:
                 raise EventStreamUnconnectedStation
+            return
 
-            return cls._streams[station.id].put(data)
-
-        for stream in cls._streams.values():
-            stream.put(data)
+        redis_server.publish(STREAM_ALL_BRANCHES, payload)
 
     @classmethod
     def ask_question(cls, station, question):
@@ -117,9 +124,12 @@ class EventStream(BaseResource):
         }, station=station)
 
         log.info('Waiting tef reply')
-        cls._waiting_reply[station.id].set()
-        reply = cls._replies[station.id].get()
-        cls._waiting_reply[station.id].clear()
+
+        redis_server.hset('waiting', station.id, 1)
+        # This call will block until some other request puts a reply on this list
+        reply = json.loads(redis_server.blpop('reply-%s' % station.id, timeout=0)[1].decode())
+        redis_server.hdel('waiting', station.id)
+
         log.info('Got tef reply: %s', reply)
         return reply
 
@@ -127,10 +137,10 @@ class EventStream(BaseResource):
     def add_event_reply(cls, station_id, reply):
         """Puts a reply from the frontend"""
         log.info('Got reply from %s: %s', station_id, reply)
-        assert cls._replies[station_id].empty()
-        assert cls._waiting_reply[station_id].is_set()
+        assert redis_server.llen('reply-%s' % station_id) == 0
+        assert redis_server.hexists('waiting', station_id)
 
-        return cls._replies[station_id].put(reply)
+        redis_server.lpush('reply-%s' % station_id, reply)
 
     @classmethod
     def _get_event_for_device(cls, device_type: DeviceType, device_status: bool):
@@ -156,41 +166,44 @@ class EventStream(BaseResource):
         with suppress(EventStreamUnconnectedStation):
             cls.add_event(event, station=station)
 
-    def _loop(self, stream: Queue, station_id):
+    def _loop(self, stream: redis.client.PubSub, station_id):
         while True:
-            try:
-                data = stream.get(timeout=10)
-            except Empty:
-                if self._streams[station_id] != stream:
-                    log.info('Stream for station %s changed. Closing old stream', station_id)
-                    break
-
+            data = stream.get_message(timeout=10)
+            if data is None:
                 yield "data: null\n\n"
                 continue
 
-            yield "data: " + json.dumps(data, cls=JsonEncoder) + "\n\n"
+            if data['type'] == 'subscribe':
+                continue
+
+            if data['data'] == STREAM_FORCE_CLOSE:
+                log.info('Stream for station %s changed. Closing old stream', station_id)
+                break
+
+            yield "data: " + data['data'].decode() + "\n\n"
         log.info('Closed event stream for %s', station_id)
 
     def get(self):
-        stream = Queue()
         store = api.new_store()
         station = self.get_current_station(store, token=request.args['token'])
         log.info('Estabilished event stream for %s', station.id)
-        self._streams[station.id] = stream
 
-        # Don't replace the reply queue and waiting reply flag
-        self._replies.setdefault(station.id, Queue(maxsize=1))
-        self._waiting_reply.setdefault(station.id, Event())
+        # Break any connections that are still listening on this station's stream
+        redis_server.publish(station.id, STREAM_FORCE_CLOSE)
 
-        if self._waiting_reply[station.id].is_set():
+        stream = redis_server.pubsub()
+        stream.subscribe(station.id)
+        stream.subscribe(STREAM_ALL_BRANCHES)
+
+        if redis_server.hexists('waiting', station.id):
             # There is a new stream for this station, but we were currently waiting for a reply from
             # the same station in the previous event stream. Put an invalid reply there, and clear
             # the flag so that the station can continue working
-            self._replies[station.id].put(EventStreamBrokenException)
-            self._waiting_reply[station.id].clear()
+            redis_server.lpush('reply-%s' % station.id, STREAM_BROKEN)
+            redis_server.hdel('waiting', station.id)
 
         # If we dont put one event, the event stream does not seem to get stabilished in the browser
-        stream.put(json.dumps({}))
+        self.add_event({}, station)
 
         EventStreamEstablishedEvent.send(station)
 

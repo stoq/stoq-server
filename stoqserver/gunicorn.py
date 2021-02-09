@@ -25,10 +25,7 @@
 
 run with:
 
-    gunicorn stoqserver.gunicorn -w 1 -b localhost:6971 -k gevent
-
-
-Note that this can be run with only one worker for now, due to how the eventstream works
+    gunicorn stoqserver.gunicorn -w 4 -b localhost:6971 -k gevent
 
 """
 

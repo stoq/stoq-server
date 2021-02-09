@@ -24,7 +24,8 @@ test:
   before_script:
     # Install stoqlib from master.
     - apt update
-    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev libjpeg8-dev zlib1g-dev swig build-essential libssl-dev libffi-dev python3-dev
+    - apt --yes install libcairo2-dev python3-pip python3-virtualenv libpq-dev libjpeg8-dev zlib1g-dev swig build-essential libssl-dev libffi-dev python3-dev redis-server
+    - service redis-server start
     - export LC_ALL=pt_BR.UTF-8
     - python3 -m venv env
     - source env/bin/activate
