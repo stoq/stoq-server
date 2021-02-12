@@ -15,7 +15,7 @@ Architecture: all
 Depends: ${misc:Depends}, ${python:Depends},
  stoq (>= 6.1~rc1), python3-stoqdrivers (>= 2.0.0), binutils, supervisor, duplicity, adduser, git, openvpn, postgresql, postgresql-contrib,
  python3-requests (>= 2.2), python3-flask, python3-flask-restful, python3-raven, tmate,
- python3-gevent, python3-psutil (>= 3.4.2), python3-tzlocal (>= 1.2), python3-psycogreen
+ python3-gevent, python3-psutil (>= 3.4.2), python3-tzlocal (>= 1.2), python3-psycogreen, redis-server, python3-redis
 Recommends: python3-pygments
 Homepage: http://www.stoq.com.br/
 Description: A server for Stoq.
