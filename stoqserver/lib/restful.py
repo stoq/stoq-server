@@ -1149,10 +1149,18 @@ class SaleResource(BaseResource, SaleResourceMixin):
 
             if not transporter.person.address and 'address' in trans_data:
                 ClientResource.create_address(transporter.person, trans_data['address'])
+        else:
+            # There is no transporter in the payload, but we still need one. Use the branch as
+            # transporter
+            transporter = sale.branch.person.transporter
+            if not transporter:
+                transporter = Transporter(store=sale.store, person=sale.branch.person)
 
         delivery = Delivery(store=sale.store, transporter=transporter)
         delivery.invoice = sale.invoice
-        delivery.address = client.person.address
+        if client:
+            delivery.address = client.person.address
+
         delivery.freight_type = data.get('freight_type')  # This is optional
         if data.get('volumes'):
             delivery.volumes_kind = data['volumes'].get('kind')
