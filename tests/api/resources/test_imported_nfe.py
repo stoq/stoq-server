@@ -141,6 +141,7 @@ def test_get_imported_nfe_no_imported_nfe(client, example_creator, branch_with_a
         'previous': None,
         'next': None,
         'count': 0,
+        'total_records': 0,
         'records': []
     }
 
@@ -157,6 +158,7 @@ def test_get_imported_nfe_without_nfe_purchase(client, branch_with_access, impor
         'previous': None,
         'next': None,
         'count': 1,
+        'total_records': 1,
         'records': [{
             'id': imported_nfe.id,
             'key': imported_nfe.key,
@@ -181,6 +183,7 @@ def test_get_imported_nfe_with_nfe_purchase(store, client, branch_with_access,
         'previous': None,
         'next': None,
         'count': 1,
+        'total_records': 1,
         'records': [{
             'id': imported_nfe.id,
             'key': imported_nfe.key,
@@ -205,8 +208,9 @@ def test_get_imported_nfe_with_next(store, client, imported_nfe):
     assert response.status_code == 200
     assert response.json == {
         'previous': None,
-        'next': route + '?limit=1?offset=1?cnpj={}'.format(imported_nfe.cnpj),
+        'next': route + '?limit=1&offset=1&cnpj={}'.format(imported_nfe.cnpj),
         'count': 1,
+        'total_records': 2,
         'records': [{
             'id': other_imported_nfe.id,
             'key': other_imported_nfe.key,
@@ -231,9 +235,10 @@ def test_get_imported_nfe_with_previous(store, client, imported_nfe):
 
     assert response.status_code == 200
     assert response.json == {
-        'previous': route + '?limit=1?offset=0?cnpj={}'.format(imported_nfe.cnpj),
+        'previous': route + '?limit=1&offset=0&cnpj={}'.format(imported_nfe.cnpj),
         'next': None,
         'count': 1,
+        'total_records': 2,
         'records': [{
             'id': imported_nfe.id,
             'key': imported_nfe.key,
@@ -260,9 +265,10 @@ def test_get_imported_nfe_with_previous_and_next(store, client, imported_nfe):
 
     assert response.status_code == 200
     assert response.json == {
-        'previous': route + '?limit=1?offset=0?cnpj={}'.format(imported_nfe.cnpj),
-        'next': route + '?limit=1?offset=2?cnpj={}'.format(imported_nfe.cnpj),
+        'previous': route + '?limit=1&offset=0&cnpj={}'.format(imported_nfe.cnpj),
+        'next': route + '?limit=1&offset=2&cnpj={}'.format(imported_nfe.cnpj),
         'count': 1,
+        'total_records': 3,
         'records': [{
             'id': other_imported_nfe.id,
             'key': other_imported_nfe.key,

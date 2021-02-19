@@ -131,19 +131,20 @@ class ImportedNfeResource(BaseResource):
         has_next = result_count > next_offset
         next_ = None
         if has_next:
-            next_ = self.routes[0] + '?limit={}?offset={}?cnpj={}'.format(
+            next_ = self.routes[0] + '?limit={}&offset={}&cnpj={}'.format(
                 limit, offset + limit, cnpj)
 
         has_previous = offset > 0
         previous = None
         if has_previous:
-            previous = self.routes[0] + '?limit={}?offset={}?cnpj={}'.format(
+            previous = self.routes[0] + '?limit={}&offset={}&cnpj={}'.format(
                 limit, max(offset - limit, 0), cnpj)
 
         response = {
             'previous': previous,
             'next': next_,
             'count': len(records),
+            'total_records': result_count,
             'records': records
         }
         return make_response(jsonify(response), 200)
