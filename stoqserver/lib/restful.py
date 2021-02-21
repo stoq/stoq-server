@@ -1160,6 +1160,11 @@ class SaleResource(BaseResource, SaleResourceMixin):
         delivery.invoice = sale.invoice
         if client:
             delivery.address = client.person.address
+        if not delivery.address:
+            # FIXME: The client might be missing an address, or the payload might have come without
+            # a client. Either way, a delivery needs an address, so fallback to the branch address
+            # for now
+            delivery.address = sale.branch.person.address
 
         delivery.freight_type = data.get('freight_type')  # This is optional
         if data.get('volumes'):
