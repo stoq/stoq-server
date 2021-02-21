@@ -30,7 +30,6 @@ from storm.expr import Desc, Eq, Join
 from stoqlib.lib.formatters import format_cnpj, raw_document
 from stoqlib.lib.validators import validate_cnpj
 from stoqlib.domain.person import Branch, Company, Person, UserBranchAccess
-from stoqnfe.domain.distribution import ImportedNfe
 
 from stoqserver.lib.baseresource import BaseResource
 from stoqserver.api.decorators import login_required, store_provider
@@ -45,6 +44,8 @@ class ImportedNfeResource(BaseResource):
     routes = ['/api/v1/imported_nfe']
 
     def get(self, store):
+        from stoqnfe.domain.distribution import ImportedNfe
+
         cnpj = self.get_arg('cnpj')
         limit = self.get_arg('limit')
         offset = self.get_arg('offset')
