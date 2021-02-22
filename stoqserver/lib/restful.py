@@ -366,6 +366,7 @@ class DataResource(BaseResource):
         hotjar_id = config.get("Hotjar", "id")
         plugins = get_plugin_manager().active_plugins_names
         responses = signal('GetSettingsForFrontendEvent').send(station)
+        enable_cash_operations = config.get("Till", "enable_cash_operations") == 'true'
 
         settings = {}
         for response in responses:
@@ -424,6 +425,7 @@ class DataResource(BaseResource):
             hotjar_id=hotjar_id,
             plugins=plugins,
             settings=settings,
+            enable_cash_operations=enable_cash_operations,
             # Device statuses
             sat_status=sat_status,
             pinpad_status=pinpad_status,
