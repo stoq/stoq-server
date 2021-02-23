@@ -1132,7 +1132,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqimendes"
-version = "1.2.2"
+version = "1.2.6"
 description = ""
 category = "main"
 optional = false
@@ -2421,8 +2421,8 @@ stoqifood = [
     {file = "stoqifood-1.2.0.tar.gz", hash = "sha256:4bfbf76364c176dc4fc5417a71658d164ee57941a8db8692ed473921a4f7b7c7"},
 ]
 stoqimendes = [
-    {file = "stoqimendes-1.2.2-py3-none-any.whl", hash = "sha256:190f6f1567be62a5221446727dbff2faf75af9f275cbb23281d1aef3d0384929"},
-    {file = "stoqimendes-1.2.2.tar.gz", hash = "sha256:f60cef55afb521bf3444d7ae48caf5e48b439737324fddeebb1d485ce94ab4e6"},
+    {file = "stoqimendes-1.2.6-py3-none-any.whl", hash = "sha256:cdfaabfcfe4b6846ce6295ad763e566913d3788a87ba8eb279e7f3dc02de67f6"},
+    {file = "stoqimendes-1.2.6.tar.gz", hash = "sha256:2ee0a80a56b8c1df1ffb7c50fea606a1d46256f7c39cd594ce78a2efa024aed8"},
 ]
 stoqlib = [
     {file = "stoqlib-7.9.1-py3-none-any.whl", hash = "sha256:eb5345455ff156c60fd592df187850cd14def24368c6268a1d86d328c19b6810"},
