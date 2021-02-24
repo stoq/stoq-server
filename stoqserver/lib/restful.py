@@ -339,6 +339,21 @@ class DataResource(BaseResource):
             })
         return sale_context_list
 
+    def _get_payment_providers(self, config):
+        def _get_setting(config, name):
+            value = config.get('PaymentProviders', name)
+            if not value:
+                return None
+            return [i.strip() for i in value.split(',')]
+
+        return dict(
+            credit=_get_setting(config, 'credit'),
+            debit=_get_setting(config, 'debit'),
+            voucher=_get_setting(config, 'voucher'),
+            delivery=_get_setting(config, 'delivery'),
+            digital_wallet=_get_setting(config, 'digital_wallet')
+        )
+
     def _get_scrollable_items(self, config):
         payments_list = config.get("Payments", "credit_providers") or ''
         return [i.strip() for i in payments_list.split(',')]
@@ -415,6 +430,8 @@ class DataResource(BaseResource):
             categories=self._get_categories(store, station),
             payment_methods=self._get_payment_methods(store),
             providers=self._get_card_providers(store),
+            payment_providers=self._get_payment_providers(config),
+            # Keep this for a while for backward compatibility
             scrollable_list=self._get_scrollable_items(config),
             staff_id=staff_category.id if staff_category else None,
             can_send_sms=can_send_sms,
