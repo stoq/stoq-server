@@ -33,7 +33,7 @@ import sys
 import pkg_resources
 
 
-version = "2.9.7"
+version = "2.9.8"
 
 # legacy versioning
 __version__ = (1, 6, 0, "beta1")
