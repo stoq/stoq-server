@@ -1152,7 +1152,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlib"
-version = "7.9.1"
+version = "7.9.2"
 description = ""
 category = "main"
 optional = false
@@ -1286,7 +1286,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqsat"
-version = "1.2.1"
+version = "1.3.1"
 description = "Permits send CF-e files(Cupom Fiscal eletrônico) to SAT devices(Sistema Autenticador e Transmissor)."
 category = "main"
 optional = false
@@ -2425,8 +2425,8 @@ stoqimendes = [
     {file = "stoqimendes-1.2.6.tar.gz", hash = "sha256:2ee0a80a56b8c1df1ffb7c50fea606a1d46256f7c39cd594ce78a2efa024aed8"},
 ]
 stoqlib = [
-    {file = "stoqlib-7.9.1-py3-none-any.whl", hash = "sha256:eb5345455ff156c60fd592df187850cd14def24368c6268a1d86d328c19b6810"},
-    {file = "stoqlib-7.9.1.tar.gz", hash = "sha256:cfe7a6955aba7efe82c4eb1941b4e1f900e1d5c26ea95899862dd3f22ba486d6"},
+    {file = "stoqlib-7.9.2-py3-none-any.whl", hash = "sha256:5a9ecc2aad056da99194ebce70cc72a8124ece4afd94367bb353a2cf0e464df3"},
+    {file = "stoqlib-7.9.2.tar.gz", hash = "sha256:1ebff40fd04ada37c32b82cf813b647bb027b7190c9b7437b04faccb8e033180"},
 ]
 stoqlink = [
     {file = "stoqlink-1.11.4-py3-none-any.whl", hash = "sha256:c8aa1ca0922091caba8e06564b36675f4cb3ae8edde052883772e3e6b3344ade"},
@@ -2445,8 +2445,8 @@ stoqpassbook = [
     {file = "stoqpassbook-1.0.1.tar.gz", hash = "sha256:1c12b33690d081732f210aaec91a48ea5277c07ecd1f94d65b4c7aa51a09ea2d"},
 ]
 stoqsat = [
-    {file = "stoqsat-1.2.1-py3-none-any.whl", hash = "sha256:82923b8ffb6563e795642cd2839d401b2065701de7024250c46c9c8535f675b1"},
-    {file = "stoqsat-1.2.1.tar.gz", hash = "sha256:2fd2424b799d559f4d3c6d82ce49451958ce9af5faf954ff94834243b96316bd"},
+    {file = "stoqsat-1.3.1-py3-none-any.whl", hash = "sha256:a6fe85cb88b1264c82e570a06bcd1e9ec2d8d8d98bd135ed894011153c0bf1b6"},
+    {file = "stoqsat-1.3.1.tar.gz", hash = "sha256:eca93f0b7324241525fafb675f615647757aef53814a29f721bc65e3aa5d9ebc"},
 ]
 stoqsitef = [
     {file = "stoqsitef-1.23.4-py3-none-any.whl", hash = "sha256:08f490a20b98326b2390433ea129e17fbf81f9bbb6eff936608912a7b28187ad"},
