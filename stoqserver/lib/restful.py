@@ -752,13 +752,14 @@ class TefResource(BaseResource):
             printer.print_line(holder)
             printer.cut_paper()
 
-    def _message_callback(self, lib, message, can_abort=False):
+    def _message_callback(self, lib, message, can_abort=False, qrcode=None):
         with api.new_store() as store:
             station = self.get_current_station(store)
             EventStream.add_event({
                 'type': 'TEF_DISPLAY_MESSAGE',
                 'message': message,
                 'can_abort': can_abort,
+                'qrcode': qrcode,
             }, station=station)
 
         # tef library (ntk/sitef) has some blocking calls (specially pinpad comunication).
