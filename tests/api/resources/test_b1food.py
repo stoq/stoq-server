@@ -21,7 +21,7 @@ from stoqserver.api.resources.b1food import (_check_if_uuid,
                                              _get_card_name,
                                              _get_card_description,
                                              _get_category_info,
-                                             _get_credit_provider_code,
+                                             _get_payment_method_with_provider_code,
                                              _get_credit_provider_description,
                                              _get_payment_method_description,
                                              _get_payment_method_name,
@@ -892,25 +892,35 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
     payment = sale.group.payments[0]
     card_payment = sale.group.payments[1]
     document = raw_document(sale.get_client_document())
+    card_data = card_payment.card_data
+    provider = card_data.provider
+    card_type = card_data.card_type
     assert response.status_code == 200
     assert res == [
         {
-            'codAtendente': salesperson.person.login_user.username,
-            'consumidores': [
-                {
-                    'documento': document,
-                    'tipo': 'CPF'
-                }
-            ],
-            'dataContabil': '2020-01-02 00:00:00 -0300',
+            'idMovimentoCaixa': sale.id,
+            'redeId': network['id'],
+            'rede': network['name'],
+            'lojaId': sale.branch.id,
+            'loja': sale.branch.name,
             'hora': '00',
             'cancelado': sale.status == Sale.STATUS_CANCELLED,
             'idAtendente': salesperson.person.login_user.id,
-            'idMovimentoCaixa': sale.id,
-            'loja': sale.branch.name,
-            'lojaId': sale.branch.id,
-            'maquinaCod': payment.station.id,
+            'codAtendente': salesperson.person.login_user.username,
+            'nomeAtendente': sale.salesperson.person.name,
+            'vlDesconto': 0.0,
+            'vlAcrescimo': 0.0,
+            'vlTotalReceber': 0.0,
+            'vlTotalRecebido': 15.0,
+            'vlTrocoFormasPagto': 0.0,
+            'vlServicoRecebido': 0,
+            'vlRepique': 0,
+            'vlTaxaEntrega': 0,
+            'numPessoas': 1,
+            'operacaoId': sale.id,
             'maquinaId': sale.station.id,
+            'nomeMaquina': sale.station.name,
+            'maquinaCod': payment.station.id,
             'maquinaPortaFiscal': None,
             'meiosPagamento': [
                 {
@@ -926,8 +936,8 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
                     'nomeAtendente': sale.salesperson.person.name,
                 },
                 {
-                    'id': card_payment.card_data.provider_id,
-                    'codigo': _get_credit_provider_code(card_payment.card_data.provider),
+                    'id': _get_payment_method_with_provider_code(card_type, provider),
+                    'codigo': _get_payment_method_with_provider_code(card_type, provider),
                     'nome': _get_card_name(card_payment.card_data.card_type,
                                            card_payment.card_data.provider.short_name),
                     'descricao': _get_card_description(card_payment.card_data.card_type,
@@ -940,20 +950,13 @@ def test_get_payments_successfully(get_config_mock, get_network_info,
                     'nomeAtendente': sale.salesperson.person.name,
                 }
             ],
-            'nomeAtendente': sale.salesperson.person.name,
-            'nomeMaquina': sale.station.name,
-            'numPessoas': 1,
-            'operacaoId': sale.id,
-            'rede': network['name'],
-            'redeId': network['id'],
-            'vlAcrescimo': 0.0,
-            'vlTotalReceber': 0.0,
-            'vlTotalRecebido': 15.0,
-            'vlDesconto': 0.0,
-            'vlRepique': 0,
-            'vlServicoRecebido': 0,
-            'vlTaxaEntrega': 0,
-            'vlTrocoFormasPagto': 0,
+            'consumidores': [
+                {
+                    'documento': document,
+                    'tipo': 'CPF'
+                }
+            ],
+            'dataContabil': '2020-01-02 00:00:00 -0300',
             'periodoId': None,
             'periodoCod': None,
             'periodoNome': None,
@@ -984,6 +987,8 @@ def test_get_payments_active(get_config_mock, get_network_info, b1food_client,
     payment = sale.group.payments[0]
     card_payment = sale.group.payments[1]
     document = raw_document(sale.get_client_document())
+    provider = card_payment.card_data.provider
+    card_type = card_payment.card_data.card_type
     assert response.status_code == 200
     assert res == [
         {
@@ -1018,8 +1023,8 @@ def test_get_payments_active(get_config_mock, get_network_info, b1food_client,
                     'nomeAtendente': sale.salesperson.person.name,
                 },
                 {
-                    'id': card_payment.card_data.provider_id,
-                    'codigo': _get_credit_provider_code(card_payment.card_data.provider),
+                    'id': _get_payment_method_with_provider_code(card_type, provider),
+                    'codigo': _get_payment_method_with_provider_code(card_type, provider),
                     'nome': _get_card_name(card_payment.card_data.card_type,
                                            card_payment.card_data.provider.short_name),
                     'descricao': _get_card_description(card_payment.card_data.card_type,
@@ -1422,6 +1427,8 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
     discount = item.item_discount
     payment = sale.group.payments[0]
     card_payment = sale.group.payments[1]
+    provider = card_payment.card_data.provider
+    card_type = card_payment.card_data.card_type
     assert response.status_code == 200
     assert res == [
         {
@@ -1483,8 +1490,8 @@ def test_get_receipts_successfully(get_config_mock, b1food_client, store, sale):
                     'nomeAtendente': sale.salesperson.person.name,
                 },
                 {
-                    'id': card_payment.card_data.provider_id,
-                    'codigo': _get_credit_provider_code(card_payment.card_data.provider),
+                    'id': _get_payment_method_with_provider_code(card_type, provider),
+                    'codigo': _get_payment_method_with_provider_code(card_type, provider),
                     'nome': _get_card_name(card_payment.card_data.card_type,
                                            card_payment.card_data.provider.short_name),
                     'descricao': _get_card_description(card_payment.card_data.card_type,
@@ -1577,11 +1584,12 @@ def test_get_payment_methods(get_config_mock, get_network_info,
     card_type = credit_provider[0]
     provider_id = credit_provider[1]
     provider = store.get(CreditProvider, provider_id)
-    res_item_credit_provider = [item for item in res if item['id'] == provider_id]
+    provider_code = _get_payment_method_with_provider_code(card_type, provider)
+    res_item_credit_provider = [item for item in res if item['id'] == provider_code]
     assert res_item_credit_provider == [{
         'ativo': provider.visible,
-        'id': provider_id,
-        'codigo': _get_credit_provider_code(provider),
+        'id': provider_code,
+        'codigo': provider_code,
         'nome': _get_card_name(card_type, provider.short_name),
         'redeId': network['id'],
         'lojaId': None
@@ -1713,7 +1721,7 @@ def test_get_payment_methods_inactive_card_active(get_config_mock, get_network_i
     card_payment_method.is_active = True
 
     provider_visible = CreditProvider(store=store, short_name='VISIBLE PROVIDER', visible=True)
-    CreditCardData(store=store, card_type='credit', provider=provider_visible)
+    ccd = CreditCardData(store=store, card_type='credit', provider=provider_visible)
     provider_not_visible = CreditProvider(store=store, short_name='NOT VISIBLE PROVIDER',
                                           visible=False)
     credit_card_data = CreditCardData(store=store, card_type='credit',
@@ -1742,8 +1750,8 @@ def test_get_payment_methods_inactive_card_active(get_config_mock, get_network_i
 
     res_item_credit_provider = {
         'ativo': False,
-        'id': provider_not_visible.id,
-        'codigo': provider_not_visible.id,
+        'id': _get_payment_method_with_provider_code(ccd.card_type, provider_not_visible),
+        'codigo': _get_payment_method_with_provider_code(ccd.card_type, provider_not_visible),
         'nome': _get_card_name(credit_card_data.card_type,
                                provider_not_visible.short_name),
         'redeId': network['id'],

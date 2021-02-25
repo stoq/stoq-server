@@ -198,8 +198,8 @@ def _get_payment_method_description(payment_method):
     return _get_payment_method_name(payment_method.method_name)
 
 
-def _get_credit_provider_code(credit_provider):
-    return credit_provider.id
+def _get_payment_method_with_provider_code(card_type, provider):
+    return (card_type + '_' + provider.short_name.replace(" ", "")).lower()
 
 
 def _get_credit_provider_description(credit_provider):
@@ -210,9 +210,11 @@ def _get_payments_info(payments_list, login_user, sale):
     payments = []
     for payment in payments_list:
         if payment.method.method_name == 'card':
+            card_type = payment.card_data.card_type
+            provider = payment.card_data.provider
             payments.append({
-                'id': payment.card_data.provider_id,
-                'codigo': _get_credit_provider_code(payment.card_data.provider),
+                'id': _get_payment_method_with_provider_code(card_type, provider),
+                'codigo': _get_payment_method_with_provider_code(card_type, provider),
                 'nome': _get_card_name(payment.card_data.card_type,
                                        payment.card_data.provider.short_name),
                 'descricao': _get_card_description(payment.card_data.card_type,
@@ -744,8 +746,8 @@ class B1FoodPaymentMethodResource(BaseResource):
 
             res_item = {
                 'ativo': is_provider_active,
-                'id': provider_id,
-                'codigo': _get_credit_provider_code(provider),
+                'id': _get_payment_method_with_provider_code(card_type, provider),
+                'codigo': _get_payment_method_with_provider_code(card_type, provider),
                 'nome': _get_card_name(card_type, provider.short_name),
                 'redeId': network['id'],
                 'lojaId': None
