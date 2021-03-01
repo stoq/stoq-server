@@ -382,6 +382,7 @@ class DataResource(BaseResource):
         plugins = get_plugin_manager().active_plugins_names
         responses = signal('GetSettingsForFrontendEvent').send(station)
         enable_cash_operations = config.get("Till", "enable_cash_operations") == 'true'
+        discount_percentage = config.get("Discounts", "discount_percentage") or '0'
 
         settings = {}
         for response in responses:
@@ -443,6 +444,7 @@ class DataResource(BaseResource):
             plugins=plugins,
             settings=settings,
             enable_cash_operations=enable_cash_operations,
+            discount_percentage=discount_percentage,
             # Device statuses
             sat_status=sat_status,
             pinpad_status=pinpad_status,
