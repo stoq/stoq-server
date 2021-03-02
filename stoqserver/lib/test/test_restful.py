@@ -232,6 +232,7 @@ class TestDataResource(_TestFlask):
                 'NFCE_CAN_SEND_DIGITAL_INVOICE': False,
                 'NFE_SEFAZ_TIMEOUT': 10,
                 'PASSBOOK_FIDELITY': None,
+                'SCALE_BARCODE_FORMAT': 0,
                 'INCLUDE_CASH_FUND_ON_TILL_CLOSING': False,
                 'AUTOMATIC_LOGOUT': 0,
             })

@@ -308,6 +308,7 @@ class DataResource(BaseResource):
             ('NFE_SEFAZ_TIMEOUT', int, 'nfce', 10),
             ('PASSBOOK_FIDELITY', str, 'passbook', None),
             ('AUTOMATIC_LOGOUT', int, None, 0),
+            ('SCALE_BARCODE_FORMAT', int, None, 0),
         ]
 
         retval = {}
