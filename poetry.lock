@@ -1286,7 +1286,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqsat"
-version = "1.3.1"
+version = "1.3.3"
 description = "Permits send CF-e files(Cupom Fiscal eletrônico) to SAT devices(Sistema Autenticador e Transmissor)."
 category = "main"
 optional = false
@@ -2445,8 +2445,8 @@ stoqpassbook = [
     {file = "stoqpassbook-1.0.1.tar.gz", hash = "sha256:1c12b33690d081732f210aaec91a48ea5277c07ecd1f94d65b4c7aa51a09ea2d"},
 ]
 stoqsat = [
-    {file = "stoqsat-1.3.1-py3-none-any.whl", hash = "sha256:a6fe85cb88b1264c82e570a06bcd1e9ec2d8d8d98bd135ed894011153c0bf1b6"},
-    {file = "stoqsat-1.3.1.tar.gz", hash = "sha256:eca93f0b7324241525fafb675f615647757aef53814a29f721bc65e3aa5d9ebc"},
+    {file = "stoqsat-1.3.3-py3-none-any.whl", hash = "sha256:a89d1b823c353c6463dffeb0b7914369f81b3f300a384a8ab65559c8c29b4570"},
+    {file = "stoqsat-1.3.3.tar.gz", hash = "sha256:fe1d176bc1d6b5fde91a19c3416efe45f00083e2b408fa52c0199af7aa07d7b0"},
 ]
 stoqsitef = [
     {file = "stoqsitef-1.23.5-py3-none-any.whl", hash = "sha256:55afc40191db84931662768ffa1d20ea50c918505f045b3b82ced3a8824f1191"},
