@@ -11,6 +11,7 @@ export DEB_BUILD_OPTIONS=nocheck
 	dh $@ --with python3 --buildsystem=pybuild
 
 override_dh_install:
+	dh_install
 	sed -i 's|VIRTUAL_ENV=.*$\|VIRTUAL_ENV="/usr/lib/stoq-virtualenv"|' env/bin/activate
 	sed -i 's|#!/.*$\|#!/usr/lib/stoq-virtualenv/bin/python|' env/bin/*
-	dh_install ./env/* usr/lib/stoq-virtualenv
+	mv ./env/ $(CURDIR)/debian/stoq-server/usr/lib/stoq-virtualenv

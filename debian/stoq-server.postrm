@@ -27,8 +27,6 @@ case "$1" in
     ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-        # remove virtualenv
-        rm -rf /usr/lib/stoq-virtualenv || true
     ;;
 
     *)
