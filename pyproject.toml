@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "stoq-server"
-version = "2.10.4"
+version = "2.10.5"
 description = "Stoq API backend and syncrhonization daemon and other workers"
 authors = ["Stoq Team <dev@stoq.com.br>"]
 packages = [{ include = "stoqserver" }]
