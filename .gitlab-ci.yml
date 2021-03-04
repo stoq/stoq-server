@@ -106,7 +106,7 @@ create_bundle_manual_focal:
 
 
 create_bundle:
-  image: romaia/stoq:bionic
+  image: romaia/stoq:focal
   extends: .create_deb
   script:
     - make bundle_deb
