@@ -81,7 +81,8 @@ from ..signals import (GenerateAdvancePaymentReceiptPictureEvent,
                        SearchForPassbookUsersByDocumentEvent, StartPassbookSaleEvent,
                        TefPrintReceiptsEvent, StartExternalOrderEvent,
                        CancelExternalOrderEvent, GenerateExternalOrderReceiptImageEvent,
-                       PrintExternalOrderEvent, ReadyToDeliverExternalOrderEvent)
+                       PrintExternalOrderEvent, ReadyToDeliverExternalOrderEvent,
+                       PrintTillEntryCouponEvent)
 
 from stoqserver.api.resources.b1food import (B1foodLoginResource, IncomeCenterResource)
 from stoqserver.api.resources.branch import BranchResource
@@ -578,10 +579,12 @@ class TillResource(BaseResource):
         # FIXME: Check balance when removing to prevent negative till.
         if data['operation'] == 'debit_entry':
             reason = _('The user %s removed cash from till') % user.username
-            till.add_debit_entry(decimal.Decimal(data['entry_value']), reason)
+            till_entry = till.add_debit_entry(decimal.Decimal(data['entry_value']), reason)
         elif data['operation'] == 'credit_entry':
             reason = _('The user %s supplied cash to the till') % user.username
-            till.add_credit_entry(decimal.Decimal(data['entry_value']), reason)
+            till_entry = till.add_credit_entry(decimal.Decimal(data['entry_value']), reason)
+
+        return self._print_till_entry(till_entry, user.username)
 
     def _get_till_summary(self, store, till):
         payment_data = []
@@ -624,6 +627,13 @@ class TillResource(BaseResource):
 
         return till_data
 
+    @staticmethod
+    def _print_till_entry(till_entry, username):
+        log.info('emitting event PrintTillEntryCouponEvent')
+        responses = PrintTillEntryCouponEvent.send(till_entry, username=username)
+        till_entry_image = responses[0][1] if len(responses) == 1 else None
+        return till_entry_image
+
     @lock_printer
     def post(self):
         data = self.get_json()
@@ -637,7 +647,11 @@ class TillResource(BaseResource):
                 self._handle_close_till(store, till, data['till_summaries'],
                                         data['include_receipt_image'])
             elif data['operation'] in ['debit_entry', 'credit_entry']:
-                self._add_credit_or_debit_entry(store, till, data)
+                till_entry_image = self._add_credit_or_debit_entry(store, till, data)
+
+                return {
+                    'till_entry_image': till_entry_image,
+                }
             else:
                 raise AssertionError('Unkown till operation %r' % data['operation'])
 

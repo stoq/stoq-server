@@ -57,3 +57,4 @@ GenerateExternalOrderReceiptImageEvent = signal('GenerateExternalOrderReceiptIma
 WebhookEvent = signal('WebhookEvent')
 
 GetImportedNFeByIdEvent = signal('GetImportedNFeByIdEvent')
+PrintTillEntryCouponEvent = signal('PrintTillEntryCouponEvent')
