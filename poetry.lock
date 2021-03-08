@@ -1105,7 +1105,7 @@ qrcode = ">=5.3,<5.4"
 
 [[package]]
 name = "stoqifood"
-version = "1.2.1"
+version = "1.3.0"
 description = "Stoq plugin for external order"
 category = "main"
 optional = false
@@ -1132,7 +1132,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqimendes"
-version = "1.2.6"
+version = "1.3.0"
 description = ""
 category = "main"
 optional = false
@@ -1152,7 +1152,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlib"
-version = "7.10.0"
+version = "7.11.1"
 description = ""
 category = "main"
 optional = false
@@ -1185,7 +1185,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlink"
-version = "1.11.4"
+version = "1.11.5"
 description = ""
 category = "main"
 optional = false
@@ -1207,7 +1207,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnfe"
-version = "1.4.7"
+version = "1.4.9"
 description = "Integration with SEFAZ system to emit the NF-e or NFC-e"
 category = "main"
 optional = false
@@ -1240,7 +1240,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnonfiscal"
-version = "1.1.2"
+version = "1.1.3"
 description = "This plugin that will print a receipt"
 category = "main"
 optional = false
@@ -2417,28 +2417,28 @@ stoqdrivers = [
     {file = "stoqdrivers-2.1.0.tar.gz", hash = "sha256:31a55080b4d28e22dc7c21f9229656800b8224f255e41da5fed7601b6c5da128"},
 ]
 stoqifood = [
-    {file = "stoqifood-1.2.1-py3-none-any.whl", hash = "sha256:ee32b40e71ab5209759e8aeb61a389d8afc3d971a3877b3133f9fc934a984a61"},
-    {file = "stoqifood-1.2.1.tar.gz", hash = "sha256:0f4392458d79530967564ab0af9b69d543d7cd231491a0dd485ef742f6fe409d"},
+    {file = "stoqifood-1.3.0-py3-none-any.whl", hash = "sha256:e0f104e82b9443b15e19efb1d1145d232696363e046ea98073a85e657df7a5d2"},
+    {file = "stoqifood-1.3.0.tar.gz", hash = "sha256:040c827cbbc6eb6fef3c784782cc7f991237ea3e347c34ceff31f5f5f5740785"},
 ]
 stoqimendes = [
-    {file = "stoqimendes-1.2.6-py3-none-any.whl", hash = "sha256:cdfaabfcfe4b6846ce6295ad763e566913d3788a87ba8eb279e7f3dc02de67f6"},
-    {file = "stoqimendes-1.2.6.tar.gz", hash = "sha256:2ee0a80a56b8c1df1ffb7c50fea606a1d46256f7c39cd594ce78a2efa024aed8"},
+    {file = "stoqimendes-1.3.0-py3-none-any.whl", hash = "sha256:4941e5380dc30e6b2bf3217f7a26f74405d7161db402565d055e646476213c80"},
+    {file = "stoqimendes-1.3.0.tar.gz", hash = "sha256:de93dd4af135d3b1bae8443212f382768332dec6a06fd25952974bbb767d0635"},
 ]
 stoqlib = [
-    {file = "stoqlib-7.10.0-py3-none-any.whl", hash = "sha256:e949712c5d9c9c005d9e0a2db8a31ded7248e12bf66ea081ad5488c0361a73ac"},
-    {file = "stoqlib-7.10.0.tar.gz", hash = "sha256:75120d205fd65b97513e070ebc960a8d4a6d0c20a1b3639eece8083a942319d3"},
+    {file = "stoqlib-7.11.1-py3-none-any.whl", hash = "sha256:d2688312d9f0b26ec35d90d3a10061c2aa576c52f28150d3ae276a505c23e3db"},
+    {file = "stoqlib-7.11.1.tar.gz", hash = "sha256:43b84fe6dbc75a5a780b438f0d0faf1c58925caf3e8a1111922f0993ee038216"},
 ]
 stoqlink = [
-    {file = "stoqlink-1.11.4-py3-none-any.whl", hash = "sha256:c8aa1ca0922091caba8e06564b36675f4cb3ae8edde052883772e3e6b3344ade"},
-    {file = "stoqlink-1.11.4.tar.gz", hash = "sha256:2314f785fcff5fe75479a6ea2a92a74b9d654bfe0ec0b8184c09411d4e44cb3e"},
+    {file = "stoqlink-1.11.5-py3-none-any.whl", hash = "sha256:ac94f89b4f4df2a16d86439bb9d401bdb48ee81d7ab1d9b2871edd373cc4ed60"},
+    {file = "stoqlink-1.11.5.tar.gz", hash = "sha256:12aaadb921ce85f9c3d4b8b1795cfad3940507fa37e767e0dda710e68aee7579"},
 ]
 stoqnfe = [
-    {file = "stoqnfe-1.4.7-py3-none-any.whl", hash = "sha256:7116c71e2c50d74c67656dcb188a131c7acfc91647c2888afb95ef49184ebd33"},
-    {file = "stoqnfe-1.4.7.tar.gz", hash = "sha256:dd63eda51f3d71309e286204500a7fe366fc0852465e3b5a0a2a10e1ffd26df5"},
+    {file = "stoqnfe-1.4.9-py3-none-any.whl", hash = "sha256:21c1257bd25be763527d32bf37c0b2031c28e9f5d93c8d6c8106686bac83b6cf"},
+    {file = "stoqnfe-1.4.9.tar.gz", hash = "sha256:ed0630cd42bc81d994d33ccfa6693e271fc37d5ebb1cf25775e6ab78c9debc7e"},
 ]
 stoqnonfiscal = [
-    {file = "stoqnonfiscal-1.1.2-py3-none-any.whl", hash = "sha256:611fcee62045e1d6799f27e2a2c9f275bae86ae963f7455897ea58929a17458d"},
-    {file = "stoqnonfiscal-1.1.2.tar.gz", hash = "sha256:44ae243bc53d5086784f4ecca3d0b429c260733d89feab1a04c3570434337cc6"},
+    {file = "stoqnonfiscal-1.1.3-py3-none-any.whl", hash = "sha256:e6c8c6c02adbf01c9e6e5a52f8777c587028cc23a95aa7cf41c12c56febd1f87"},
+    {file = "stoqnonfiscal-1.1.3.tar.gz", hash = "sha256:14d16816f51b294853f657b5572feab71fe94955f03dd5734c2647ed8b40fda5"},
 ]
 stoqpassbook = [
     {file = "stoqpassbook-1.0.1-py3-none-any.whl", hash = "sha256:91b9fb75e9b2f3ba3cc6b29eda91a9635c17af54a7b647fe268d61946751beef"},
