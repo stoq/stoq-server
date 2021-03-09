@@ -43,10 +43,15 @@ def login_required(f):
         # token should be sent through a header using the format 'Bearer <token>'
         auth = request.headers.get('Authorization', '').split('Bearer ')
         if len(auth) != 2:
+            log.warning('Invalid Authorization header: %s', request.headers.get('Authorization'))
             abort(401)
 
         with api.new_store() as store:
             access_token = AccessToken.get_by_token(store=store, token=auth[1])
+            if not access_token:
+                log.warning('Token not found: %s', auth)
+                abort(403, "invalid token {}".format(auth[1]))
+
             if not access_token.is_valid():
                 abort(403, "token {}".format(access_token.status))
 
