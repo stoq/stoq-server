@@ -1,3 +1,9 @@
+stoq-server (2.11.4) xenial; urgency=medium
+
+  * Release 2.11.4
+
+ -- Vinícius M Camillo <vmcamillo@stoqws-09>  Tue, 16 Mar 2021 12:24:31 -0300
+
 stoq-server (2.11.3) xenial; urgency=medium
 
   * Release 2.11.3
