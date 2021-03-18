@@ -1240,7 +1240,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnonfiscal"
-version = "1.1.3"
+version = "1.1.4"
 description = "This plugin that will print a receipt"
 category = "main"
 optional = false
@@ -2437,8 +2437,8 @@ stoqnfe = [
     {file = "stoqnfe-1.4.15.tar.gz", hash = "sha256:13af2dfab45a180460f0a5bfc9895726fb5fe3d7a0ddba1166a49d0274f74540"},
 ]
 stoqnonfiscal = [
-    {file = "stoqnonfiscal-1.1.3-py3-none-any.whl", hash = "sha256:e6c8c6c02adbf01c9e6e5a52f8777c587028cc23a95aa7cf41c12c56febd1f87"},
-    {file = "stoqnonfiscal-1.1.3.tar.gz", hash = "sha256:14d16816f51b294853f657b5572feab71fe94955f03dd5734c2647ed8b40fda5"},
+    {file = "stoqnonfiscal-1.1.4-py3-none-any.whl", hash = "sha256:1a29f9e2fd28ee52f4ba754d8f3d715d7ae9203c5795e255a1a09123e523eb35"},
+    {file = "stoqnonfiscal-1.1.4.tar.gz", hash = "sha256:a3bdfcd6180348f6fa7f05042a5b0567f52c82bf0f49a392c5c7d1cfcd722986"},
 ]
 stoqpassbook = [
     {file = "stoqpassbook-1.0.1-py3-none-any.whl", hash = "sha256:91b9fb75e9b2f3ba3cc6b29eda91a9635c17af54a7b647fe268d61946751beef"},
