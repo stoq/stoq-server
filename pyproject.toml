@@ -64,6 +64,7 @@ PyKCS11 = "^1.5.9"
 pycparser = "^2.20"
 Flask-Log-Request-ID = "^0.10.1"
 redis = "^3.5.3"
+tabulate = "^0.8.9"
 
 [tool.poetry.dev-dependencies]
 Babel = "^2.8.0"

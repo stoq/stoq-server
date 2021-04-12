@@ -1132,7 +1132,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqimendes"
-version = "1.3.0"
+version = "1.4.0"
 description = ""
 category = "main"
 optional = false
@@ -1152,7 +1152,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlib"
-version = "7.11.3"
+version = "7.12.1"
 description = ""
 category = "main"
 optional = false
@@ -1207,7 +1207,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnfe"
-version = "1.4.15"
+version = "1.11.0"
 description = "Integration with SEFAZ system to emit the NF-e or NFC-e"
 category = "main"
 optional = false
@@ -1230,6 +1230,7 @@ qrcode = ">=5.3,<6.0"
 reportlab = ">=3.3.0,<4.0.0"
 stoqlib = ">=7.1.0,<8.0.0"
 storm = ">=0.24,<0.25"
+tabulate = ">=0.8.9,<0.9.0"
 weasyprint = ">=0.34,<0.35"
 "zope.interface" = ">=4.1.3,<5.0.0"
 
@@ -1240,7 +1241,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnonfiscal"
-version = "1.1.4"
+version = "1.2.0"
 description = "This plugin that will print a receipt"
 category = "main"
 optional = false
@@ -1286,7 +1287,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqsat"
-version = "1.3.3"
+version = "1.3.4"
 description = "Permits send CF-e files(Cupom Fiscal eletrônico) to SAT devices(Sistema Autenticador e Transmissor)."
 category = "main"
 optional = false
@@ -1337,6 +1338,17 @@ six = "*"
 [package.extras]
 doc = ["fixtures", "sphinx", "sphinx-epytext"]
 test = ["fixtures (>=1.3.0)", "pgbouncer (>=0.0.7)", "postgresfixture", "psycopg2 (>=2.3.0)", "testresources (>=0.2.4)", "testtools (>=0.9.8)", "timeline (>=0.0.2)", "transaction (>=1.0.0)", "twisted (>=10.0.0)", "zope.component (>=3.8.0)", "zope.configuration", "zope.interface (>=4.0.0)", "zope.security (>=3.7.2)"]
+
+[[package]]
+name = "tabulate"
+version = "0.8.9"
+description = "Pretty-print tabular data"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.extras]
+widechars = ["wcwidth"]
 
 [[package]]
 name = "tinycss"
@@ -1523,7 +1535,7 @@ testing = ["zope.event", "nose", "coverage"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.5"
-content-hash = "373326b623be3cdadd75f5a3d8b6dd36b09ceec3c76346b73f980a18042bbbee"
+content-hash = "b7f4998a7952bb7b169aa9cc23884eb84d33ea539b7225ab77e67290660c3cb7"
 
 [metadata.files]
 aniso8601 = [
@@ -2421,32 +2433,32 @@ stoqifood = [
     {file = "stoqifood-1.3.1.tar.gz", hash = "sha256:e8edaa4a0cdade5dc116b9f1edfc66d7c57a60b1441183be348532faf36c36f2"},
 ]
 stoqimendes = [
-    {file = "stoqimendes-1.3.0-py3-none-any.whl", hash = "sha256:4941e5380dc30e6b2bf3217f7a26f74405d7161db402565d055e646476213c80"},
-    {file = "stoqimendes-1.3.0.tar.gz", hash = "sha256:de93dd4af135d3b1bae8443212f382768332dec6a06fd25952974bbb767d0635"},
+    {file = "stoqimendes-1.4.0-py3-none-any.whl", hash = "sha256:4edaded34abe653771ba6f5c1cf0f48c0c141ba6175e5d6e8ea75659b8814ae1"},
+    {file = "stoqimendes-1.4.0.tar.gz", hash = "sha256:574e555093fb284f0de5925d78064cbbbce9d088c9198eae52f908a572e44569"},
 ]
 stoqlib = [
-    {file = "stoqlib-7.11.3-py3-none-any.whl", hash = "sha256:7fbcd6bb3554da1e2497b9ef35c93bb745392e876fceaf3458e898104e7e44af"},
-    {file = "stoqlib-7.11.3.tar.gz", hash = "sha256:13e3b0afd3b94780d8ccec673102d0fdc26e6eed6967b491dff8090969736cb0"},
+    {file = "stoqlib-7.12.1-py3-none-any.whl", hash = "sha256:4b00cb872f7bbc777fa9fa15f25350a670cc2fcde854e32c0ee8c6fea99fa89b"},
+    {file = "stoqlib-7.12.1.tar.gz", hash = "sha256:25af1a5bd840e32e473a74c7e68519f870c330c4dd906e4bcbfe05c29ccd8c77"},
 ]
 stoqlink = [
     {file = "stoqlink-1.11.5-py3-none-any.whl", hash = "sha256:ac94f89b4f4df2a16d86439bb9d401bdb48ee81d7ab1d9b2871edd373cc4ed60"},
     {file = "stoqlink-1.11.5.tar.gz", hash = "sha256:12aaadb921ce85f9c3d4b8b1795cfad3940507fa37e767e0dda710e68aee7579"},
 ]
 stoqnfe = [
-    {file = "stoqnfe-1.4.15-py3-none-any.whl", hash = "sha256:3f6b23d50e411bd4bc07dacfff0c7db2a2d4b537172a7633191c4d9289a4d48b"},
-    {file = "stoqnfe-1.4.15.tar.gz", hash = "sha256:13af2dfab45a180460f0a5bfc9895726fb5fe3d7a0ddba1166a49d0274f74540"},
+    {file = "stoqnfe-1.11.0-py3-none-any.whl", hash = "sha256:430469870fead8c840e0ec4bb23eb9245fa9aeca6ac9b909f09fbb62384ee685"},
+    {file = "stoqnfe-1.11.0.tar.gz", hash = "sha256:53025624a360032c860469a800b8bbdb306cc68e2124c072e0526959b1ce4344"},
 ]
 stoqnonfiscal = [
-    {file = "stoqnonfiscal-1.1.4-py3-none-any.whl", hash = "sha256:1a29f9e2fd28ee52f4ba754d8f3d715d7ae9203c5795e255a1a09123e523eb35"},
-    {file = "stoqnonfiscal-1.1.4.tar.gz", hash = "sha256:a3bdfcd6180348f6fa7f05042a5b0567f52c82bf0f49a392c5c7d1cfcd722986"},
+    {file = "stoqnonfiscal-1.2.0-py3-none-any.whl", hash = "sha256:b49607a1ba2f32be7f0b8c0f53fbf512a0a08c355ef39c69ac1d07249a65cd63"},
+    {file = "stoqnonfiscal-1.2.0.tar.gz", hash = "sha256:98818732c4026ccdd3e2a6b9a2a593cb196e6529a62768ebd1d84d3785866371"},
 ]
 stoqpassbook = [
     {file = "stoqpassbook-1.0.1-py3-none-any.whl", hash = "sha256:91b9fb75e9b2f3ba3cc6b29eda91a9635c17af54a7b647fe268d61946751beef"},
     {file = "stoqpassbook-1.0.1.tar.gz", hash = "sha256:1c12b33690d081732f210aaec91a48ea5277c07ecd1f94d65b4c7aa51a09ea2d"},
 ]
 stoqsat = [
-    {file = "stoqsat-1.3.3-py3-none-any.whl", hash = "sha256:a89d1b823c353c6463dffeb0b7914369f81b3f300a384a8ab65559c8c29b4570"},
-    {file = "stoqsat-1.3.3.tar.gz", hash = "sha256:fe1d176bc1d6b5fde91a19c3416efe45f00083e2b408fa52c0199af7aa07d7b0"},
+    {file = "stoqsat-1.3.4-py3-none-any.whl", hash = "sha256:f024ad496b9178474a851d7db83b3a93a30b7e14a292e204e9c243e68edcce9c"},
+    {file = "stoqsat-1.3.4.tar.gz", hash = "sha256:6b27995cd34e071b14dcaa00133905e8ce1e1ea642f4cb206c8109e72abea459"},
 ]
 stoqsitef = [
     {file = "stoqsitef-1.23.6-py3-none-any.whl", hash = "sha256:553a8ddcb3b7ee33e30c4982c41ff6d2806372fd92f4bed0adfb6da91225e98a"},
@@ -2454,6 +2466,10 @@ stoqsitef = [
 ]
 storm = [
     {file = "storm-0.24.tar.gz", hash = "sha256:0880c6723388e8daba8faacc6cb2f812310b7ee92154ce97eebf3ae0d5753f15"},
+]
+tabulate = [
+    {file = "tabulate-0.8.9-py3-none-any.whl", hash = "sha256:d7c013fe7abbc5e491394e10fa845f8f32fe54f8dc60c6622c6cf482d25d47e4"},
+    {file = "tabulate-0.8.9.tar.gz", hash = "sha256:eb1d13f25760052e8931f2ef80aaf6045a6cceb47514db8beab24cded16f13a7"},
 ]
 tinycss = [
     {file = "tinycss-0.4.tar.gz", hash = "sha256:12306fb50e5e9e7eaeef84b802ed877488ba80e35c672867f548c0924a76716e"},
