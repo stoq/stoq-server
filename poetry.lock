@@ -1132,7 +1132,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqimendes"
-version = "1.4.0"
+version = "1.5.0"
 description = ""
 category = "main"
 optional = false
@@ -1207,7 +1207,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqnfe"
-version = "1.11.0"
+version = "1.14.0"
 description = "Integration with SEFAZ system to emit the NF-e or NFC-e"
 category = "main"
 optional = false
@@ -2452,8 +2452,8 @@ stoqifood = [
     {file = "stoqifood-1.3.1.tar.gz", hash = "sha256:e8edaa4a0cdade5dc116b9f1edfc66d7c57a60b1441183be348532faf36c36f2"},
 ]
 stoqimendes = [
-    {file = "stoqimendes-1.4.0-py3-none-any.whl", hash = "sha256:4edaded34abe653771ba6f5c1cf0f48c0c141ba6175e5d6e8ea75659b8814ae1"},
-    {file = "stoqimendes-1.4.0.tar.gz", hash = "sha256:574e555093fb284f0de5925d78064cbbbce9d088c9198eae52f908a572e44569"},
+    {file = "stoqimendes-1.5.0-py3-none-any.whl", hash = "sha256:09f7d5667d9a706eeb328bca1481bf28a0f0eb096cfa6cb4be223ec3cc82fdc2"},
+    {file = "stoqimendes-1.5.0.tar.gz", hash = "sha256:a23fba90e16c9cc16566a77ff411b5f6a46d2b7a16f0ea077366e69c8962aa2c"},
 ]
 stoqlib = [
     {file = "stoqlib-7.13.0-py3-none-any.whl", hash = "sha256:c2fd8c141dd23802baa525b4adedc52228beb09e9eb7d65e731ddec67f466f78"},
@@ -2464,8 +2464,8 @@ stoqlink = [
     {file = "stoqlink-1.11.5.tar.gz", hash = "sha256:12aaadb921ce85f9c3d4b8b1795cfad3940507fa37e767e0dda710e68aee7579"},
 ]
 stoqnfe = [
-    {file = "stoqnfe-1.11.0-py3-none-any.whl", hash = "sha256:430469870fead8c840e0ec4bb23eb9245fa9aeca6ac9b909f09fbb62384ee685"},
-    {file = "stoqnfe-1.11.0.tar.gz", hash = "sha256:53025624a360032c860469a800b8bbdb306cc68e2124c072e0526959b1ce4344"},
+    {file = "stoqnfe-1.14.0-py3-none-any.whl", hash = "sha256:97400c21041e9495da0a64c0d8d4452dc958719364a35eff85ec32f9904c8384"},
+    {file = "stoqnfe-1.14.0.tar.gz", hash = "sha256:2577de591c66ae2d810458219c38384952ee3046c5e088c3e5cc342b270a8a20"},
 ]
 stoqnonfiscal = [
     {file = "stoqnonfiscal-1.2.0-py3-none-any.whl", hash = "sha256:b49607a1ba2f32be7f0b8c0f53fbf512a0a08c355ef39c69ac1d07249a65cd63"},
