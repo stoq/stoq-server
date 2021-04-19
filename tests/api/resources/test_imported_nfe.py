@@ -31,14 +31,22 @@ from stoqlib.domain.person import UserBranchAccess
 from stoqlib.domain.nfe import NFePurchase
 from stoqnfe.domain.distribution import ImportedNfe
 from stoqserver.api.resources.imported_nfe import MAX_PAGE_SIZE
+from lxml import etree
+from stoqserver.utils import get_pytests_datadir
+
+
+@pytest.fixture
+def other_imported_nfe_xml():
+    xml_path = get_pytests_datadir('nfce.xml')
+    parser_etree = etree.XMLParser(remove_blank_text=True)
+    return etree.parse(xml_path, parser_etree)
 
 
 @pytest.fixture
 @freeze_time('2021-02-10 12:00:00', ignore=['gi'])
-def imported_nfe(store):
-    key = '351997900074569005160550140014218121505174511'
-    xml = '<infNFe Id="NFe{}"></infNFe>'.format(key)
-    return ImportedNfe(store=store, key=key, xml=xml, cnpj='99.399.705/0001-90',
+def imported_nfe(store, imported_nfe_xml):
+    key = '53210239681615000166650010000004761226641111'
+    return ImportedNfe(store=store, key=key, xml=imported_nfe_xml, cnpj='99.399.705/0001-90',
                        process_date=datetime.now())
 
 
@@ -195,8 +203,8 @@ def test_get_imported_nfe_with_nfe_purchase(store, client, branch_with_access,
 
 @freeze_time('2021-02-10 12:00:00', ignore=['gi'])
 @pytest.mark.usefixtures('mock_new_store', 'branch_with_access')
-def test_get_imported_nfe_with_next(store, client, imported_nfe):
-    other_imported_nfe = ImportedNfe(store=store, key='123', xml='<infNFe Id="NFe123"></infNFe>',
+def test_get_imported_nfe_with_next(store, client, imported_nfe, imported_nfe_xml):
+    other_imported_nfe = ImportedNfe(store=store, key='123', xml=imported_nfe_xml,
                                      cnpj=imported_nfe.cnpj, process_date=datetime.now())
     query_string = {
         'cnpj': imported_nfe.cnpj,
@@ -222,8 +230,8 @@ def test_get_imported_nfe_with_next(store, client, imported_nfe):
 
 @freeze_time('2021-02-10 12:00:00', ignore=['gi'])
 @pytest.mark.usefixtures('mock_new_store', 'branch_with_access')
-def test_get_imported_nfe_with_previous(store, client, imported_nfe):
-    ImportedNfe(store=store, cnpj=imported_nfe.cnpj, key='123', xml='<infNFe Id="NFe123"></infNFe>',
+def test_get_imported_nfe_with_previous(store, client, imported_nfe, imported_nfe_xml):
+    ImportedNfe(store=store, cnpj=imported_nfe.cnpj, key='123', xml=imported_nfe_xml,
                 process_date=datetime.now())
     query_string = {
         'cnpj': imported_nfe.cnpj,
@@ -250,10 +258,11 @@ def test_get_imported_nfe_with_previous(store, client, imported_nfe):
 
 @freeze_time('2021-02-10 12:00:00', ignore=['gi'])
 @pytest.mark.usefixtures('mock_new_store', 'branch_with_access')
-def test_get_imported_nfe_with_previous_and_next(store, client, imported_nfe):
-    other_imported_nfe = ImportedNfe(store=store, key='123', xml='<infNFe Id="NFe123"></infNFe>',
+def test_get_imported_nfe_with_previous_and_next(store, client, imported_nfe, imported_nfe_xml,
+                                                 other_imported_nfe_xml):
+    other_imported_nfe = ImportedNfe(store=store, key='123', xml=imported_nfe_xml,
                                      cnpj=imported_nfe.cnpj, process_date=datetime.now())
-    ImportedNfe(store=store, cnpj=imported_nfe.cnpj, key='456', xml='<infNFe Id="NFe456"></infNFe>',
+    ImportedNfe(store=store, cnpj=imported_nfe.cnpj, key='456', xml=other_imported_nfe_xml,
                 process_date=datetime.now())
     query_string = {
         'cnpj': imported_nfe.cnpj,

@@ -25,7 +25,7 @@
 import logging
 
 from flask import abort, jsonify, make_response
-from storm.expr import Desc, Eq, Join
+from storm.expr import And, Cast, Desc, Eq, Join
 
 from stoqlib.lib.formatters import format_cnpj, raw_document
 from stoqlib.lib.validators import validate_cnpj
@@ -37,6 +37,7 @@ from stoqserver.api.decorators import login_required, store_provider
 log = logging.getLogger(__name__)
 
 MAX_PAGE_SIZE = 100
+NFEPROC_TYPE = '<nfeProc'
 
 
 class ImportedNfeResource(BaseResource):
@@ -106,7 +107,9 @@ class ImportedNfeResource(BaseResource):
             log.error(message)
             abort(403, message)
 
-        result = store.find(ImportedNfe, cnpj=cnpj).order_by(Desc(ImportedNfe.te_id))
+        query = And(ImportedNfe.cnpj == cnpj,
+                    Cast(ImportedNfe.xml, 'text').startswith(NFEPROC_TYPE))
+        result = store.find(ImportedNfe, query).order_by(Desc(ImportedNfe.te_id))
         result_count = result.count()
         imported_nfes = result.config(offset=offset, limit=limit)
 

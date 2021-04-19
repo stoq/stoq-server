@@ -25,10 +25,7 @@
 from unittest import mock
 
 import pytest
-from lxml import etree
 from stoqnfe.domain.distribution import ImportedNfe
-
-from stoqserver.utils import get_pytests_datadir
 
 
 @pytest.fixture
@@ -39,13 +36,6 @@ def mock_new_store(monkeypatch, store):
 @pytest.fixture
 def imported_nfe(store):
     return ImportedNfe(store=store, cnpj='95.941.054/0001-68')
-
-
-@pytest.fixture
-def imported_nfe_xml():
-    xml_path = get_pytests_datadir('nfe.xml')
-    parser_etree = etree.XMLParser(remove_blank_text=True)
-    return etree.parse(xml_path, parser_etree)
 
 
 @pytest.fixture

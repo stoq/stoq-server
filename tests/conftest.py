@@ -4,9 +4,11 @@ import tempfile
 
 import pytest
 from flask.testing import FlaskClient
+from lxml import etree
 
 from stoqlib.lib.decorators import cached_property
 from stoqserver.app import bootstrap_app
+from stoqserver.utils import get_pytests_datadir
 
 
 class StoqTestClient(FlaskClient):
@@ -107,3 +109,10 @@ def b1food_client(current_user, current_station):
 
     os.close(db_fd)
     os.unlink(app.config['DATABASE'])
+
+
+@pytest.fixture
+def imported_nfe_xml():
+    xml_path = get_pytests_datadir('nfe.xml')
+    parser_etree = etree.XMLParser(remove_blank_text=True)
+    return etree.parse(xml_path, parser_etree)
