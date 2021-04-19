@@ -1073,6 +1073,8 @@ class SaleResourceMixin:
                     if tef_data:
                         card_data.nsu = tef_data['nsu']
                         card_data.auth = tef_data['auth']
+                        card_data.card_bin = tef_data.get('card_bin')
+                        card_data.holder_name = tef_data.get('holder_name')
                         authorizer = tef_data.get('authorizer', 'TEF')
                         device = self._get_card_device(store, authorizer)
                     else:
