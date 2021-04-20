@@ -71,6 +71,10 @@ SUBSYSTEM=="tty", ACTION=="add", KERNEL=="ttyACM[0-9]*", ATTRS{idVendor}=="1c8a"
 ATTRS{idVendor}=="154f", ATTRS{idProduct}=="154f", SUBSYSTEM=="usb", MODE="0664", GROUP="dialout"
 ATTRS{idVendor}=="154f", ATTRS{idProduct}=="1300", SUBSYSTEM=="usb", MODE="0664", GROUP="dialout"
 
+# Seiko Epson Corp. Receipt Printer M129C/TM-T70
+ATTRS{idVendor}=="04b8", ATTRS{idProduct}=="0202", SUBSYSTEM=="usb", MODE="0664", GROUP="dialout"
+
+
 #
 # Touch
 #

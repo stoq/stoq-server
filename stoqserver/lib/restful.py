@@ -897,23 +897,23 @@ class ImageResource(BaseResource):
     """Image RESTful resource."""
 
     routes = ['/image/<id>']
+    method_decorators = [store_provider]
 
-    def get(self, id):
-        is_main = bool(request.args.get('is_main', None))
+    def get(self, store, id):
+        images = store.find(Image, sellable_id=id)
+
+        if 'is_main' in request.args:
+            images = images.find(is_main=bool(request.args['is_main']))
+
         keyword_filter = request.args.get('keyword')
-        # FIXME: The images should store tags so they could be requested by that tag and
-        # product_id. At the moment, we simply check if the image is main or not and
-        # return the first one.
-        with api.new_store() as store:
-            images = store.find(Image, sellable_id=id, is_main=is_main)
-            if keyword_filter:
-                images = images.find(Image.keywords.like('%{}%'.format(keyword_filter)))
-            image = images.any()
-            if image:
-                return send_file(io.BytesIO(image.image), mimetype='image/png')
-            else:
-                response = make_response(_("Image not found."), 404)
-                return response
+        if keyword_filter:
+            images = images.find(Image.keywords.like('%{}%'.format(keyword_filter)))
+
+        image = images.order_by(Image.te_id).first()
+        if image:
+            return send_file(io.BytesIO(image.image), mimetype='image/png')
+        else:
+            return make_response(_("Image not found."), 404)
 
 
 class SaleResourceMixin:
