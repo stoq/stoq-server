@@ -1152,7 +1152,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqlib"
-version = "7.13.0"
+version = "7.14.0"
 description = ""
 category = "main"
 optional = false
@@ -1308,7 +1308,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqsitef"
-version = "1.23.6"
+version = "1.24.0"
 description = ""
 category = "main"
 optional = false
@@ -2456,8 +2456,8 @@ stoqimendes = [
     {file = "stoqimendes-1.5.0.tar.gz", hash = "sha256:a23fba90e16c9cc16566a77ff411b5f6a46d2b7a16f0ea077366e69c8962aa2c"},
 ]
 stoqlib = [
-    {file = "stoqlib-7.13.0-py3-none-any.whl", hash = "sha256:c2fd8c141dd23802baa525b4adedc52228beb09e9eb7d65e731ddec67f466f78"},
-    {file = "stoqlib-7.13.0.tar.gz", hash = "sha256:cedb37435f7c5e52a7a3cf50087bb871c12a31fcb16a0d77803474ab2155a1f8"},
+    {file = "stoqlib-7.14.0-py3-none-any.whl", hash = "sha256:89c80d76383cdec06a5162142329f97b094200e603b6c57fa5098603b77797b1"},
+    {file = "stoqlib-7.14.0.tar.gz", hash = "sha256:b912ebbb18cb7da0784a862bc6bfcba23e922fce2a826ce1e0e428cfcdbf5c2b"},
 ]
 stoqlink = [
     {file = "stoqlink-1.11.5-py3-none-any.whl", hash = "sha256:ac94f89b4f4df2a16d86439bb9d401bdb48ee81d7ab1d9b2871edd373cc4ed60"},
@@ -2480,8 +2480,8 @@ stoqsat = [
     {file = "stoqsat-1.3.4.tar.gz", hash = "sha256:6b27995cd34e071b14dcaa00133905e8ce1e1ea642f4cb206c8109e72abea459"},
 ]
 stoqsitef = [
-    {file = "stoqsitef-1.23.6-py3-none-any.whl", hash = "sha256:553a8ddcb3b7ee33e30c4982c41ff6d2806372fd92f4bed0adfb6da91225e98a"},
-    {file = "stoqsitef-1.23.6.tar.gz", hash = "sha256:e19d573a5ba6f7c04c12a8ad41b117d76ef5b7ace3a139de17285e237bd137b5"},
+    {file = "stoqsitef-1.24.0-py3-none-any.whl", hash = "sha256:da24540467597c4e16881c730ab6d8187eec9598e5aa4aef6339d8b315ac12c7"},
+    {file = "stoqsitef-1.24.0.tar.gz", hash = "sha256:55af9fefa6a4923fa6a7c0fedd55014330ef96371b9bc21c0f372746bc8617bd"},
 ]
 storm = [
     {file = "storm-0.24.tar.gz", hash = "sha256:0880c6723388e8daba8faacc6cb2f812310b7ee92154ce97eebf3ae0d5753f15"},
