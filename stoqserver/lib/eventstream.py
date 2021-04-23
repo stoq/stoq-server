@@ -186,6 +186,10 @@ class EventStream(BaseResource):
     def get(self):
         store = api.new_store()
         station = self.get_current_station(store, token=request.args['token'])
+        if not station:
+            log.info('Invalid token for event stream: %s', request.args['token'])
+            return
+
         log.info('Estabilished event stream for %s', station.id)
 
         # Break any connections that are still listening on this station's stream
