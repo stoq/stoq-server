@@ -1308,7 +1308,7 @@ reference = "gitlab"
 
 [[package]]
 name = "stoqsitef"
-version = "1.24.0"
+version = "1.24.1"
 description = ""
 category = "main"
 optional = false
@@ -2480,8 +2480,8 @@ stoqsat = [
     {file = "stoqsat-1.3.4.tar.gz", hash = "sha256:6b27995cd34e071b14dcaa00133905e8ce1e1ea642f4cb206c8109e72abea459"},
 ]
 stoqsitef = [
-    {file = "stoqsitef-1.24.0-py3-none-any.whl", hash = "sha256:da24540467597c4e16881c730ab6d8187eec9598e5aa4aef6339d8b315ac12c7"},
-    {file = "stoqsitef-1.24.0.tar.gz", hash = "sha256:55af9fefa6a4923fa6a7c0fedd55014330ef96371b9bc21c0f372746bc8617bd"},
+    {file = "stoqsitef-1.24.1-py3-none-any.whl", hash = "sha256:e3917c06dbcb9ee64e80875921c2f611edd23a7de805c5f6dfc1b3bf948b4019"},
+    {file = "stoqsitef-1.24.1.tar.gz", hash = "sha256:5913b33da47b4614f7528321b2e6bbb28d32bb2c7bad4806d88daecec0d43007"},
 ]
 storm = [
     {file = "storm-0.24.tar.gz", hash = "sha256:0880c6723388e8daba8faacc6cb2f812310b7ee92154ce97eebf3ae0d5753f15"},
